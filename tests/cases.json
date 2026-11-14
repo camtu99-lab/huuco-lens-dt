@@ -1,0 +1,10 @@
+[
+ {"id":"valid_ethanol","kind":"smiles","input":"CCO","expected_status":"valid"},
+ {"id":"valid_acetic_acid","kind":"smiles","input":"CC(=O)O","expected_status":"valid"},
+ {"id":"invalid_valence","kind":"smiles","input":"CC(=O)(O)O","expected_status":"invalid"},
+ {"id":"invalid_syntax","kind":"smiles","input":"C1CC","expected_status":"invalid"},
+ {"id":"unknown_empty","kind":"smiles","input":"","expected_status":"unknown"},
+ {"id":"same_ethanol","kind":"equivalence","input":"CCO","target":"OCC","expected_same_constitution":true},
+ {"id":"different_isomers","kind":"equivalence","input":"CCO","target":"COC","expected_same_constitution":false},
+ {"id":"c4h10o_examples","kind":"isomers","formula":"C4H10O","candidates":["CCCCO","CC(O)CC","CC(C)CO","CC(C)(C)O","COC(C)C","CCOCC","COCCC"],"expected_unique_count":7}
+]
