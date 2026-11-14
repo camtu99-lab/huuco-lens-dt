@@ -1,0 +1,84 @@
+{
+  "run_utc": "2026-11-14T12:58:08.257692+00:00",
+  "n": 8,
+  "passed": 8,
+  "failed": 0,
+  "pass_rate": 1.0,
+  "total_elapsed_ms": 4.236,
+  "results": [
+    {
+      "id": "valid_ethanol",
+      "kind": "smiles",
+      "passed": true,
+      "expected": "valid",
+      "observed": "valid",
+      "elapsed_ms": 3.032,
+      "observed_status": "valid"
+    },
+    {
+      "id": "valid_acetic_acid",
+      "kind": "smiles",
+      "passed": true,
+      "expected": "valid",
+      "observed": "valid",
+      "elapsed_ms": 0.061,
+      "observed_status": "valid"
+    },
+    {
+      "id": "invalid_valence",
+      "kind": "smiles",
+      "passed": true,
+      "expected": "invalid",
+      "observed": "invalid",
+      "elapsed_ms": 0.342,
+      "observed_status": "invalid"
+    },
+    {
+      "id": "invalid_syntax",
+      "kind": "smiles",
+      "passed": true,
+      "expected": "invalid",
+      "observed": "invalid",
+      "elapsed_ms": 0.088,
+      "observed_status": "invalid"
+    },
+    {
+      "id": "unknown_empty",
+      "kind": "smiles",
+      "passed": true,
+      "expected": "unknown",
+      "observed": "unknown",
+      "elapsed_ms": 0.003,
+      "observed_status": "unknown"
+    },
+    {
+      "id": "same_ethanol",
+      "kind": "equivalence",
+      "passed": true,
+      "expected": true,
+      "observed": true,
+      "elapsed_ms": 0.154,
+      "observed_same_constitution": true
+    },
+    {
+      "id": "different_isomers",
+      "kind": "equivalence",
+      "passed": true,
+      "expected": false,
+      "observed": false,
+      "elapsed_ms": 0.086,
+      "observed_same_constitution": false
+    },
+    {
+      "id": "c4h10o_examples",
+      "kind": "isomers",
+      "passed": true,
+      "expected": 7,
+      "observed": 7,
+      "elapsed_ms": 0.47,
+      "observed_unique_count": 7,
+      "all_valid": true,
+      "all_formula_match": true
+    }
+  ]
+}
