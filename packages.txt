@@ -1,4 +1,0 @@
-libxrender1
-libxext6
-fonts-liberation
-fonts-dejavu-core
