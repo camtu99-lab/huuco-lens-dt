@@ -21,8 +21,14 @@ def learning_ui():
     st.session_state.setdefault('learn_attempts', [])
     st.session_state.setdefault('learn_result', None)
     st.session_state.setdefault('learn_level', 0)
+    transfer = st.session_state.pop('learning_transfer', None)
+    if transfer:
+        st.session_state['learn_student_input'] = transfer['smiles']
+        st.session_state['learn_transfer_notice'] = transfer['note']
+    if st.session_state.get('learn_transfer_notice'):
+        st.warning('📷 Đã nhận kết quả từ mục Công thức cấu tạo. ' + st.session_state['learn_transfer_notice'] + '. Hãy kiểm tra lại cấu trúc trước khi kết luận lỗi do học sinh.')
     with st.form('learning_form'):
-        student = st.text_input('SMILES bài làm của học sinh', placeholder='Ví dụ: CC(=O)(O)O', max_chars=2000)
+        student = st.text_input('SMILES bài làm của học sinh', placeholder='Ví dụ: CC(=O)(O)O', max_chars=2000, key='learn_student_input')
         target = st.text_input('SMILES đáp án tham chiếu (tùy chọn, do giáo viên cung cấp)', placeholder='Ví dụ: CC(=O)O', max_chars=2000)
         st.caption('Để trống đáp án tham chiếu nếu chỉ muốn kiểm tra cú pháp và hóa trị. Cấu trúc hợp lệ chưa chắc đúng đề bài.')
         submitted = st.form_submit_button('🔬 Kiểm chứng / Kiểm tra lại', type='primary')

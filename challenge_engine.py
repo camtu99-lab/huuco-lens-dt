@@ -44,3 +44,19 @@ def summarize(events: list[dict]) -> dict:
     return {'tasks_attempted':len(attempted), 'tasks_mastered':len(mastered),
             'total_attempts':len(events), 'incorrect_attempts':sum(not e['correct'] for e in events),
             'tasks_total':len(TASKS)}
+
+
+def staged_hints(task_id: str, category: str) -> list[str]:
+    """Ba mức gợi ý: hướng tư duy -> nguyên tắc -> chỉ dẫn cấu trúc.
+
+    Mức cuối KHÔNG xuất trực tiếp SMILES đáp án.
+    """
+    task = next((t for t in TASKS if t['id'] == task_id), None)
+    if task is None:
+        raise ValueError('Mã bài tập không tồn tại.')
+    first = {'valence':'Hãy kiểm tra hóa trị quanh từng nguyên tử và số liên kết.',
+             'syntax':'Kiểm tra cú pháp: ngoặc, số đóng vòng và ký hiệu nguyên tố.',
+             'constitution':'Cùng công thức phân tử chưa chắc cùng chất. Kiểm tra cách nối nguyên tử.',
+             'formula':'Đếm lại số nguyên tử từng nguyên tố và số H ngầm.',
+             'unknown':'Hãy kiểm tra đầu vào rồi thử lại.'}.get(category,'Đọc lại yêu cầu và đối chiếu nhóm chức.')
+    return [first, 'Nhớ rằng RDKit kiểm tra cấu trúc, còn bài tập yêu cầu đúng chất và đúng kiểu liên kết.', task['hint']]

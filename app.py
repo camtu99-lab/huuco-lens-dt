@@ -19,6 +19,7 @@ from PIL import Image
 from collections import Counter
 from chem_verification import verify_smiles, verify_ai_proposal, validate_graph, verify_isomer_candidates
 from learning_ui import learning_ui
+from research_ui import research_ui
 
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors, Draw, rdMolDescriptors
@@ -3238,6 +3239,16 @@ def structure_ui():
                 st.caption("Giới hạn: " + limit)
             if from_img:
                 st.warning("RDKit chỉ kiểm tra SMILES được suy ra từ ảnh. Nếu AI chép ảnh sai, kết quả kiểm chứng không phản ánh đúng bài vẽ gốc.")
+        # Cầu nối trực tiếp: cấu trúc từ ảnh Gemini -> phòng kiểm chứng RDKit.
+        if (r.get("smiles") or "").strip():
+            if st.button("🧪 Chuyển kết quả nhận dạng sang phòng tự sửa", key="st_send_learning"):
+                st.session_state["learning_transfer"] = {
+                    "smiles": (r.get("smiles") or "").strip(),
+                    "source": "image_ai" if from_img else "smiles",
+                    "note": "SMILES do AI đọc từ ảnh, cần đối chiếu ảnh gốc" if from_img else "SMILES do người dùng nhập",
+                }
+                go(LEARN)
+                st.rerun()
         smiles_r = (r.get("smiles") or "").strip()
         _, err_r = parse_student(smiles_r) if smiles_r else (None, None)
         if err_r:
@@ -4611,6 +4622,7 @@ HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
 SECTIONS = [
     ("Kiểm chứng & sửa lỗi", "Phòng thực hành kiểm chứng và sửa lỗi", "Nhập cấu trúc, kiểm chứng RDKit, xem gợi ý từng bước và tự sửa bài làm.", learning_ui, "structure"),
+    ("Minh chứng khoa học", "Kiểm thử và minh chứng khoa học", "Chạy lại bộ kiểm thử RDKit, xem từng ca và xuất dữ liệu thực thi, không tạo số liệu giả.", research_ui, "structure"),
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
     ("Phương trình phản ứng", "Phương trình phản ứng", "Đọc phương trình, cho biết loại phản ứng và kiểm tra đã cân bằng chưa.", reaction_ui, "flask"),
     ("Đồng phân", "Đồng phân", "Hỏi bằng tiếng Việt hoặc gõ công thức, máy sinh và đếm đồng phân chính xác.", isomer_ui, "isomer"),
@@ -4619,7 +4631,7 @@ SECTIONS = [
 ]
 LABELS = [x[0] for x in SECTIONS]
 NAV_OPTS = [HOME] + LABELS
-LEARN, STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4], LABELS[5]
+LEARN, EVIDENCE, STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4], LABELS[5], LABELS[6]
 
 st.session_state.setdefault("nav", HOME)
 st.session_state.setdefault("nav_side", HOME)
