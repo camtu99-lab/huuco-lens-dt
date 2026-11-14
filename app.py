@@ -4621,8 +4621,8 @@ def _sim_ui(top):
 HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
 SECTIONS = [
-    ("Kiểm chứng & sửa lỗi", "Phòng thực hành kiểm chứng và sửa lỗi", "Nhập cấu trúc, kiểm chứng RDKit, xem gợi ý từng bước và tự sửa bài làm.", learning_ui, "structure"),
-    ("Minh chứng khoa học", "Kiểm thử và minh chứng khoa học", "Chạy lại bộ kiểm thử RDKit, xem từng ca và xuất dữ liệu thực thi, không tạo số liệu giả.", research_ui, "structure"),
+    ("Học qua hình & sửa lỗi", "Thử thách Hóa học qua hình", "Nhìn công thức cấu tạo, chọn đáp án, hiểu lỗi sai và thử lại. Không cần nhập SMILES.", learning_ui, "structure"),
+    ("Báo cáo kiểm thử", "Báo cáo kỹ thuật dành cho giáo viên", "Kiểm tra hoạt động của bộ xác minh cấu trúc và xuất kết quả đo thực tế.", research_ui, "structure"),
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
     ("Phương trình phản ứng", "Phương trình phản ứng", "Đọc phương trình, cho biết loại phản ứng và kiểm tra đã cân bằng chưa.", reaction_ui, "flask"),
     ("Đồng phân", "Đồng phân", "Hỏi bằng tiếng Việt hoặc gõ công thức, máy sinh và đếm đồng phân chính xác.", isomer_ui, "isomer"),

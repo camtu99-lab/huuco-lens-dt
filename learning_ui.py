@@ -4,13 +4,17 @@ import base64
 import streamlit as st
 from learning_lab import diagnose, record_attempt
 from challenge_ui import challenge_ui
+from visual_ui import visual_ui
 
 
 def learning_ui():
-    st.markdown('### 🧪 Phòng thực hành: Kiểm chứng và tự sửa cấu trúc')
-    mode = st.radio('Chọn chế độ học', ['🎯 Thử thách có chấm bài', '🔬 Kiểm chứng SMILES tự do'], horizontal=True, key='learning_mode')
-    if mode == '🎯 Thử thách có chấm bài':
-        challenge_ui()
+    st.markdown('### 🧪 Học qua hình – Tự phát hiện và sửa lỗi')
+    if st.session_state.get('learning_transfer'):
+        st.session_state['learning_mode'] = '🔬 Kiểm chứng nâng cao (giáo viên)'
+        st.info('Đã nhận cấu trúc từ ảnh. Hãy xác nhận AI đã đọc đúng hình trước khi kiểm chứng.')
+    mode = st.radio('Bạn muốn học theo cách nào?', ['🎯 Nhìn hình và chọn đáp án', '🔬 Kiểm chứng nâng cao (giáo viên)'], horizontal=True, key='learning_mode')
+    if mode == '🎯 Nhìn hình và chọn đáp án':
+        visual_ui()
         return
     st.caption('AI có thể hỗ trợ nhận dạng ở mục Công thức cấu tạo; tại đây RDKit kiểm tra độc lập. Không cần Gemini API key.')
     a, b, c = st.columns(3)

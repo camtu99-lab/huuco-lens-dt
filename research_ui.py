@@ -5,8 +5,8 @@ from research_suite import run_reference_suite
 
 
 def research_ui():
-    st.markdown('### 📊 Phòng minh chứng khoa học')
-    st.caption('Kiểm thử độc lập với Gemini trên các trường hợp SMILES biên soạn sẵn. Không phải dữ liệu học sinh hay kết quả so sánh chatbot.')
+    st.markdown('### 📊 Báo cáo kiểm thử dành cho giáo viên và hội đồng')
+    st.caption('Đây là công cụ kiểm thử kỹ thuật, không phải bài tập dành cho học sinh. Kiểm thử độc lập với Gemini trên các trường hợp SMILES biên soạn sẵn. Không phải dữ liệu học sinh hay kết quả so sánh chatbot.')
     st.info('Nhấn chạy để tạo dữ liệu đo từ phiên hiện tại. Không hiển thị tỷ lệ chính xác nhận dạng ảnh khi chưa có bộ ảnh gán nhãn.')
     if st.button('▶ Chạy bộ kiểm thử tham chiếu',type='primary',key='run_research_suite'):
         with st.spinner('Đang chạy RDKit...'):
