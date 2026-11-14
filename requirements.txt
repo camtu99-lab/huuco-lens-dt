@@ -1,5 +1,0 @@
-streamlit
-google-genai
-rdkit
-pillow
-python-pptx
