@@ -1,5 +1,6 @@
 """Giao diện luyện tập kiểm chứng: không gọi API, lưu lịch sử trong phiên."""
 import json
+import base64
 import streamlit as st
 from learning_lab import diagnose, record_attempt
 
@@ -47,7 +48,13 @@ def learning_ui():
         if v['atom_indices']:
             st.write('**Nguyên tử nghi vấn (thứ tự SMILES bắt đầu từ 1):**', ', '.join(str(i + 1) for i in v['atom_indices']))
         if result['highlight_svg']:
-            st.image(result['highlight_svg'].encode('utf-8'), caption='Hình RDKit dựng từ SMILES; tô sáng vị trí nghi vấn, không phải ảnh gốc')
+            # st.image/Pillow không đọc trực tiếp dữ liệu SVG. Hiển thị qua data URI trong trình duyệt.
+            svg_data = base64.b64encode(result['highlight_svg'].encode('utf-8')).decode('ascii')
+            st.markdown(
+                f'<img src="data:image/svg+xml;base64,{svg_data}" alt="Minh họa RDKit về nguyên tử nghi vấn" style="width:100%;max-width:640px;height:auto"/>',
+                unsafe_allow_html=True,
+            )
+            st.caption('Hình RDKit dựng từ SMILES; tô sáng vị trí nghi vấn, không phải ảnh gốc')
         st.markdown('#### 💡 Hướng dẫn sửa lỗi theo từng bước')
         hints = result['hints']
         if hints:
