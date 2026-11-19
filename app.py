@@ -4,7 +4,6 @@ import html
 import io
 import json
 import math
-import os
 import random
 import re
 import time
@@ -17,15 +16,24 @@ from google import genai
 from google.genai import errors, types
 from PIL import Image
 from collections import Counter
-from chem_verification import verify_smiles, verify_ai_proposal, validate_graph, verify_isomer_candidates
-from learning_ui import learning_ui
-from research_ui import research_ui
 
 from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors, Draw, rdMolDescriptors
 from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
 
 RDLogger.DisableLog("rdApp.*")
+
+try:   # lõi hóa học thuần Python (thư mục molsnap_core); thiếu thì app vẫn chạy với các chức năng cũ
+    from molsnap_core import ui as cvr_ui
+    from molsnap_core.exercises import EXERCISES as CORE_EX, BY_ID as CORE_BY
+    from molsnap_core.store import Store, anonymize
+    from molsnap_core.adapt import next_exercise as core_next, skill_profile as core_profile
+    from molsnap_core.diagnose import ERR_NAMES
+    from molsnap_core.isomers import parse_formula as iso_parse_formula, scope_warnings as iso_scope_warnings
+    from molsnap_core import evidence as core_ev, isomers as core_iso, parse as core_parse, diagnose as core_diag, graph as core_graph
+    CORE_OK = True
+except Exception:   # noqa
+    CORE_OK = False
 
 MODEL = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
 MAX_PER_SESSION = int(st.secrets.get("MAX_PER_SESSION", 15))
@@ -47,15 +55,12 @@ SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
 
 @st.cache_resource
 def get_client():
-    key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
-    if not key or key == "dan-khoa-gemini-vao-day":
-        raise RuntimeError("Chưa cấu hình GEMINI_API_KEY trong biến môi trường hoặc Streamlit secrets.")
-    return genai.Client(api_key=key)
+    return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 
-def to_jpeg(file_bytes: bytes, max_side: int = 1600) -> bytes:
+def to_jpeg(file_bytes: bytes) -> bytes:
     img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
-    img.thumbnail((max_side, max_side))
+    img.thumbnail((1600, 1600))
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=90)
     return buf.getvalue()
@@ -150,22 +155,18 @@ def _voice_component():
 _VOICE_CMP = _voice_component()
 
 
-def voice_input(key, chat=False, compact=False, msg=None):
+def voice_input(key, chat=False):
     """Bấm micro một lần, nói xong tự dừng rồi chuyển thành chữ, điền vào ô nhập có khóa `key` (hoặc gửi vào khung chat).
-    Nếu không có thư mục voice_component thì dùng ô ghi âm có sẵn của Streamlit (phải bấm dừng).
-    compact: nút thu gọn để đặt cùng hàng với ô gõ; msg: khung (container) hiện thông báo/lỗi, để không bị kẹt trong cột hẹp."""
+    Nếu không có thư mục voice_component thì dùng ô ghi âm có sẵn của Streamlit (phải bấm dừng)."""
     import hashlib
-    from contextlib import nullcontext
-    box = msg if msg is not None else nullcontext()
     ph = st.session_state.get("vh_" + key)
     if _VOICE_CMP is not None:
-        res = _VOICE_CMP(key="vc_" + key, default=None, compact=compact)
+        res = _VOICE_CMP(key="vc_" + key, default=None)
         if not res or res.get("id") == ph:
             return
         st.session_state["vh_" + key] = res.get("id")
         if res.get("err") or not res.get("wav"):
-            with box:
-                st.warning("Không mở được micro. Hãy cho phép trình duyệt dùng micro cho trang này.")
+            st.warning("Không mở được micro. Hãy cho phép trình duyệt dùng micro cho trang này.")
             return
         data = base64.b64decode(res["wav"])
     elif hasattr(st, "audio_input"):
@@ -180,39 +181,19 @@ def voice_input(key, chat=False, compact=False, msg=None):
     else:   # bản Streamlit cũ chưa có ô ghi âm
         return
     if len(data) > 3_000_000:
-        with box:
-            st.warning("Đoạn ghi âm quá dài, hãy nói ngắn hơn (dưới khoảng 1 phút).")
+        st.warning("Đoạn ghi âm quá dài, hãy nói ngắn hơn (dưới khoảng 1 phút).")
         return
-    with box:
-        with st.spinner("Đang chuyển giọng nói thành chữ…"):
-            try:
-                text = voice_to_text(data)
-            except Exception:
-                text = None
-                st.error("Chưa chuyển được giọng nói thành chữ (có thể Gemini đang quá tải hoặc hết hạn mức). Hãy thử lại sau.")
-                return
-        if not text:
-            st.warning("Không nghe rõ, hãy nói lại gần micro hơn.")
+    with st.spinner("Đang chuyển giọng nói thành chữ…"):
+        try:
+            text = voice_to_text(data)
+        except Exception:
+            st.error("Chưa chuyển được giọng nói thành chữ (có thể Gemini đang quá tải hoặc hết hạn mức). Hãy thử lại sau.")
             return
+    if not text:
+        st.warning("Không nghe rõ, hãy nói lại gần micro hơn.")
+        return
     st.session_state["pending_chat" if chat else "_vp_" + key] = text
     st.rerun()
-
-
-def voice_text_input(key, label, placeholder=""):
-    """Ô gõ tay và nút nói cùng một hàng (nút thu gọn). Không có thành phần ghi âm riêng thì nút nói nằm ngay dưới ô gõ."""
-    apply_voice(key)
-    if _VOICE_CMP is None:
-        v = st.text_input(label, key=key, placeholder=placeholder)
-        voice_input(key)
-        return v
-    with st.container(key="vrow_" + key):
-        col_txt, col_mic = st.columns([1, 0.001], vertical_alignment="bottom", gap="small")
-        with col_txt:
-            v = st.text_input(label, key=key, placeholder=placeholder)
-    msg = st.container()   # thông báo/lỗi của nút nói hiện đủ rộng ngay dưới hàng này
-    with col_mic:
-        voice_input(key, compact=True, msg=msg)
-    return v
 
 
 def analyze_image(file_bytes: bytes):
@@ -232,11 +213,7 @@ def analyze_smiles(smiles: str):
         + f"\n\nChất có SMILES: {smiles}\nGiữ nguyên SMILES này trong khóa \"smiles\", đặt do_tin_cay=1 và cung cấp tên cùng tính chất.\n"
         + FMT
     )
-    result = ask_ai([prompt])
-    # SMILES đầu vào đã được kiểm tra ở bước trước: không để AI thay đổi âm thầm.
-    result["smiles"] = smiles
-    result.pop("do_tin_cay", None)  # AI tự chấm 1.0 không phải độ tin cậy đã hiệu chuẩn
-    return verify_ai_proposal(result)
+    return ask_ai([prompt])
 
 
 def chem_numbers(smiles: str):
@@ -294,9 +271,9 @@ def render(r: dict, from_image: bool):
         if r.get("tinh_tan"):
             _tt = r["tinh_tan"]
             st.markdown("**Tính tan:** " + (" ".join(str(x) for x in _tt) if isinstance(_tt, list) else str(_tt)))
-    if from_image and isinstance(r.get("do_tin_cay"), (int, float)):
-        p = max(0.0, min(1.0, float(r["do_tin_cay"])))
-        st.progress(p, text=f"Độ tin cậy nhận dạng: {round(p * 100)}%")
+    if from_image:
+        st.caption("Cấu trúc này do AI đọc từ ảnh nên có thể sai ở nét viết khó. MolSnap không hiển thị phần trăm tin cậy vì độ tự tin do AI tự khai "
+                   "chưa được hiệu chuẩn bằng dữ liệu thật." + (" Muốn chắc chắn, hãy dùng chế độ “Kiểm tra bài em vẽ” để tự xác nhận hình." if CORE_OK else ""))
     if r.get("nhom_chuc"):
         st.markdown("**Nhóm chức:** " + " · ".join(r["nhom_chuc"]))
     bullets("Trạng thái, nhiệt độ", r.get("trang_thai_nhiet_do"))
@@ -310,12 +287,10 @@ def render(r: dict, from_image: bool):
 
 
 # ---------------- Phản ứng hóa học ----------------
-RULES_RX = """Bạn là giáo viên Hóa học Việt Nam. Hãy đọc phương trình phản ứng (viết tay hoặc gõ) và phân loại theo cách của SGK Việt Nam (Hóa 8-12). Các loại thường gặp: phản ứng thế (thế halogen, thế nitro, thế brom vào phenol...), cộng (cộng H2, Br2, HX, H2O), tách (tách H2O, tách HX, tách H2), trùng hợp, trùng ngưng, oxi hóa hoàn toàn (đốt cháy), oxi hóa không hoàn toàn, oxi hóa - khử, hóa hợp, phân hủy, trao đổi, trung hòa, este hóa, thủy phân, xà phòng hóa, tráng bạc, lên men, quang hợp, cracking, đề hiđro hóa, hiđro hóa. Một phản ứng có thể thuộc nhiều loại cùng lúc (ví dụ: cộng đồng thời là oxi hóa - khử); hãy nêu loại chính trước. Đọc kỹ hệ số và điều kiện (nhiệt độ, xúc tác, áp suất). Với muối/bazơ vô cơ dùng SMILES dạng ion, ví dụ NaOH là [Na+].[OH-], HCl là Cl, H2O là O, O2 là O=O, H2 là [H][H]."""
+RULES_RX = """Bạn là giáo viên Hóa học Việt Nam. Hãy đọc phương trình phản ứng (viết tay hoặc gõ) và phân loại theo cách của SGK Việt Nam (Hóa 8-12). Các loại thường gặp: phản ứng thế (thế halogen, thế nitro, thế brom vào phenol...), cộng (cộng H2, Br2, HX, H2O), tách (tách H2O, tách HX, tách H2), trùng hợp, trùng ngưng, oxi hóa hoàn toàn (đốt cháy), oxi hóa không hoàn toàn, oxi hóa - khử, hóa hợp, phân hủy, trao đổi, trung hòa, este hóa, thủy phân, xà phòng hóa, tráng bạc, lên men, cracking, đề hiđro hóa, hiđro hóa. Một phản ứng có thể thuộc nhiều loại cùng lúc (ví dụ: cộng đồng thời là oxi hóa - khử); hãy nêu loại chính trước. Đọc kỹ hệ số và điều kiện (nhiệt độ, xúc tác, áp suất). Với muối/bazơ vô cơ dùng SMILES dạng ion, ví dụ NaOH là [Na+].[OH-], HCl là Cl, H2O là O, O2 là O=O, H2 là [H][H]."""
 
-RFMT = """Chỉ trả về MỘT đối tượng JSON, không markdown, không lời dẫn.
-QUAN TRỌNG: hãy đọc và phân tích TẤT CẢ các phương trình phản ứng có trong ảnh (kể cả khi ảnh gồm nhiều câu, nhiều bài tập hoặc một chuỗi phản ứng), theo thứ tự từ trên xuống dưới, từ trái sang phải. Mỗi phương trình là MỘT phần tử riêng trong "phan_ung". Tuyệt đối không bỏ sót, không gộp nhiều phương trình làm một và không chỉ chọn riêng một phương trình. Nếu ảnh chỉ có một phương trình thì "phan_ung" có đúng 1 phần tử.
-{"phan_ung":[{"nhan":"nhãn đầy đủ của phương trình trong ảnh; nếu ảnh có nhiều câu thì ghi kèm câu, ví dụ Câu 1 - (1), Câu 2 - (3); ảnh chỉ có một câu thì ghi (1); không có nhãn thì để rỗng",
-"phuong_trinh":"phương trình đọc được, viết dạng chữ, dùng -> giữa hai vế",
+RFMT = """Chỉ trả về MỘT đối tượng JSON, không markdown, không lời dẫn:
+{"phuong_trinh":"phương trình đọc được, viết dạng chữ, dùng -> giữa hai vế",
 "chat_tham_gia":[{"he_so":số nguyên,"ten":"tên chất","cong_thuc":"công thức phân tử","smiles":"SMILES"}],
 "san_pham":[{"he_so":số nguyên,"ten":"","cong_thuc":"","smiles":""}],
 "dieu_kien":"nhiệt độ, xúc tác... hoặc rỗng",
@@ -323,100 +298,18 @@ QUAN TRỌNG: hãy đọc và phân tích TẤT CẢ các phương trình phản
 "giai_thich":"2-4 câu: dựa vào sự thay đổi nào của cấu tạo/nhóm chức/số oxi hóa mà kết luận loại phản ứng",
 "phuong_trinh_can_bang":"phương trình đã cân bằng đúng nếu ảnh chưa cân bằng hoặc sai, ngược lại để rỗng",
 "oxi_hoa_khu":{"la_oxi_hoa_khu":true nếu có nguyên tố thay đổi số oxi hóa, ngược lại false,
- "chat_oxi_hoa":["công thức chất oxi hóa (chất nhận electron, chứa nguyên tố bị khử); mảng rỗng nếu không phải phản ứng oxi hóa - khử"],
- "chat_khu":["công thức chất khử (chất nhường electron, chứa nguyên tố bị oxi hóa); mảng rỗng nếu không phải phản ứng oxi hóa - khử"],
  "so_oxi_hoa":[{"cong_thuc":"công thức đúng như trong chat_tham_gia hoặc san_pham, mỗi chất ở cả hai vế một mục","nguyen_to":[{"kh":"ký hiệu nguyên tố","so":số nguyên là số oxi hóa (âm, 0 hoặc dương),"n":số nguyên tử của nguyên tố đó mang số oxi hóa này trong MỘT phân tử hoặc ion}]}]},
-"luu_y":["điều chưa chắc chắn khi đọc phương trình này, ví dụ hệ số hoặc chất bị mờ"]}
- ],
-"de_bai":[{"nhan":"Câu 1","yeu_cau":"chép lại đầy đủ phần yêu cầu/câu hỏi của câu đó trong ảnh, không chép lại các phương trình"}],
-"luu_y_chung":["chỉ ghi lỗi đọc ảnh như chữ mờ, bị cắt; TUYỆT ĐỐI không ghi đáp án, lời giải hay số lượng phương trình; để mảng rỗng nếu không có"]}
-"de_bai" là mảng rỗng nếu ảnh chỉ có phương trình mà không có câu hỏi hay yêu cầu nào; nếu ảnh có đề bài thì mỗi câu một phần tử.
-Mỗi phần tử của "phan_ung" có đầy đủ các trường như trên và được phân tích độc lập với các phần tử khác.
-Về cong_thuc: viết công thức phân tử gọn, chỉ số là số thường (H2SO4, [Ag(NH3)2]OH, CH2OH(CHOH)4COONH4), ion ghi điện tích sau dấu mũ (Fe^3+, SO4^2-, NH4^+, OH^-, Ag^+); không ghi kèm tên, trạng thái hay chữ giải thích trong cong_thuc.
-Về chat_oxi_hoa và chat_khu: ghi đúng chuỗi cong_thuc của chất đó như trong chat_tham_gia.
-Về tác nhân chỉ ghi trên mũi tên: nếu chất khử hoặc chất oxi hóa chỉ được ghi trên mũi tên (LiAlH4, NaBH4...) và phương trình trong ảnh không tự cân bằng được vì thiếu tác nhân đó, thì giữ tên tác nhân trong dieu_kien và thêm vào chat_tham_gia chất tương đương [H] (cong_thuc "[H]", ten "hiđro mới sinh [H] (từ LiAlH4)", smiles "[H]") với he_so đủ để cân bằng, ví dụ glucose bị khử thành sobitol thì thêm 2 [H]. Tương tự dùng [O] cho chất oxi hóa chỉ ghi trên mũi tên (KMnO4, K2Cr2O7...). Nếu H2, O2 đã ghi rõ trong phương trình thì giữ nguyên.
-Về hệ số có chữ n (6nCO2, nC6H12O6): he_so ghi phần số nguyên (6, hoặc 1 nếu chỉ có n); phuong_trinh vẫn chép nguyên văn.
-Về oxi_hoa_khu (áp dụng cho từng phương trình): liệt kê MỌI nguyên tố của MỌI chất (kể cả nguyên tố không đổi số oxi hóa) để tổng số nguyên tử và tổng số oxi hóa khớp công thức và điện tích của chất đó. Nếu trong một chất cùng một nguyên tố có nhiều số oxi hóa khác nhau (ví dụ C trong chất hữu cơ) thì ghi mỗi số oxi hóa một mục riêng với n tương ứng. Chất đơn chất có số oxi hóa 0. Ion ghi theo điện tích của ion.
-Nếu không có phương trình phản ứng nào hoặc không đọc được, trả về "phan_ung" là mảng rỗng và giải thích trong luu_y_chung."""
+"luu_y":["điều chưa chắc chắn khi đọc ảnh, ví dụ hệ số hoặc chất bị mờ"]}
+Về oxi_hoa_khu: liệt kê MỌI nguyên tố của MỌI chất (kể cả nguyên tố không đổi số oxi hóa) để tổng số nguyên tử và tổng số oxi hóa khớp công thức và điện tích của chất đó. Nếu trong một chất cùng một nguyên tố có nhiều số oxi hóa khác nhau (ví dụ C trong chất hữu cơ) thì ghi mỗi số oxi hóa một mục riêng với n tương ứng. Chất đơn chất có số oxi hóa 0. Ion ghi theo điện tích của ion.
+Nếu không phải phương trình phản ứng hoặc không đọc được, trả về chat_tham_gia và san_pham rỗng và giải thích trong luu_y."""
 
 
 def analyze_reaction(img_bytes, text):
     head = RULES_RX + "\n\n"
     if img_bytes:
-        prompt = head + "Đây là ảnh có một hoặc nhiều phương trình phản ứng hóa học. Hãy xử lý đầy đủ tất cả.\n" + RFMT
-        # ảnh nhiều phương trình có chữ nhỏ hơn nên giữ độ phân giải cao hơn
-        res = ask_ai([types.Part.from_bytes(data=to_jpeg(img_bytes, 2400), mime_type="image/jpeg"), prompt])
-    else:
-        res = ask_ai([head + f"Phương trình: {text}\n" + RFMT])
-    res["_v"] = RX_BUILD
-    try:   # ảnh có đề bài: giải luôn các câu hỏi dựa trên dữ kiện đã phân tích; lỗi thì vẫn giữ phần phân tích phương trình
-        sol = solve_questions(res)
-        if sol:
-            res["loi_giai"] = sol
-    except Exception as e:
-        res["loi_giai_loi"] = f"{type(e).__name__}: {e}"[:300]
-    return res
-
-
-RX_BUILD = "2026-11-12 · lời giải v3"   # hiện trên màn hình để biết app đang chạy bản nào
-
-
-RULES_SOLVE = """Bạn là giáo viên Hóa học Việt Nam. Hãy giải từng câu hỏi dưới đây theo chương trình SGK Việt Nam (Hóa 8-12), chỉ dựa vào các câu hỏi và các phương trình đã được phân tích (số oxi hóa, chất oxi hóa, chất khử đã được máy kiểm chứng). Giải thích và kết luận của từng phản ứng phải khớp với dữ kiện đã phân tích, không được mâu thuẫn với chúng.
-Nguyên tắc cần nhớ: glucose thể hiện tính khử khi nhóm -CHO bị oxi hóa (tráng bạc, phản ứng với Cu(OH)2 khi đun nóng, làm mất màu nước brom); glucose bị khử bằng H2/Ni, LiAlH4, NaBH4 là thể hiện tính oxi hóa, không phải tính khử; thủy phân, lên men, quang hợp được phân loại theo tên gọi của phản ứng và không tính là glucose thể hiện tính khử.
-Với câu yêu cầu sắp xếp hoặc liệt kê theo thứ tự, "dap_an" là dãy số thứ tự phản ứng viết liền theo đúng thứ tự đề yêu cầu (tăng dần nếu đề nói tăng dần). Với câu chọn các phản ứng thỏa điều kiện, "dap_an" là dãy số thứ tự các phản ứng thỏa, viết liền, tăng dần."""
-
-SOLVE_FMT = """Chỉ trả về MỘT đối tượng JSON, không markdown, không lời dẫn:
-{"cau":[{"nhan":"Câu 1","tieu_de":"tiêu đề ngắn của câu, ví dụ: Sắp xếp các phản ứng theo tên gọi",
-"nguyen_tac":"1-2 câu nguyên tắc hoặc kiến thức dùng để giải, có thể rỗng",
-"cot_ket_luan":"tên cột cuối của bảng, ví dụ: Tên phản ứng hoặc Kết luận",
-"phan_tich":[{"phan_ung":"số thứ tự phản ứng trong đề, ví dụ (1)","giai_thich":"1 câu ngắn","ket_luan":"nhãn rất ngắn, tối đa 3 từ: với câu chọn phản ứng thì ghi 'Tính khử' hoặc 'Không' (hoặc nhãn tương ứng với đề); với câu phân loại thì ghi tên phản ứng"}],
-"ket_luan_cau":"1 câu kết luận",
-"dap_an":"đáp án cuối cùng đúng định dạng đề yêu cầu, ví dụ 1324 hoặc 125"}]}
-Mỗi câu hỏi trong đề là một phần tử của "cau", mỗi phản ứng của câu đó là một dòng trong "phan_tich"."""
-
-
-def rx_facts(items):
-    """Tóm tắt từng phương trình (kèm kết quả oxi hóa - khử đã kiểm chứng) để đưa cho bước giải đề."""
-    lines = []
-    for it in items:
-        info = []
-        a = redox_analysis(it)
-        if a and a.get("ok"):
-            if a["redox"]:
-                kf, of = list(dict.fromkeys(f for f, *_ in a["khu"])), list(dict.fromkeys(f for f, *_ in a["oxh"]))
-                both = [f for f in kf if f in of]
-                kf, of = [f for f in kf if f not in both], [f for f in of if f not in both]
-                txt = f"oxi hóa - khử (chất khử: {', '.join(kf) or 'không có'}; chất oxi hóa: {', '.join(of) or 'không có'}"
-                if both:   # chất vừa nhường vừa nhận e trong cùng phản ứng không khử một chất oxi hóa khác
-                    txt += f"; {', '.join(both)} tự oxi hóa - khử nội phân tử, không có chất nào khác nhận electron từ nó nên KHÔNG tính là thể hiện tính khử đối với chất khác"
-                info.append(txt + ")")
-            else:
-                info.append("không phải phản ứng oxi hóa - khử")
-        lines.append(f'- [{it.get("nhan") or "?"}] {it.get("phuong_trinh") or ""} | điều kiện: {it.get("dieu_kien") or "không"}'
-                     f' | loại: {", ".join(str(x) for x in (it.get("loai_phan_ung") or []))}' + (" | " + "; ".join(info) if info else ""))
-    return "\n".join(lines)
-
-
-def solve_questions(res):
-    """Giải các câu hỏi có trong ảnh. Trả về None nếu ảnh không có đề bài."""
-    items = reactions_of(res)
-    qs = [q for q in ((res or {}).get("de_bai") or []) if isinstance(q, dict) and q.get("yeu_cau")]
-    if not items or not qs:
-        return None
-    prompt = (RULES_SOLVE + "\n\nCÁC CÂU HỎI TRONG ẢNH:\n" + "\n".join(f'- {q.get("nhan") or ""}: {q["yeu_cau"]}' for q in qs)
-              + "\n\nCÁC PHƯƠNG TRÌNH ĐÃ PHÂN TÍCH:\n" + rx_facts(items) + "\n\n" + SOLVE_FMT)
-    out = ask_ai([prompt], temperature=0.1)
-    return out if isinstance(out, dict) and out.get("cau") else None
-
-
-def reactions_of(res):
-    """Danh sách phản ứng trong kết quả AI. Hỗ trợ cả dạng cũ (một phản ứng nằm trực tiếp trong kết quả)."""
-    if not isinstance(res, dict):
-        return []
-    lst = res.get("phan_ung")
-    if isinstance(lst, list):
-        return [x for x in lst if isinstance(x, dict)]
-    return [res] if (res.get("chat_tham_gia") or res.get("san_pham") or res.get("phuong_trinh")) else []
+        prompt = head + "Đây là ảnh chụp một phương trình phản ứng hóa học.\n" + RFMT
+        return ask_ai([types.Part.from_bytes(data=to_jpeg(img_bytes), mime_type="image/jpeg"), prompt])
+    return ask_ai([head + f"Phương trình: {text}\n" + RFMT])
 
 
 def atom_balance(species):
@@ -459,146 +352,6 @@ def _fmt_ox(v):
     return f"+{v}" if v > 0 else str(v)
 
 
-_SUPERS = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
-
-
-def _rx_part_counts(p):
-    """Đếm nguyên tử của một công thức không có điện tích, ví dụ Ca(OH)2, [Ag(NH3)2]OH. None nếu không đọc được."""
-    toks = re.findall(r"[A-Z][a-z]?|\d+|[()\[\]]", p)
-    if not toks or "".join(toks) != p:
-        return None
-    ptable = Chem.GetPeriodicTable()
-    stack, i = [{}], 0
-    while i < len(toks):
-        t = toks[i]
-        if t in "([":
-            stack.append({})
-        elif t in ")]":
-            if len(stack) < 2:
-                return None
-            grp, mult = stack.pop(), 1
-            if i + 1 < len(toks) and toks[i + 1].isdigit():
-                mult = int(toks[i + 1]); i += 1
-            for k, v in grp.items():
-                stack[-1][k] = stack[-1].get(k, 0) + v * mult
-        elif t.isdigit():
-            return None
-        else:
-            try:
-                ptable.GetAtomicNumber(t)
-            except Exception:
-                return None
-            n = 1
-            if i + 1 < len(toks) and toks[i + 1].isdigit():
-                n = int(toks[i + 1]); i += 1
-            stack[-1][t] = stack[-1].get(t, 0) + n
-        i += 1
-    return stack[0] if len(stack) == 1 else None
-
-
-def rx_parse_formula(f):
-    """Công thức dạng chữ (Ca(OH)2, [Ag(NH3)2]OH, CuSO4.5H2O, Fe^3+, NH4+) -> (số nguyên tử từng nguyên tố, điện tích).
-    Trả về None nếu không đọc chắc được (ví dụ có chỉ số n)."""
-    s = re.sub(r"([⁰¹²³⁴⁵⁶⁷⁸⁹]*)([⁺⁻])", lambda m: "^" + m.group(1).translate(_SUPERS) + m.group(2).translate(str.maketrans("⁺⁻", "+-")), str(f or ""))
-    s = _norm_formula(s)
-    s = re.sub(r"\((?:s|l|g|aq|r|k|dd)\)$", "", s)
-    charge = 0
-    m = re.search(r"\^\{?(\d*)([+-])\}?$", s)
-    if m:
-        charge = int(m.group(1) or 1) * (1 if m.group(2) == "+" else -1)
-        s = s[:m.start()]
-    else:
-        m = re.search(r"(\d*)([+-])$", s)
-        if m and m.start() > 0:
-            pre, d, sign = s[:m.start()], m.group(1), (1 if m.group(2) == "+" else -1)
-            if d and (re.fullmatch(r"[A-Z][a-z]?", pre) or pre[-1] in ")]"):
-                charge, s = int(d) * sign, pre          # Fe2+, [Cu(NH3)4]2+
-            else:
-                charge, s = sign, s[:m.start(2)]        # NH4+, OH-, Cl-
-    s = re.sub(r"[-=≡]", "", s)
-    if not s:
-        return None
-    total = {}
-    for k, part in enumerate(re.split(r"[.·•]", s)):
-        mult = 1
-        mm = re.match(r"(\d+)(.*)$", part)
-        if mm and k > 0:
-            mult, part = int(mm.group(1)), mm.group(2)
-        c = _rx_part_counts(part)
-        if c is None:
-            return None
-        for el, n in c.items():
-            total[el] = total.get(el, 0) + n * mult
-    return total, charge
-
-
-def _nullspace(A, ncols):
-    """Không gian nghiệm của A·x = 0 trên số hữu tỉ."""
-    from fractions import Fraction
-    M = [[Fraction(x) for x in row] for row in A]
-    piv, r = [], 0
-    for c in range(ncols):
-        p = next((i for i in range(r, len(M)) if M[i][c] != 0), None)
-        if p is None:
-            continue
-        M[r], M[p] = M[p], M[r]
-        M[r] = [x / M[r][c] for x in M[r]]
-        for i in range(len(M)):
-            if i != r and M[i][c] != 0:
-                f = M[i][c]
-                M[i] = [a - f * b for a, b in zip(M[i], M[r])]
-        piv.append(c); r += 1
-        if r == len(M):
-            break
-    out = []
-    for fc in (c for c in range(ncols) if c not in piv):
-        v = [Fraction(0)] * ncols
-        v[fc] = Fraction(1)
-        for row, pc in enumerate(piv):
-            v[pc] = -M[row][fc]
-        out.append(v)
-    return out
-
-
-def rx_balance_formulas(left, right):
-    """Kiểm tra cân bằng từ công thức phân tử (không phụ thuộc SMILES). Trả về None nếu có công thức không đọc được,
-    ngược lại {"ok": đã cân bằng chưa, "coefs": hệ số nguyên nhỏ nhất (vế trái rồi vế phải) hoặc None nếu không giải được}."""
-    from math import gcd
-    sp = []
-    for sign, lst in ((1, left), (-1, right)):
-        for x in lst:
-            p = rx_parse_formula(x.get("cong_thuc"))
-            if p is None:
-                return None
-            sp.append((sign, to_int(x.get("he_so")), p))
-    if not sp:
-        return None
-    elems = sorted({e for _, _, (c, _) in sp for e in c})
-    net = {e: sum(s * k * c.get(e, 0) for s, k, (c, _) in sp) for e in elems}
-    ok = all(v == 0 for v in net.values()) and sum(s * k * ch for s, k, (_, ch) in sp) == 0
-    coefs = None
-    A = [[s * c.get(e, 0) for s, _, (c, _) in sp] for e in elems] + [[s * ch for s, _, (_, ch) in sp]]
-    ns = _nullspace(A, len(sp))
-    if len(ns) == 1:
-        v = ns[0]
-        if all(x > 0 for x in v) or all(x < 0 for x in v):
-            den = 1
-            for x in v:
-                den = den * x.denominator // gcd(den, x.denominator)
-            ints = [abs(int(x * den)) for x in v]
-            g = 0
-            for x in ints:
-                g = gcd(g, x)
-            coefs = [x // g for x in ints]
-    return {"ok": ok, "coefs": coefs}
-
-
-def rx_equation(left, right, coefs):
-    """Ghép phương trình từ công thức và hệ số (vế trái rồi vế phải)."""
-    side = lambda lst, cs: " + ".join((f"{k} " if k > 1 else "") + str(x.get("cong_thuc") or "?") for x, k in zip(lst, cs))
-    return side(left, coefs[:len(left)]) + " -> " + side(right, coefs[len(left):])
-
-
 def redox_analysis(r):
     """Phân tích oxi hóa - khử từ số oxi hóa do AI đưa ra. AI chỉ cung cấp số oxi hóa; máy kiểm tra số nguyên tử và điện tích từng chất,
     rồi tự suy ra nguyên tố thay đổi, chất khử, chất oxi hóa và các quá trình oxi hóa, khử. Trả về None nếu thiếu số oxi hóa."""
@@ -622,9 +375,7 @@ def redox_analysis(r):
             ents = table.get(_norm_formula(sp.get("cong_thuc")))
             if not ents:
                 return None
-            chk = rx_parse_formula(sp.get("cong_thuc"))   # ưu tiên công thức; SMILES do AI sinh ra hay sai
-            if chk is None:
-                chk = _species_atoms_charge(sp)
+            chk = _species_atoms_charge(sp)
             if chk is None:
                 verified = False
             else:
@@ -638,34 +389,24 @@ def redox_analysis(r):
         sides.append(side)
     if bad:
         return {"ok": False, "problems": bad}
-    fb = rx_balance_formulas(left, right)
-    if fb and not fb["ok"] and fb["coefs"]:   # hệ số trong ảnh sai/thiếu thì dùng hệ số máy tự cân bằng
-        nl = len(sides[0])
-        sides = [[(fb["coefs"][i], f, e) for i, (_, f, e) in enumerate(sides[0])],
-                 [(fb["coefs"][nl + i], f, e) for i, (_, f, e) in enumerate(sides[1])]]
-    # Đếm số nguyên tử của từng nguyên tố theo từng số oxi hóa (nhân hệ số), rồi triệt tiêu phần giống nhau giữa hai vế;
-    # phần còn lại ở vế trái chuyển thành phần còn lại ở vế phải chính là sự thay đổi số oxi hóa thật sự.
     before, after = {}, {}
     for side, dest in ((sides[0], before), (sides[1], after)):
-        for k, f, ents in side:
+        for _, f, ents in side:
             for el, so, n in ents:
-                dest.setdefault(el, Counter())[so] += k * n
-    rem_b, rem_a = {}, {}
-    for el in set(before) & set(after):
-        rem_b[el], rem_a[el] = before[el] - after[el], after[el] - before[el]
+                dest.setdefault(el, set()).add(so)
     changed = []
-    for el in sorted(rem_b):
-        if rem_b[el] and rem_a[el]:
-            up, down = max(rem_a[el]) > min(rem_b[el]), min(rem_a[el]) < max(rem_b[el])
-            changed.append({"el": el, "before": sorted(rem_b[el]), "after": sorted(rem_a[el]),
+    for el in sorted(set(before) & set(after)):
+        if before[el] != after[el]:
+            up, down = max(after[el]) > max(before[el]), min(after[el]) < min(before[el])
+            changed.append({"el": el, "before": sorted(before[el]), "after": sorted(after[el]),
                             "kind": "tự oxi hóa – khử" if up and down else "tăng (bị oxi hóa)" if up else "giảm (bị khử)" if down else "thay đổi"})
     khu, oxh, half = [], [], []
     for _, f, ents in sides[0]:
         for el, so, n in ents:
-            if el not in rem_b or so not in rem_b[el]:
-                continue   # số oxi hóa này không đổi qua phản ứng
-            hi = [a for a in rem_a[el] if a > so]
-            lo = [a for a in rem_a[el] if a < so]
+            if el not in after:
+                continue
+            hi = [a for a in after[el] if a > so]
+            lo = [a for a in after[el] if a < so]
             if hi:
                 t = min(hi); khu.append((f, el, so, t)); half.append(("Quá trình oxi hóa", f"{el}({_fmt_ox(so)}) → {el}({_fmt_ox(t)}) + {t - so}e"))
             if lo:
@@ -675,91 +416,31 @@ def redox_analysis(r):
     return {"ok": True, "verified": verified, "redox": bool(changed), "changed": changed, "khu": khu, "oxh": oxh, "half": half}
 
 
-def _redox_box(oxi, red, half=(), note=""):
-    """Khung chất oxi hóa / chất khử. oxi, red: danh sách (công thức, chi tiết) đã escape; half: các nửa quá trình."""
-    item = lambda f, d: f'<b>{f}</b>' + (f'<span>{d}</span>' if d else "")
-    role = lambda cls, ttl, lst: (f'<div class="rxrole {cls}"><small>{ttl}</small>' + ("".join(item(f, d) for f, d in lst) or "<b>—</b>") + "</div>")
-    out = ('<div class="rxredox"><div class="rxredhead">⚡ Phản ứng oxi hóa – khử</div><div class="rxroles">'
-           + role("ox", "CHẤT OXI HÓA<br>nhận e · bị khử", oxi) + role("rd", "CHẤT KHỬ<br>nhường e · bị oxi hóa", red) + "</div>")
-    if half:
-        out += '<div class="rxhalf">' + "".join(f'<div><u>{html.escape(t)}</u>: {html.escape(_sub(s))}</div>' for t, s in half) + "</div>"
-    if note:
-        out += f'<div class="rxhalf" style="opacity:.8"><i>{html.escape(note)}</i></div>'
-    st.markdown(out + "</div>", unsafe_allow_html=True)
-
-
 def render_redox(r):
     a = redox_analysis(r)
-    ox = r.get("oxi_hoa_khu") or {}
-    ai_ox, ai_red = _as_list(ox.get("chat_oxi_hoa")), _as_list(ox.get("chat_khu"))
-    if a is None or not a["ok"]:
-        if ox.get("la_oxi_hoa_khu") and (ai_ox or ai_red):   # số oxi hóa không kiểm chứng được: dùng kết luận của AI, ghi rõ
-            _redox_box([(html.escape(pretty(f)), "") for f in ai_ox], [(html.escape(pretty(f)), "") for f in ai_red])
-        elif a is not None:
-            st.warning("Chưa xác định chắc số oxi hóa của: " + ", ".join(a["problems"]) + ". Hãy tự kiểm tra lại.")
+    if a is None:
+        return
+    if not a["ok"]:
+        st.warning("Chưa xác định chắc số oxi hóa của: " + ", ".join(a["problems"]) + ". Hãy tự kiểm tra lại.")
         return
     if not a["redox"]:
         st.info("**Không phải** phản ứng oxi hóa khử.")
         return
-    def fmt(lst):   # gom theo (chất, nguyên tố): C: +1, 0 → -1
-        grp = {}
-        for f, el, so, t in lst:
-            g = grp.setdefault((f, el), ([], []))
-            if so not in g[0]:
-                g[0].append(so)
-            if t not in g[1]:
-                g[1].append(t)
-        j = lambda v: ", ".join(_fmt_ox(x) for x in sorted(v))
-        return [(html.escape(pretty(f)), f"{html.escape(el)}: {j(a)} → {j(b)}") for (f, el), (a, b) in grp.items()]
-    both = [f for f in dict.fromkeys(f for f, *_ in a["khu"]) if any(f == g for g, *_ in a["oxh"])]
-    note = (", ".join(pretty(f) for f in both) + " vừa là chất khử vừa là chất oxi hóa (tự oxi hóa – khử).") if both else ""
-    _redox_box(fmt(a["oxh"]), fmt(a["khu"]), a["half"], note)
+    st.success("**Đây là phản ứng oxi hóa khử.**")
+    names = lambda lst: ", ".join(dict.fromkeys(pretty(f) for f, *_ in lst))
+    khu, oxh = names(a["khu"]), names(a["oxh"])
+    st.markdown(f"- **Chất khử** (có tính khử): {khu}\n- **Chất oxi hóa** (có tính oxi hóa): {oxh}\n"
+                f"- **Chất bị oxi hóa:** {khu}\n- **Chất bị khử:** {oxh}")
 
 
-def _balance_box(ok, eq, title=None):
-    ttl = title or ("✓ Phương trình đã cân bằng" if ok else "Phương trình cân bằng đúng")
-    st.markdown(f'<div class="rxbal {"ok" if ok else "no"}"><small>{html.escape(ttl)}</small><div class="eq">{_eq_html(eq)}</div></div>',
-                unsafe_allow_html=True)
-
-
-def render_balance(r, left, right):
-    """Luôn hiện phương trình đã cân bằng. Kiểm tra bằng công thức phân tử; chỉ dùng SMILES khi công thức không đọc được."""
-    fb = rx_balance_formulas(left, right)
-    if fb is not None:
-        if fb["ok"]:
-            _balance_box(True, rx_equation(left, right, [to_int(x.get("he_so")) for x in left + right]))
-        elif fb["coefs"]:
-            st.warning("Phương trình trong ảnh **chưa cân bằng** (hệ số chưa đúng).")
-            _balance_box(False, rx_equation(left, right, fb["coefs"]))
-        else:
-            st.warning("Phương trình **chưa cân bằng**.")
-            if r.get("phuong_trinh_can_bang"):
-                _balance_box(False, r["phuong_trinh_can_bang"], "Phương trình cân bằng (AI đề xuất)")
-        return
-    if re.search(r"[)\]]n\b|\bn[A-Z(]", " ".join(str(x.get("cong_thuc") or "") for x in left + right)):
-        return   # có chỉ số n (polime, tinh bột...) nên không kiểm tra cân bằng được
-    bl = atom_balance([(to_int(x.get("he_so")), x.get("smiles")) for x in left])
-    br = atom_balance([(to_int(x.get("he_so")), x.get("smiles")) for x in right])
-    if bl is not None and br is not None:
-        if bl == br:
-            _balance_box(True, r.get("phuong_trinh") or "")
-        else:
-            st.warning("Phương trình **chưa cân bằng**.")
-            if r.get("phuong_trinh_can_bang"):
-                _balance_box(False, r["phuong_trinh_can_bang"], "Phương trình cân bằng (AI đề xuất)")
-    elif r.get("phuong_trinh_can_bang"):
-        _balance_box(False, r["phuong_trinh_can_bang"], "Phương trình cân bằng (AI đề xuất, chưa kiểm tra)")
-
-
-def render_reaction(r: dict, header: bool = True):
+def render_reaction(r: dict):
     left, right = r.get("chat_tham_gia") or [], r.get("san_pham") or []
-    if header:   # header=False: phương trình và loại phản ứng đã được vẽ ở thẻ bên ngoài
-        if r.get("phuong_trinh"):
-            st.markdown("**Phương trình đọc được**")
-            st.code(r["phuong_trinh"], language=None)
-        types_ = r.get("loai_phan_ung") or []
-        if types_:
-            st.success("**Loại phản ứng:** " + " · ".join(types_))
+    if r.get("phuong_trinh"):
+        st.markdown("**Phương trình đọc được**")
+        st.code(r["phuong_trinh"], language=None)
+    types_ = r.get("loai_phan_ung") or []
+    if types_:
+        st.success("**Loại phản ứng:** " + " · ".join(types_))
     if r.get("giai_thich"):
         st.markdown("**Vì sao:** " + r["giai_thich"])
     if r.get("dieu_kien"):
@@ -771,7 +452,7 @@ def render_reaction(r: dict, header: bool = True):
             m = Chem.MolFromSmiles(sp.get("smiles") or "")
             mass = f"{Descriptors.MolWt(m):.2f}" if m is not None else "—"
             rows.append({"Vai trò": role, "Hệ số": to_int(sp.get("he_so")), "Tên": sp.get("ten", ""),
-                         "Công thức": sp.get("cong_thuc", ""), "M (g/mol)": mass, "SMILES": sp.get("smiles", "")})
+                         "Công thức": sp.get("cong_thuc", ""), "SMILES": sp.get("smiles", ""), "M (g/mol)": mass})
             if m is not None and m.GetNumHeavyAtoms() > 1:
                 mols.append(m)
                 legends.append(sp.get("cong_thuc") or "")
@@ -784,168 +465,17 @@ def render_reaction(r: dict, header: bool = True):
             pass
 
     if left and right:
-        render_balance(r, left, right)
+        bl = atom_balance([(to_int(x.get("he_so")), x.get("smiles")) for x in left])
+        br = atom_balance([(to_int(x.get("he_so")), x.get("smiles")) for x in right])
+        if bl is not None and br is not None and bl != br:   # đã cân bằng thì không hiện gì; chỉ báo khi chưa cân bằng
+            st.warning("Phương trình **chưa cân bằng**.")
+            if r.get("phuong_trinh_can_bang"):
+                st.code(r["phuong_trinh_can_bang"], language=None)
+    if left and right:
         render_redox(r)
+        st.caption("Phương trình cân bằng chỉ cho biết số nguyên tử và điện tích hai vế bằng nhau, không chứng minh phản ứng có xảy ra trong thực tế.")
     if r.get("luu_y"):
         st.info("Lưu ý: " + " • ".join([r["luu_y"]] if isinstance(r["luu_y"], str) else r["luu_y"]))
-
-
-def _as_list(v):
-    return [v] if isinstance(v, str) and v else [x for x in (v or []) if x]
-
-
-RX_CSS = """<style>
-.rxsum{display:flex;align-items:center;gap:1rem;border-radius:1.4rem;padding:1rem 1.2rem;margin:0.4rem 0 1.1rem;color:#fff;
-background:radial-gradient(18rem 9rem at 95% 0%,rgba(25,195,255,.4),rgba(25,195,255,0) 70%),linear-gradient(115deg,#152a9a 0%,#3a37cf 55%,#5a3bea 100%);box-shadow:0 0.857rem 2rem rgba(47,53,200,.28)}
-.rxsum .big{flex:0 0 3.6rem;height:3.6rem;border-radius:50%;display:grid;place-items:center;font-size:1.9rem;font-weight:800;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.5)}
-.rxsum b{display:block;font-size:1.2rem;line-height:1.3}
-.rxsum small{opacity:.85;font-size:.9rem}
-.rxlist{margin:-0.4rem 0 1.1rem;display:flex;flex-direction:column;gap:.4rem}
-.rxlist div{display:flex;gap:.6rem;align-items:center;background:#f3f5ff;border:1px solid #e3e7fb;border-radius:.9rem;padding:.45rem .7rem;font-size:.95rem;line-height:1.5;color:#1b2150;word-break:break-word}
-.rxlist div i{flex:0 0 1.7rem;height:1.7rem;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.85rem;color:#fff;background:linear-gradient(135deg,#3b6cf6,#6d4df0)}
-[class*="st-key-rxcard"]{background:#fff;border:1px solid #dfe5ff;border-left:0.55rem solid #6d4df0;border-radius:1.4rem;padding:1.1rem 1.2rem 0.7rem;margin-bottom:1.3rem;box-shadow:0 1rem 2.2rem rgba(79,92,240,.15)}
-.rxhead{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem}
-.rxnum{flex:0 0 2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;font-size:1.25rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#3b6cf6,#7a52f4);box-shadow:0 0.4rem 1rem rgba(79,92,240,.4)}
-.rxttl{font-weight:800;font-size:1.05rem;color:#1b2150}
-.rxttl em{font-style:normal;font-weight:600;font-size:.85rem;color:#6d4df0;background:#ece8ff;border-radius:2rem;padding:.12rem .6rem;margin-left:.4rem}
-.rxeq{font-size:1.3rem;font-weight:700;line-height:1.9;color:#10163f;background:linear-gradient(135deg,#eef1ff,#f6f0ff);border:1px solid #dfe5ff;border-radius:1.1rem;padding:.8rem 1rem;overflow-x:auto;margin-bottom:.8rem}
-.rxeq .ar{color:#6d4df0;font-weight:900;margin:0 .35rem}
-.rxpills{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.8rem}
-.rxpills span{border-radius:2rem;padding:.3rem .85rem;font-weight:700;font-size:.92rem}
-.rxbal{border-radius:1.1rem;padding:.7rem 1rem;margin:.7rem 0;overflow-x:auto}
-.rxbal small{display:block;font-weight:800;font-size:.82rem;margin-bottom:.15rem}
-.rxbal .eq{font-size:1.2rem;font-weight:700;line-height:1.9;color:#10163f}
-.rxbal.ok{background:#e8f8ef;border:1px solid #bfe9d0}.rxbal.ok small{color:#047857}
-.rxbal.no{background:#fff7e0;border:1px solid #fde2a1}.rxbal.no small{color:#b45309}
-.rxbal .ar{color:#047857;font-weight:900;margin:0 .35rem}
-.rxredox{border-radius:1.1rem;border:1px solid #fcd9b6;background:linear-gradient(135deg,#fff8ee,#fff2f7);padding:.8rem 1rem;margin:.7rem 0}
-.rxredhead{font-weight:800;color:#b45309;margin-bottom:.6rem}
-.rxroles{display:grid;grid-template-columns:1fr;gap:.6rem}
-@media(min-width:560px){.rxroles{grid-template-columns:1fr 1fr}}
-.rxrole{border-radius:.9rem;padding:.6rem .85rem}
-.rxrole small{display:block;font-weight:800;font-size:.76rem;line-height:1.35;margin-bottom:.2rem}
-.rxrole b{display:block;font-size:1.15rem;color:#10163f}
-.rxrole span{display:block;font-size:.85rem;color:#475569;margin-bottom:.25rem}
-.rxrole.ox{background:#ffe9e0;border:1px solid #ffc9b3}.rxrole.ox small{color:#b42318}
-.rxrole.rd{background:#e3eeff;border:1px solid #bcd3ff}.rxrole.rd small{color:#1d4ed8}
-.rxhalf{margin-top:.6rem;font-size:.95rem;line-height:1.75;color:#10163f}.rxhalf u{text-decoration:none;font-weight:800;color:#b45309}
-.rxsec{font-weight:800;font-size:1.25rem;color:#1b2150;margin:1.2rem 0 .7rem;padding-left:.7rem;border-left:.3rem solid #6d4df0}
-.rxq{background:#fff;border:1px solid #dfe5ff;border-radius:1.4rem;padding:1.1rem 1.2rem;margin-bottom:1.2rem;box-shadow:0 1rem 2.2rem rgba(79,92,240,.13)}
-.rxq h4{margin:0 0 .5rem;font-size:1.15rem;color:#1b2150;line-height:1.4}
-.rxq h4 em{font-style:normal;color:#6d4df0}
-.rxq p{margin:.3rem 0 .7rem;color:#334155;line-height:1.6}
-.rxtbl{width:100%;border-collapse:collapse;margin:.3rem 0 .8rem;font-size:.97rem}
-.rxtbl th{text-align:left;color:#6b7299;font-weight:700;padding:.5rem .4rem;border-bottom:2px solid #e3e7fb}
-.rxtbl td{padding:.55rem .4rem;border-bottom:1px solid #eef0fb;vertical-align:top;color:#10163f;line-height:1.5}
-.rxtbl td:first-child{font-weight:800;white-space:nowrap;color:#4f5cf0}
-.rxtbl td:last-child{text-align:right;white-space:nowrap}
-.rxtag{display:inline-block;border-radius:2rem;padding:.2rem .7rem;font-weight:800;font-size:.88rem}
-.rxtag.g{color:#047857;background:#d9f6e6}.rxtag.r{color:#b42318;background:#ffe4e0}.rxtag.b{color:#2563eb;background:#e3eeff}
-.rxans{display:inline-block;margin-top:.3rem;border-radius:2rem;padding:.45rem 1.1rem;font-weight:800;font-size:1.05rem;color:#fff;background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 .4rem 1rem rgba(5,150,105,.3)}
-.rxfinal{border-radius:1.4rem;padding:1rem 1.3rem;margin:.2rem 0 1.2rem;color:#fff;background:linear-gradient(115deg,#152a9a 0%,#3a37cf 55%,#5a3bea 100%);box-shadow:0 .857rem 2rem rgba(47,53,200,.28)}
-.rxfinal b.t{display:block;font-size:1.1rem;margin-bottom:.4rem}
-.rxfinal div{font-size:1.15rem;line-height:1.9}.rxfinal div b{font-size:1.3rem;color:#a7f3d0}
-.rxpills span.p0{color:#fff;background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 0.3rem .8rem rgba(5,150,105,.3)}
-.rxpills span.p1{color:#2563eb;background:#e3eeff}.rxpills span.p2{color:#d97706;background:#fff1dc}.rxpills span.p3{color:#d6389b;background:#ffe4f5}.rxpills span.p4{color:#6d4df0;background:#ece8ff}
-</style>"""
-
-
-def _eq_html(s):
-    """Phương trình dạng chữ -> HTML: chỉ số dưới, mũi tên đẹp."""
-    t = html.escape(_sub(str(s or "")))
-    for a in ("&lt;-&gt;", "&lt;=&gt;"):
-        t = t.replace(a, '<span class="ar">⇌</span>')
-    for a in ("--&gt;", "-&gt;", "=&gt;"):
-        t = t.replace(a, '<span class="ar">→</span>')
-    return t
-
-
-def _rx_card_head(i, n, it):
-    parts = ['<div class="rxhead">' + (f'<div class="rxnum">{i}</div>' if n > 1 else "")
-             + f'<div class="rxttl">{"Phương trình " + str(i) + "/" + str(n) if n > 1 else "Phương trình đọc được"}'
-             + (f'<em>{html.escape(str(it["nhan"]))}</em>' if it.get("nhan") else "") + '</div></div>']
-    if it.get("phuong_trinh"):
-        parts.append(f'<div class="rxeq">{_eq_html(it["phuong_trinh"])}</div>')
-    types_ = [str(x) for x in (it.get("loai_phan_ung") or []) if x]
-    if types_:
-        parts.append('<div class="rxpills">' + "".join(
-            f'<span class="p{min(k, 4)}">{"Loại phản ứng: " if k == 0 else ""}{html.escape(x)}</span>' for k, x in enumerate(types_)) + "</div>")
-    st.markdown("".join(parts), unsafe_allow_html=True)
-
-
-def _tag_cls(t):
-    s = str(t or "").strip().lower()
-    if s.startswith(("không", "sai", "ko")):
-        return "r"
-    if s.startswith(("tính khử", "có", "đúng", "thỏa", "thoả")):
-        return "g"
-    return "b"
-
-
-def render_solution(sol):
-    """Lời giải các câu hỏi trong ảnh: bảng từng phản ứng, đáp án từng câu, kết quả cuối cùng."""
-    cau = [c for c in ((sol or {}).get("cau") or []) if isinstance(c, dict)]
-    if not cau:
-        return
-    st.markdown('<div class="rxsec">Lời giải</div>', unsafe_allow_html=True)
-    finals = []
-    for c in cau:
-        nhan = html.escape(str(c.get("nhan") or ""))
-        parts = [f'<div class="rxq"><h4><em>{nhan}</em>' + (". " + _eq_html(c["tieu_de"]) if c.get("tieu_de") else "") + "</h4>"]
-        if c.get("nguyen_tac"):
-            parts.append(f'<p><b>Nguyên tắc:</b> {_eq_html(c["nguyen_tac"])}</p>')
-        rows = [x for x in (c.get("phan_tich") or []) if isinstance(x, dict)]
-        if rows:
-            parts.append('<table class="rxtbl"><thead><tr><th>Phản ứng</th><th>Giải thích</th><th>'
-                         + html.escape(str(c.get("cot_ket_luan") or "Kết luận")) + "</th></tr></thead><tbody>"
-                         + "".join(f'<tr><td>{html.escape(str(x.get("phan_ung") or ""))}</td><td>{_eq_html(x.get("giai_thich"))}</td>'
-                                   f'<td><span class="rxtag {_tag_cls(x.get("ket_luan"))}">{html.escape(str(x.get("ket_luan") or ""))}</span></td></tr>'
-                                   for x in rows) + "</tbody></table>")
-        if c.get("ket_luan_cau"):
-            parts.append(f'<p>{_eq_html(c["ket_luan_cau"])}</p>')
-        ans = str(c.get("dap_an") or "").strip()
-        if ans:
-            parts.append(f'<span class="rxans">Đáp án {nhan}: {html.escape(ans)}</span>')
-            finals.append((nhan, html.escape(ans)))
-        parts.append("</div>")
-        st.markdown("".join(parts), unsafe_allow_html=True)
-    if finals:
-        st.markdown('<div class="rxfinal"><b class="t">Kết quả cuối cùng</b>' + "".join(f"<div>{n}: <b>{a}</b></div>" for n, a in finals) + "</div>",
-                    unsafe_allow_html=True)
-
-
-def render_reactions(res):
-    """Hiện tất cả phương trình AI đọc được: bảng tổng quan rồi mỗi phương trình một thẻ riêng, hiện sẵn toàn bộ."""
-    items = reactions_of(res)
-    general = _as_list((res or {}).get("luu_y_chung")) if isinstance(res, dict) else []
-    st.markdown(RX_CSS, unsafe_allow_html=True)
-    n = len(items)
-    sol = (res or {}).get("loi_giai") if isinstance(res, dict) else None
-    meta = res if isinstance(res, dict) else {}
-    if meta.get("_v") != RX_BUILD:
-        st.warning("Kết quả này được tạo bởi bản cũ (không có phần Lời giải). Hãy bấm lại nút **Nhận dạng và phân loại phản ứng**.")
-    else:
-        if meta.get("loi_giai_loi"):
-            st.warning("Không giải được đề bài trong ảnh: " + meta["loi_giai_loi"])
-        elif n > 1 and not sol:
-            st.caption("AI không nhận ra đề bài/câu hỏi trong ảnh nên chỉ phân tích từng phương trình (không có phần Lời giải).")
-    if sol and items:   # đã có lời giải thì chỉ hiện lời giải, không hiện phần phân tích chi tiết từng phương trình
-        render_solution(sol)
-        return
-    if not items:
-        st.warning("Không tìm thấy phương trình phản ứng nào trong dữ liệu đầu vào.")
-    if n > 1:
-        st.markdown(f'<div class="rxsum"><div class="big">{n}</div><div><b>Tìm thấy {n} phương trình trong ảnh</b>'
-                    f'<small>Mỗi phương trình được phân tích đầy đủ ở bên dưới</small></div></div>', unsafe_allow_html=True)
-        st.markdown('<div class="rxlist">' + "".join(
-            f'<div><i>{i}</i><span>{_eq_html(it.get("phuong_trinh") or it.get("nhan") or "")}</span></div>' for i, it in enumerate(items, 1)) + "</div>",
-            unsafe_allow_html=True)
-    for i, it in enumerate(items, 1):
-        with st.container(key=f"rxcard_{i}"):
-            _rx_card_head(i, n, it)
-            render_reaction(it, header=False)
-    if general:
-        st.info("Lưu ý: " + " • ".join(general))
 
 
 def reaction_ui():
@@ -959,7 +489,9 @@ def reaction_ui():
         f = st.camera_input("Chụp phương trình", key="rx_cam")
         img = f.getvalue() if f else None
     else:
-        txt = voice_text_input("rx_txt", "Phương trình", "Ví dụ: CH2=CH2 + Br2 -> CH2Br-CH2Br").strip()
+        apply_voice("rx_txt")
+        txt = st.text_input("Phương trình", placeholder="Ví dụ: CH2=CH2 + Br2 -> CH2Br-CH2Br", key="rx_txt").strip()
+        voice_input("rx_txt")
     if st.button("Nhận dạng và phân loại phản ứng", type="primary", disabled=not (img or txt), key="rx_go"):
         if st.session_state.n >= MAX_PER_SESSION:
             show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
@@ -967,18 +499,14 @@ def reaction_ui():
             with st.spinner("Đang phân tích…"):
                 try:
                     st.session_state.rx = analyze_reaction(img, txt)
-                    _items = reactions_of(st.session_state.rx)
-                    _lbl = (_items[0].get('phuong_trinh') if _items else None) or txt or 'Phương trình'
-                    if len(_items) > 1:
-                        _lbl = f"{_lbl[:45]} (+{len(_items) - 1} phương trình)"
-                    add_history(_lbl[:60], 'Phản ứng')
+                    add_history(((st.session_state.rx or {}).get('phuong_trinh') or txt or 'Phương trình')[:60], 'Phản ứng')
                     st.session_state.n += 1
                 except Exception as e:
                     st.session_state.rx = None
                     show_top_error(top, "Có lỗi khi phân tích, hãy thử lại hoặc chụp rõ hơn.", e)
     if st.session_state.get("rx"):
         st.divider()
-        render_reactions(st.session_state.rx)
+        render_reaction(st.session_state.rx)
 
 
 
@@ -1055,8 +583,8 @@ def _canon(atoms, edges, strict=False):
 
 
 def enumerate_isomers(counts, nH, time_limit=15, max_graphs=200000, strict=False):
-    """Sinh các ứng viên cấu tạo trong giới hạn thời gian, kích thước và quy tắc hóa trị.
-    Chưa chứng minh tính đầy đủ với mọi công thức, kiểu vòng và đồng phân lập thể."""
+    """Liệt kê TẤT CẢ đồng phân cấu tạo của công thức (mọi đồ thị liên thông đúng hóa trị, không trùng nhau).
+    strict=True: chỉ mạch hở hoặc 1 vòng, không có O–O, không liên kết ba trong vòng."""
     els = sorted(counts)
     N = sum(counts.values())
     sigma = sum(VALENCE[e] * counts[e] for e in els)
@@ -1473,7 +1001,7 @@ def compare_ui_result(s1, s2):
 
 
 def build_iso_result(fkey, orig, p):
-    """Bộ máy hóa học sinh ứng viên và lọc theo tham số; AI không sinh ứng viên."""
+    """Bộ máy hóa học: sinh toàn bộ đồng phân, kiểm tra và đếm theo tham số p. AI không tham gia."""
     out = iso_enumerate(fkey, p["ben"])
     if not out["ok"]:
         return {"ok": False, "why": out["why"], "fkey": fkey}
@@ -1517,6 +1045,13 @@ def render_iso(r, names):
         cond.append("không tác dụng với " + ", ".join(p["khong_phan_ung"]))
     nh = " · ".join(x for x in [nh] + cond if x)
     st.success(f"**{answer_of(r)} đồng phân** của {pretty(r['fkey'])}" + (f" ({nh})" if nh else ""))
+    if CORE_OK:
+        try:
+            _c, _h = iso_parse_formula(r["fkey"])
+            for _w in iso_scope_warnings(_c, _h):
+                st.warning(_w)
+        except Exception:
+            pass
     hid = r["hidden"] + (sum(r["excluded"].values()) if p["ben"] else 0)
     st.caption(f"Cấu tạo {len(kept)} · kể cả hình học {sum(k['geo'] for k in kept)} · quang học {sum(k['opt'] for k in kept)} · "
                f"lập thể {sum(k['stereo'] for k in kept)} · đã ẩn hoặc loại {hid}")
@@ -1582,11 +1117,13 @@ def isomer_ui():
     top = st.container()  # lỗi và lý do sai hiện ở đầu tab
     t1, t2 = st.tabs(["Liệt kê đồng phân", "So sánh hai chất"])
     with t1:
-        q = voice_text_input("iso_q", "Câu hỏi hoặc công thức",
-                             "Ví dụ: số đồng phân este của C4H8O2   ·   C4H10O").strip()
+        apply_voice("iso_q")
+        q = st.text_input("Câu hỏi hoặc công thức", key="iso_q",
+                          placeholder="Ví dụ: số đồng phân este của C4H8O2   ·   C4H10O").strip()
+        voice_input("iso_q")
         with st.expander("Tùy chọn"):
             scope = st.radio("Phạm vi khi chỉ nhập công thức", ["Đơn chức, mạch hở (đề SGK)", "Phổ thông (cả đa chức và 1 vòng)",
-                                                               "Mở rộng (trong giới hạn thuật toán)"], key="iso_scope")
+                                                               "Toán học (mọi cấu trúc)"], key="iso_scope")
             want_names = st.checkbox("Gọi tên bằng AI (có thể sai)", key="iso_names")
             f = st.file_uploader("Hoặc dùng ảnh công thức", type=["jpg", "jpeg", "png", "webp"], key="iso_up")
         img = f.getvalue() if f else None
@@ -1638,7 +1175,6 @@ def isomer_ui():
         res = st.session_state.get("iso")
         if res:
             st.divider()
-            st.caption("Kết quả là các ứng viên trong phạm vi và giới hạn của bộ sinh; chưa có chứng minh tính đầy đủ cho mọi công thức, nhóm chức và đồng phân lập thể.")
             render_understood(st.session_state.get("iso_und"), res)
             if res["kept"]:
                 render_iso(res, st.session_state.get("iso_nm") or {})
@@ -1707,12 +1243,7 @@ def render_equipment(r):
             meta = [x for x in (t.get("vi_tri"), t.get("chat_lieu")) if x]
             if meta:
                 st.markdown("**Vị trí / chất liệu:** " + " · ".join(meta))
-            conf = t.get("do_tin_cay")
-            if isinstance(conf, (int, float)):
-                p = max(0.0, min(1.0, float(conf)))
-                st.progress(p, text=f"Độ tin cậy: {round(p * 100)}%")
-                if p < 0.6:
-                    st.warning("Độ tin cậy thấp, hãy hỏi giáo viên hoặc chụp lại rõ hơn.")
+            st.caption("Do AI nhận dạng từ ảnh, hãy đối chiếu với dụng cụ thật hoặc hỏi giáo viên.")
             if t.get("cong_dung"):
                 st.markdown("**Công dụng:** " + t["cong_dung"])
             bullets("Cách dùng", t.get("cach_dung"))
@@ -1917,7 +1448,6 @@ Chỉ trả về JSON: {"atoms":[...],"bonds":[[1,2,1],...],"ghi_chu":"điều c
 
 def graph_to_smiles(g):
     """Dựng phân tử từ đồ thị AI chép lại, giữ nguyên số H đã vẽ để lỗi hóa trị không bị che mất."""
-    validate_graph(g)
     atoms, bonds = g.get("atoms") or [], g.get("bonds") or []
     if not atoms:
         return ""
@@ -1947,7 +1477,170 @@ def transcribe_student(img):
         smi = graph_to_smiles(r)
     except Exception:
         raise ValueError("Không dựng được cấu trúc từ ảnh, hãy chụp rõ hơn.")
-    return smi, r.get("ghi_chu", "") if isinstance(r.get("ghi_chu", ""), str) else ""
+    return smi, r.get("ghi_chu", "")
+
+
+# ---------------- MolSnap-CVR: kiểm tra, chẩn đoán và hướng dẫn sửa lỗi công thức cấu tạo ----------------
+def graph_draw(g, bad=(), size=(320, 240)):
+    """Vẽ lại đúng cấu trúc học sinh đã xác nhận (kể cả sai hóa trị), khoanh đỏ các nguyên tử nghi vấn."""
+    try:
+        rw, idx = Chem.RWMol(), {}
+        for i, a in g.atoms.items():
+            at = Chem.Atom(a.el)
+            if a.h is not None:
+                at.SetNumExplicitHs(int(a.h))
+                at.SetNoImplicit(True)
+            if a.charge:
+                at.SetFormalCharge(int(a.charge))
+            idx[i] = rw.AddAtom(at)
+        kinds = {1: Chem.BondType.SINGLE, 2: Chem.BondType.DOUBLE, 3: Chem.BondType.TRIPLE}
+        for b, o in g.bonds.items():
+            i, j = tuple(b)
+            rw.AddBond(idx[i], idx[j], kinds[o])
+        m = rw.GetMol()
+        m.UpdatePropertyCache(strict=False)
+        Chem.FastFindRings(m)
+        return Draw.MolToImage(m, size=size, highlightAtoms=[idx[i] for i in bad if i in idx], highlightColor=(1.0, 0.55, 0.55))
+    except Exception:
+        return None
+
+
+def cvr_read_graphs(img_bytes):
+    """Đọc ảnh bài làm nhiều lần độc lập (nhiệt độ khác nhau) để MolSnap đối chiếu mức đồng thuận. Lần nào lỗi thì bỏ qua; không lần nào đọc được thì báo lỗi, không tự tạo kết quả."""
+    k = max(1, min(3, int(st.secrets.get("CVR_READS", 2))))
+    raws, notes = [], []
+    for t in (0, 0.5, 0.8)[:k]:
+        try:
+            r = ask_ai([types.Part.from_bytes(data=to_jpeg(img_bytes), mime_type="image/jpeg"), GRAPH_PROMPT], temperature=t)
+        except Exception:
+            continue
+        if isinstance(r, dict) and r.get("atoms"):
+            raws.append({"atoms": r["atoms"], "bonds": r.get("bonds") or []})
+            if r.get("ghi_chu"):
+                notes.append(str(r["ghi_chu"]))
+    if not raws:
+        raise ValueError("Không đọc được cấu trúc nào từ ảnh.")
+    return raws, list(dict.fromkeys(notes))
+
+
+@st.cache_resource(show_spinner=False)
+def get_store():
+    """Hồ sơ học tập (SQLite). Trên Streamlit Cloud ổ đĩa có thể bị xóa khi khởi động lại, hãy tải CSV về lưu."""
+    return Store(st.secrets.get("MOLSNAP_DB", "molsnap_data/progress.db"))
+
+
+def student_code_input(key):
+    code = st.text_input("Mã học sinh (không dùng tên thật, không bắt buộc)", key=key,
+                         help="Mã chỉ để MolSnap nhớ tiến bộ của em. Máy chủ chỉ lưu bản băm của mã, không lưu tên và không lưu ảnh.")
+    if CORE_OK:
+        st.session_state["student_hash"] = anonymize(code, st.secrets.get("STUDENT_SALT", "molsnap"))
+    return code
+
+
+class _CvrDeps:
+    def read_graphs(self, img):
+        return cvr_read_graphs(img)
+
+    def draw(self, g, bad):
+        return graph_draw(g, bad)
+
+    def draw_smiles(self, smi):
+        m = Chem.MolFromSmiles(smi)
+        return Draw.MolToImage(m, size=(300, 200)) if m is not None else None
+
+    def budget_ok(self):
+        return st.session_state.n < MAX_PER_SESSION
+
+    def spend(self, n):
+        st.session_state.n += 1   # mỗi lần nộp ảnh tính 1 lượt, dù máy đọc ảnh nhiều lần
+
+    def save_attempt(self, sm):
+        st.session_state.setdefault("pc_att", []).append({k: sm[k] for k in ("exercise_id", "errors", "result", "hints", "n_submissions", "seconds")})
+        sid = st.session_state.get("student_hash")
+        if sid and sid != "an_danh":
+            try:
+                get_store().save_attempt(sid, sm)
+            except Exception:
+                pass
+
+
+def _set_coach_ctx(key, ex):
+    S = st.session_state.get(key + "_s") or {}
+    res = S.get("result")
+    if ex is not None and res and res.get("trang_thai") == "sai":
+        e = next((x for x in res["loi"] if x["ma"] == res["loi_chinh"]), None)
+        if e:
+            st.session_state["coach_ctx"] = {"ten": ex.ten, "loi": e["ten"], "goi_y": len(S.get("hints", []))}
+            return
+    st.session_state.pop("coach_ctx", None)
+
+
+def structure_check_ui():
+    """Quy trình MolSnap-CVR trong tab Công thức cấu tạo: ảnh -> xem cấu trúc máy đọc -> xác nhận hoặc sửa -> kiểm tra -> gợi ý -> sửa -> kiểm tra lại."""
+    names = ["Không có đề (chỉ kiểm tra hóa trị)"] + [e.ten for e in CORE_EX]
+    pick = st.selectbox("Đề bài (tùy chọn)", names, key="sc_pick")
+    ex = None if pick == names[0] else CORE_EX[names.index(pick) - 1]
+    key = "cvr_free" if ex is None else "cvr_" + ex.id
+    if ex is not None:
+        student_code_input("sc_code")
+        st.markdown(f"#### Viết công thức cấu tạo của: **{ex.ten}**")
+        if st.checkbox("Gợi ý: hiện công thức phân tử", key=f"sc_f_{ex.id}"):
+            st.markdown(f"Công thức phân tử: **{pretty(ex.formula)}**")
+    r = cvr_ui.render(st, _CvrDeps(), ex, key)
+    _set_coach_ctx(key, ex)
+    if r["hoan_thanh"] and st.button("➡️ Làm lại hoặc chọn bài khác", key="sc_next"):
+        cvr_ui.reset(st, key)
+        st.rerun()
+    st.caption("MolSnap dùng AI để đọc ảnh, còn việc kiểm tra hóa trị, so sánh cấu trúc và phân loại lỗi do thuật toán thực hiện. "
+               "Khi các lần đọc ảnh không thống nhất, MolSnap sẽ nhờ em xác nhận thay vì tự kết luận.")
+
+
+def _pc_suggest(att):
+    ex, why = core_next(att, exclude=[e.id for e in CORE_EX if e.ten == st.session_state.get("pc_pick")])
+    st.session_state["pc_pick"] = ex.ten
+    st.session_state["pc_why"] = why
+
+
+def practice_cvr_ui():
+    """Dạng bài vẽ công thức cấu tạo: gợi ý ba mức, sửa và nộp lại, lưu hồ sơ, đề xuất bài theo quy tắc minh bạch."""
+    sid = st.session_state.get("student_hash") or "an_danh"
+    att = get_store().attempts_of(sid) if sid != "an_danh" else list(st.session_state.get("pc_att", []))
+    names = [e.ten for e in CORE_EX]
+    st.session_state.setdefault("pc_pick", random.choice(names))
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        st.selectbox("Chọn đề", names, key="pc_pick")
+    with c2:
+        st.button("🎯 Đề xuất bài phù hợp với em", on_click=_pc_suggest, args=(att,), key="pc_sug")
+    if st.session_state.get("pc_why"):
+        st.caption("💡 " + st.session_state["pc_why"])
+    ex = CORE_EX[names.index(st.session_state["pc_pick"])]
+    key = "cvr_p_" + ex.id
+    with st.container(border=True):
+        st.markdown(f"#### Viết công thức cấu tạo của: **{ex.ten}**")
+        if st.checkbox("Gợi ý: hiện công thức phân tử", key=f"pc_f_{ex.id}"):
+            st.markdown(f"Công thức phân tử: **{pretty(ex.formula)}**")
+        r = cvr_ui.render(st, _CvrDeps(), ex, key)
+    _set_coach_ctx(key, ex)
+    if r["hoan_thanh"]:
+        st.button("➡️ Bài tiếp theo (đề xuất theo lỗi của em)", on_click=_pc_suggest, args=(att + [r["tom_tat"]] if r.get("tom_tat") else att,), key="pc_next")
+    with st.expander("📊 Hồ sơ kỹ năng của em"):
+        if not att:
+            st.caption("Chưa có dữ liệu. Làm vài bài để MolSnap thấy em hay mắc lỗi nào.")
+        else:
+            prof = core_profile(att)
+            st.dataframe([{"Kỹ năng": ERR_NAMES.get(k, k), "Số lần có cơ hội mắc lỗi": v["co_hoi"], "Số lần mắc lỗi": v["loi"], "Điểm cần luyện": v["diem_yeu"]}
+                          for k, v in sorted(prof.items(), key=lambda kv: -kv[1]["diem_yeu"])], hide_index=True, width="stretch")
+            st.caption("Điểm cần luyện = (số lần mắc + 1) / (số cơ hội + 2). Bài đề xuất là bài luyện đúng kỹ năng có điểm cao nhất mà em đã từng mắc lỗi. "
+                       "Đây là quy tắc đơn giản và công khai, không phải mô hình học máy.")
+        if sid != "an_danh":
+            st.download_button("⬇️ Tải hồ sơ của em (CSV)", get_store().export_csv(sid).encode("utf-8-sig"), file_name="ho_so_luyen_tap.csv", mime="text/csv", key="pc_dl")
+            if st.button("🗑️ Xóa toàn bộ dữ liệu của mã này", key="pc_del"):
+                get_store().delete_student(sid)
+                st.session_state["pc_att"] = []
+                st.rerun()
+        st.caption("Hồ sơ lưu trên máy chủ của ứng dụng và có thể mất khi máy chủ khởi động lại. Hãy tải CSV về nếu cần giữ lâu dài. "
+                   "Nếu không nhập mã học sinh, hồ sơ chỉ nằm trong phiên làm việc này.")
 
 
 def analyze_image_strict(img):
@@ -1961,7 +1654,7 @@ def analyze_image_strict(img):
     if note:
         old = res.get("luu_y") or []
         res["luu_y"] = ([old] if isinstance(old, str) else list(old)) + [note]
-    return verify_ai_proposal(res)
+    return res
 
 
 RANDOM_Q = "🎲 Ngẫu nhiên"
@@ -1980,7 +1673,10 @@ def practice_ui():
     with c1:
         kind = st.radio("Dạng bài", ["✍️ Vẽ công thức cấu tạo", "🏷️ Gọi tên chất"], horizontal=True, key="pr_kind")
     with c2:
-        who = st.text_input("Tên học sinh (không bắt buộc)", key="pr_name")
+        who = student_code_input("pr_name") if CORE_OK else st.text_input("Tên học sinh (không bắt buộc)", key="pr_name")
+    if CORE_OK and kind.startswith("✍️"):
+        practice_cvr_ui()
+        return
     if st.session_state.pq is None or st.session_state.pq["kind"] != kind:
         new_question(kind)
     names = [b[0] for b in BANK]
@@ -2084,7 +1780,7 @@ def practice_ui():
         w.writerows(hist)
         st.download_button("⬇️ Tải phiếu kết quả (CSV, nộp cho giáo viên)", buf.getvalue().encode("utf-8-sig"),
                            file_name="phieu_ket_qua.csv", mime="text/csv", key="pr_dl")
-    st.caption("RDKit đối chiếu cấu trúc đã nhập/nhận dạng; kết quả không đảm bảo AI đọc đúng ảnh gốc, và không thay thế đánh giá của giáo viên.")
+    st.caption("Phần chấm công thức do RDKit so sánh cấu tạo nên chính xác. Phần đọc ảnh bài làm do AI thực hiện nên có thể đọc sai nét viết khó.")
 
 
 # ---------------- Đánh giá độ chính xác (giáo viên / nhóm nghiên cứu) ----------------
@@ -2114,11 +1810,128 @@ def bench_summary(rows):
             "tb_giay": round(sum(r["giay"] for r in rows) / n, 1) if n else 0}
 
 
+def _bench_sample(name):
+    import os
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmarks", name)
+
+
+def _bench_download(rows, meta, fname, key):
+    st.download_button("⬇️ Tải kết quả (CSV, có ghi phiên bản và cấu hình)", core_ev.to_csv(rows, meta).encode("utf-8-sig"), file_name=fname, mime="text/csv", key=key)
+
+
+def _fmt(x, pct=True):
+    return "—" if x is None else (f"{x * 100:.1f}%" if pct else f"{x:.3f}")
+
+
+def bench_diag_ui():
+    """Đánh giá ErrorLab (chẩn đoán lỗi) trên bộ ca có đáp án do con người gán nhãn. Không gọi AI nên không tốn lượt."""
+    st.markdown("Chạy bộ chẩn đoán lỗi cấu trúc trên một bộ ca **đã có đáp án do người gán nhãn**. Phần này do thuật toán thực hiện, **không gọi AI và không tốn lượt**.")
+    st.caption("Cột cần có: ma_ca, dap_an_smiles (chất đề yêu cầu), bai_lam_thu_gon hoặc bai_lam_smiles, dap_an_loi (mã lỗi ngăn bởi dấu ;, để trống nếu bài đúng).")
+    up = st.file_uploader("CSV các ca kiểm thử", type=["csv"], key="bd_csv")
+    sample = st.checkbox("Dùng bộ 40 ca tổng hợp kèm theo", key="bd_sample")
+    if sample:
+        st.warning("Bộ ca này do người soạn GÕ TAY và gán nhãn để kiểm thử quy tắc. Nó KHÔNG phải bài làm thật của học sinh, KHÔNG đo độ chính xác đọc ảnh, "
+                   "nên không được trích làm độ chính xác của MolSnap ngoài thực tế.")
+    text = None
+    if up:
+        text = up.getvalue().decode("utf-8-sig", errors="ignore")
+    elif sample:
+        with open(_bench_sample("loi_cau_truc_tong_hop.csv"), encoding="utf-8") as f:
+            text = f.read()
+    if not st.button("Chạy đánh giá", type="primary", disabled=not text, key="bd_go"):
+        return
+    cases = core_ev.load_cases_csv(text)
+    for c in cases:
+        c["id"] = c.get("ma_ca") or c.get("id") or ""
+        c["dap_an_loi"] = [x.strip() for x in (c.get("dap_an_loi") or "").split(";") if x.strip()]
+
+    def predict(c):
+        tgt = core_parse.from_smiles(c["dap_an_smiles"])
+        stu = core_parse.from_condensed(c["bai_lam_thu_gon"]) if c.get("bai_lam_thu_gon") else core_parse.from_smiles(c["bai_lam_smiles"])
+        return core_diag.diagnose(stu, tgt)
+    rows, sm = core_ev.run_diagnosis_benchmark(cases, predict)
+    exact = sum(1 for r in rows if r["ket_qua"] == "dung")
+    ci = core_ev.wilson_ci(exact, sm["so_ca_duoc_ket_luan"]) if sm["so_ca_duoc_ket_luan"] else None
+    a, b, c3, d = st.columns(4)
+    a.metric("Số ca", sm["so_ca"])
+    b.metric("Độ phủ (ca được kết luận)", _fmt(sm["do_phu"]))
+    c3.metric("Khớp tuyệt đối", _fmt(sm["khop_tuyet_doi"]))
+    d.metric("Macro-F1 các loại lỗi", _fmt(sm["macro_f1"], pct=False))
+    if ci:
+        st.caption(f"Khoảng tin cậy Wilson 95% của tỉ lệ khớp tuyệt đối: {ci[0] * 100:.1f}% đến {ci[1] * 100:.1f}% (n = {sm['so_ca_duoc_ket_luan']}).")
+    st.caption(f"{sm['khong_du_can_cu']} ca MolSnap từ chối kết luận (không tính đúng hay sai).")
+    det = sm["phat_hien_co_loi"]
+    if det:
+        st.markdown(f"**Phát hiện bài có lỗi:** precision {_fmt(det['precision'])} · recall {_fmt(det['recall'])} · F1 {_fmt(det['f1'], pct=False)}")
+    st.dataframe([{"Loại lỗi": core_diag.ERR_NAMES.get(k, k), "Precision": _fmt(v["precision"]), "Recall": _fmt(v["recall"]), "F1": _fmt(v["f1"], pct=False),
+                   "TP": v["tp"], "FP": v["fp"], "FN": v["fn"]} for k, v in sm["theo_nhan"].items()], hide_index=True, width="stretch")
+    bad = [r for r in rows if r["ket_qua"] == "sai"]
+    if bad:
+        st.markdown("**Các ca máy chẩn đoán khác đáp án** (cần xem lại cả máy lẫn nhãn):")
+        st.dataframe(bad, hide_index=True, width="stretch")
+    _bench_download(rows, core_ev.run_metadata({"loai": "chan_doan_loi", "nguon": "tep_tai_len" if up else "bo_ca_tong_hop_kem_theo", "so_ca": len(rows)}), "danh_gia_chan_doan.csv", "bd_dl")
+
+
+def bench_iso_ui():
+    """Đối chiếu số đồng phân app đếm với số liệu chuẩn độc lập; có thể so cả TẬP cấu trúc với bộ sinh thuần Python."""
+    st.markdown("So số đồng phân app đếm với **đáp án chuẩn do con người cung cấp** (tài liệu hoặc đếm tay). Không gọi AI và không tốn lượt.")
+    st.caption("Cột cần có: cong_thuc, dap_an_so, và nên có nguon_dap_an (nguồn của đáp án). Đáp án KHÔNG được lấy từ kết quả của MolSnap.")
+    up = st.file_uploader("CSV công thức và đáp án", type=["csv"], key="bi_csv")
+    sample = st.checkbox("Dùng bộ 18 công thức có số liệu chuẩn kèm theo", key="bi_sample")
+    cmp_set = st.checkbox("Đối chiếu cả tập cấu trúc với bộ sinh độc lập thuần Python (chậm hơn)", key="bi_set")
+    text = up.getvalue().decode("utf-8-sig", errors="ignore") if up else None
+    if text is None and sample:
+        with open(_bench_sample("dong_phan_chuan.csv"), encoding="utf-8") as f:
+            text = f.read()
+    if not st.button("Chạy đối chiếu", type="primary", disabled=not text, key="bi_go"):
+        return
+    cases = core_ev.load_cases_csv(text)
+    for c in cases:
+        c["id"] = c.get("ma_ca") or c.get("cong_thuc")
+    extra = {}
+
+    def counter(f):
+        out = iso_enumerate(f.replace(" ", ""), False)
+        if not out["ok"]:
+            return None
+        smi = list(out["smiles"])
+        if cmp_set:
+            try:
+                cc, nh = core_iso.parse_formula(f)
+                oracle = core_iso.enumerate_isomers(cc, nh, time_limit=30)
+                app_keys = {core_graph.canonical(core_parse.from_smiles(x)) for x in smi}
+                extra[f] = {"bo_sinh_doc_lap": len(oracle), "chi_co_trong_app": len(app_keys - oracle), "chi_co_trong_bo_doc_lap": len(oracle - app_keys)}
+            except Exception as e:
+                extra[f] = {"bo_sinh_doc_lap": "", "chi_co_trong_app": "", "chi_co_trong_bo_doc_lap": type(e).__name__}
+        return len(smi)
+    rows, sm = core_ev.run_isomer_benchmark(cases, counter)
+    for r in rows:
+        r.update(extra.get(r["cong_thuc"], {}))
+    ci = core_ev.wilson_ci(sum(1 for r in rows if r["ket_qua"] == "dung"), sm["so_ca_duoc_ket_luan"]) if sm["so_ca_duoc_ket_luan"] else None
+    a, b, c3 = st.columns(3)
+    a.metric("Số công thức", sm["so_ca"])
+    b.metric("Đếm đúng", _fmt(sm["do_chinh_xac"]))
+    c3.metric("Từ chối (vượt giới hạn)", sm["khong_du_can_cu"])
+    if ci:
+        st.caption(f"Khoảng tin cậy Wilson 95%: {ci[0] * 100:.1f}% đến {ci[1] * 100:.1f}%.")
+    st.dataframe(rows, hide_index=True, width="stretch")
+    st.caption("Số đếm này là số đồng phân cấu tạo theo thuật toán của app (cấu trúc trung hòa, hóa trị cố định). Công thức có N và O (nitro), hoặc S, có thể còn thiếu đồng phân ngoài phạm vi đó.")
+    _bench_download(rows, core_ev.run_metadata({"loai": "dem_dong_phan", "so_ca": len(rows), "kiem_tra_tap": bool(cmp_set)}), "danh_gia_dong_phan.csv", "bi_dl")
+
+
 def bench_ui():
     code = st.secrets.get("TEACHER_CODE", "")
     if code and st.text_input("Mã giáo viên", type="password", key="bm_code") != code:
         st.info("Tab này dành cho giáo viên hoặc nhóm nghiên cứu. Nhập mã giáo viên để dùng.")
         return
+    if CORE_OK:
+        kind = st.radio("Loại đánh giá", ["📷 Nhận dạng ảnh", "🧪 Chẩn đoán lỗi (không tốn lượt AI)", "🔢 Đếm đồng phân (không tốn lượt AI)"], horizontal=True, key="bm_kind")
+        if kind.startswith("🧪"):
+            bench_diag_ui()
+            return
+        if kind.startswith("🔢"):
+            bench_iso_ui()
+            return
     st.markdown("Tải lên một bộ ảnh đã biết đáp án để đo **độ chính xác nhận dạng**. Kết quả có thể đưa vào báo cáo đề tài.")
     files = st.file_uploader("Ảnh kiểm thử", type=["jpg", "jpeg", "png", "webp"], accept_multiple_files=True, key="bm_files")
     up = st.file_uploader("File đáp án CSV (tên_file, SMILES, nhóm)", type=["csv", "txt"], key="bm_csv")
@@ -2656,7 +2469,9 @@ def _mm_photo_inputs(top):
 
 
 def _mm_topic_inputs(top):
-    voice_text_input("mm_topic", "Chủ đề hoặc tên chất", "Ví dụ: Ancol, Etanol, Phản ứng thế, Este và lipit")
+    apply_voice("mm_topic")
+    st.text_input("Chủ đề hoặc tên chất", key="mm_topic", placeholder="Ví dụ: Ancol, Etanol, Phản ứng thế, Este và lipit")
+    voice_input("mm_topic")
     cols = st.columns(len(MM_EXAMPLES))
     for c, t in zip(cols, MM_EXAMPLES):
         c.button(t, key=f"mm_ex_{t}", on_click=_set_topic, args=(t,), width="stretch")
@@ -2873,9 +2688,6 @@ html,body,.stApp,.stMarkdown,p,label,input,textarea,button,li,h1,h2,h3,h4{font-f
 .stApp{background:radial-gradient(64.286rem 30rem at 78% -8%,#e3e8ff 0%,rgba(227,232,255,0) 70%),#f5f7ff}
 [data-testid="stHeader"]{background:transparent}
 [data-testid="stAppDeployButton"]{display:none}
-[class*="st-key-vrow_"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;gap:.5rem!important;align-items:flex-end!important}
-[class*="st-key-vrow_"] [data-testid="stColumn"]:first-child{flex:1 1 0!important;min-width:0!important;width:auto!important}
-[class*="st-key-vrow_"] [data-testid="stColumn"]:last-child{flex:0 0 3.6rem!important;width:3.6rem!important;min-width:3.6rem!important}
 .block-container{max-width:95.714rem;padding:.6rem 1.6rem .8rem}
 .block-container [data-testid="stVerticalBlock"]{gap:.7rem}
 [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{gap:.35rem}
@@ -3209,6 +3021,11 @@ def structure_ui():
     elif pend_smi:
         _run_structure(top, smi=pend_smi)
 
+    if CORE_OK:
+        use = st.radio("Em muốn", ["🔍 Nhận biết công thức trong ảnh", "✍️ Kiểm tra bài em vẽ (có gợi ý sửa lỗi)"], horizontal=True, key="st_use")
+        if use.startswith("✍️"):
+            structure_check_ui()
+            return
     mode = st.radio("Cách nhập", ["🖼️ Tải ảnh lên", "📷 Chụp ảnh", "⌨️ Nhập SMILES"], horizontal=True, key="st_mode")
     img_bytes, smi_in = None, None
     if mode.startswith("📷"):
@@ -3225,30 +3042,6 @@ def structure_ui():
 
     if st.session_state.res:
         r, from_img = st.session_state.res
-        v = verify_smiles(r.get("smiles", ""))
-        with st.expander("🔬 Kiểm chứng độc lập bằng RDKit", expanded=v.status != "valid"):
-            st.markdown("**Trạng thái:** " + {"valid":"Hợp lệ trong phạm vi RDKit", "invalid":"Không hợp lệ", "unknown":"Chưa xác minh được"}[v.status])
-            st.write(v.message)
-            if v.formula:
-                st.write("Công thức phân tử RDKit:", v.formula)
-            if v.atom_indices:
-                st.write("Vị trí nguyên tử nghi vấn (đánh số từ 1 theo SMILES):", ", ".join(str(i+1) for i in v.atom_indices))
-            for j, hint in enumerate(v.hints, 1):
-                st.info(f"Gợi ý {j}: {hint}")
-            for limit in v.limitations:
-                st.caption("Giới hạn: " + limit)
-            if from_img:
-                st.warning("RDKit chỉ kiểm tra SMILES được suy ra từ ảnh. Nếu AI chép ảnh sai, kết quả kiểm chứng không phản ánh đúng bài vẽ gốc.")
-        # Cầu nối trực tiếp: cấu trúc từ ảnh Gemini -> phòng kiểm chứng RDKit.
-        if (r.get("smiles") or "").strip():
-            if st.button("🧪 Chuyển kết quả nhận dạng sang phòng tự sửa", key="st_send_learning"):
-                st.session_state["learning_transfer"] = {
-                    "smiles": (r.get("smiles") or "").strip(),
-                    "source": "image_ai" if from_img else "smiles",
-                    "note": "SMILES do AI đọc từ ảnh, cần đối chiếu ảnh gốc" if from_img else "SMILES do người dùng nhập",
-                }
-                go(LEARN)
-                st.rerun()
         smiles_r = (r.get("smiles") or "").strip()
         _, err_r = parse_student(smiles_r) if smiles_r else (None, None)
         if err_r:
@@ -3269,9 +3062,6 @@ def structure_ui():
         if st.button("Phân tích lại từ SMILES đã sửa", key="st_fix_go") and fix:
             if st.session_state.n >= MAX_PER_SESSION:
                 show_top_error(top, "Đã hết số lượt của phiên này.")
-            elif verify_smiles(fix).status != "valid":
-                st.session_state.res = ({"smiles": fix}, False)
-                st.rerun()
             else:
                 with st.spinner("Đang phân tích…"):
                     try:
@@ -3289,6 +3079,15 @@ ASSIST_RULES = ("Bạn là trợ lý học Hóa học thân thiện cho học si
                 "Nếu không chắc chắn thì nói rõ và khuyên đối chiếu SGK. Nếu câu hỏi không liên quan đến hóa học, nhẹ nhàng đưa cuộc trò chuyện về hóa học.")
 
 
+def coach_context():
+    """Nếu học sinh đang làm bài viết công thức cấu tạo, trợ lý chỉ gợi ý theo lỗi đang gặp và không nêu đáp án."""
+    c = st.session_state.get("coach_ctx")
+    if not c:
+        return ""
+    return (f" Học sinh đang làm bài: viết công thức cấu tạo của {c['ten']}. Lỗi MolSnap đã xác minh ở lần nộp gần nhất: {c['loi']}; đã xem {c['goi_y']} gợi ý. "
+            "Hãy giải thích kiến thức liên quan và đặt câu hỏi gợi mở để em tự sửa, TUYỆT ĐỐI không nêu công thức cấu tạo đáp án.")
+
+
 def chat_ai(history):
     contents = [types.Content(role="user" if m["role"] == "user" else "model", parts=[types.Part.from_text(text=m["text"])]) for m in history]
     models = [MODEL]
@@ -3300,7 +3099,7 @@ def chat_ai(history):
         for i in range(2):
             try:
                 resp = get_client().models.generate_content(
-                    model=m, contents=contents, config=types.GenerateContentConfig(system_instruction=ASSIST_RULES))
+                    model=m, contents=contents, config=types.GenerateContentConfig(system_instruction=ASSIST_RULES + coach_context()))
                 return (resp.text or "").strip() or "Mình chưa có câu trả lời, bạn hỏi lại giúp mình nhé."
             except errors.ServerError as e:
                 last = e
@@ -4567,11 +4366,14 @@ def _sim_make(top, q):
         st.session_state.sim = None
         show_top_error(top, err)
     else:
+        sc["_ai"] = True
         _sim_finish(sc)
 
 
 def _sim_ui(top):
-    voice_text_input("sim_q", "Thí nghiệm cần mô phỏng", "Ví dụ: cho kẽm vào dung dịch HCl và thu khí hiđro")
+    apply_voice("sim_q")
+    st.text_input("Thí nghiệm cần mô phỏng", placeholder="Ví dụ: cho kẽm vào dung dịch HCl và thu khí hiđro", key="sim_q")
+    voice_input("sim_q")
     for row in range(0, len(SIM_EXAMPLES), 3):
         for c, e in zip(st.columns(3), SIM_EXAMPLES[row:row + 3]):
             c.button(e, key=f"sim_ex_{row}_{e[:6]}", on_click=_sim_set, args=(e,), width="stretch")
@@ -4584,6 +4386,8 @@ def _sim_ui(top):
     st.divider()
     custom = st.session_state.get("sim_custom")
     page = sim_html(sc, custom)
+    if sc.get("_ai"):
+        st.warning("Kịch bản này do AI soạn và chưa được giáo viên thẩm định. Hãy đối chiếu SGK, đọc kỹ phần an toàn và chỉ làm thí nghiệm thật khi có giáo viên hướng dẫn.")
     if st.session_state.get("voice_note"):
         st.caption("🔈 Giọng đọc của phim này: " + st.session_state.voice_note)
     if hasattr(st, "iframe"):
@@ -4621,8 +4425,6 @@ def _sim_ui(top):
 HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
 SECTIONS = [
-    ("Học qua hình & sửa lỗi", "Thử thách Hóa học qua hình", "Nhìn công thức cấu tạo, chọn đáp án, hiểu lỗi sai và thử lại. Không cần nhập SMILES.", learning_ui, "structure"),
-    ("Báo cáo kiểm thử", "Báo cáo kỹ thuật dành cho giáo viên", "Kiểm tra hoạt động của bộ xác minh cấu trúc và xuất kết quả đo thực tế.", research_ui, "structure"),
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
     ("Phương trình phản ứng", "Phương trình phản ứng", "Đọc phương trình, cho biết loại phản ứng và kiểm tra đã cân bằng chưa.", reaction_ui, "flask"),
     ("Đồng phân", "Đồng phân", "Hỏi bằng tiếng Việt hoặc gõ công thức, máy sinh và đếm đồng phân chính xác.", isomer_ui, "isomer"),
@@ -4631,7 +4433,7 @@ SECTIONS = [
 ]
 LABELS = [x[0] for x in SECTIONS]
 NAV_OPTS = [HOME] + LABELS
-LEARN, EVIDENCE, STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4], LABELS[5], LABELS[6]
+STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4]
 
 st.session_state.setdefault("nav", HOME)
 st.session_state.setdefault("nav_side", HOME)
@@ -4680,7 +4482,6 @@ def on_quick():
 
 
 SEARCH_KEYS = {
-    LEARN: "kiem chung sua loi hoa tri rdkit smiles tu sua huong dan",
     STRUCT: "cong thuc cau tao smiles viet tay ctct ten goi khoi luong mol",
     REACT: "phuong trinh phan ung can bang loai phan ung",
     ISO: "dong phan dem dong phan cis trans quang hoc",
@@ -5094,8 +4895,6 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
 
 
 def home_ui():
-    st.info("🔬 **MỚI – Phòng thực hành kiểm chứng và sửa lỗi:** Kiểm tra SMILES bằng RDKit, xem gợi ý từng bước và tự sửa bài. Không cần API Gemini.")
-    st.button("Mở phòng thực hành kiểm chứng", type="primary", on_click=go, args=(LEARN,), key="open_learning_home")
     left, right = st.columns([2.15, 1], gap="large")
     with left:
         with st.container(key="upcard"):

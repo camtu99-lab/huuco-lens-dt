@@ -1,0 +1,28 @@
+{
+  "_huong_dan": "Mỗi khóa là ma_mau. Điền bằng kết quả THẬT của Gemini cho mẫu đó. Không điền số liệu giả.",
+  "MAU_VI_DU": {
+    "gemini_reads": [
+      {
+        "atoms": [
+          {
+            "id": 1,
+            "el": "C",
+            "h": 3
+          }
+        ],
+        "bonds": []
+      }
+    ],
+    "gemini_direct_smiles": [
+      "C"
+    ],
+    "gemini_direct_verdict": {
+      "dung": false,
+      "loi": [
+        "sai_vi_tri_nhom_chuc"
+      ]
+    },
+    "seconds": 0.0,
+    "api_calls": 0
+  }
+}

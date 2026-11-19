@@ -1,0 +1,41 @@
+ma_ca,nhom,de_bai,dap_an_smiles,bai_lam_thu_gon,dap_an_loi,ghi_chu
+S01,dung,propan-2-ol,CC(C)O,CH3-CH(OH)-CH3,,
+S02,dung,etanol,CCO,CH3-CH2-OH,,
+S03,dung,etanol,CCO,CH3-CH2-O-H,,H viet rieng
+S04,dung,axit etanoic,CC(=O)O,CH3-COOH,,
+S05,dung,metyl axetat,COC(C)=O,CH3-COO-CH3,,
+S06,dung,propanon,CC(C)=O,CH3-CO-CH3,,
+S07,dung,but-2-en,CC=CC,CH3-CH=CH-CH3,,
+S08,dung,2-metylbutan,CCC(C)C,CH3-CH(CH3)-CH2-CH3,,
+S09,dung,etanal,CC=O,CH3-CHO,,
+S10,dung,clorofom,ClC(Cl)Cl,CHCl3,,
+S11,hoa_tri,etanol,CCO,CH3-CH3-OH,sai_hoa_tri,C thua lien ket
+S12,hoa_tri,etanol,CCO,CH3-CH2-OH2,sai_hoa_tri,O thua lien ket
+S13,hoa_tri,etan,CC,CH3-CH2,sai_hoa_tri,C thieu lien ket
+S14,hoa_tri,metan,C,CH5,sai_hoa_tri,C co 5 H
+S15,hoa_tri,propan-2-ol,CC(C)O,CH3-C-CH3,sai_hoa_tri;thieu_thua_nguyen_tu,C thieu hoa tri va thieu O
+S16,nguyen_tu,etanol,CCO,CH3-CH2-CH2-OH,thieu_thua_nguyen_tu,thua 1 C
+S17,nguyen_tu,propan-2-ol,CC(C)O,CH3-CH(OH)-CH2-OH,thieu_thua_nguyen_tu,thua 1 O
+S18,nguyen_tu,etan,CC,CH3-CH2-Cl,thieu_thua_nguyen_tu,thua 1 Cl
+S19,nguyen_tu,butan,CCCC,CH3-CH2-CH3,thieu_thua_nguyen_tu,thieu 1 C
+S20,nguyen_tu,axit propanoic,CCC(=O)O,CH3-CH2-CH2-COOH,thieu_thua_nguyen_tu,thua 1 C
+S21,bac_lien_ket,eten,C=C,CH3-CH3,sai_bac_lien_ket;sai_cong_thuc,ve lien ket don thay vi doi
+S22,bac_lien_ket,etan,CC,CH2=CH2,sai_bac_lien_ket;sai_cong_thuc,ve lien ket doi thay vi don
+S23,bac_lien_ket,propen,C=CC,CH3-C≡CH,sai_bac_lien_ket;sai_cong_thuc,ve lien ket ba thay vi doi
+S24,bac_lien_ket,eten,C=C,CH≡CH,sai_bac_lien_ket;sai_cong_thuc,ve lien ket ba thay vi doi
+S25,bac_lien_ket,etanal,CC=O,CH3-CH2-OH,sai_bac_lien_ket;sai_cong_thuc,ve C-O don thay vi C=O
+S26,cong_thuc,2-metylpropan,CC(C)C,CH2=CH-CH2-CH3,sai_cong_thuc,cung 4 C nhung H khac va khung khac: khong ket luan dong phan
+S27,vi_tri,propan-2-ol,CC(C)O,CH3-CH2-CH2-OH,sai_vi_tri_nhom_chuc,OH o C1 thay vi C2
+S28,vi_tri,propan-1-ol,CCCO,CH3-CH(OH)-CH3,sai_vi_tri_nhom_chuc,OH o C2 thay vi C1
+S29,vi_tri,but-2-en,CC=CC,CH2=CH-CH2-CH3,sai_vi_tri_nhom_chuc,noi doi o C1 thay vi C2
+S30,vi_tri,but-1-en,C=CCC,CH3-CH=CH-CH3,sai_vi_tri_nhom_chuc,noi doi o C2 thay vi C1
+S31,mach,butan-1-ol,CCCCO,CH3-CH(CH3)-CH2-OH,sai_mach_cacbon,mach nhanh thay vi thang
+S32,mach,2-metylpropan,CC(C)C,CH3-CH2-CH2-CH3,sai_mach_cacbon,mach thang thay vi nhanh
+S33,mach,pentan,CCCCC,CH3-CH(CH3)-CH2-CH3,sai_mach_cacbon,mach nhanh thay vi thang
+S34,mach,2-metylbutan,CCC(C)C,CH3-C(CH3)(CH3)-CH3,sai_mach_cacbon,neopentan thay vi isopentan
+S35,nhom_chuc,etanol,CCO,CH3-O-CH3,nham_dong_phan,ete thay vi ancol
+S36,nhom_chuc,propanon,CC(C)=O,CH3-CH2-CHO,nham_dong_phan,andehit thay vi xeton
+S37,nhom_chuc,axit etanoic,CC(=O)O,HCOOCH3,nham_dong_phan,este thay vi axit
+S38,nhom_chuc,propan-1-ol,CCCO,CH3-O-CH2-CH3,nham_dong_phan,ete thay vi ancol
+S39,nhom_chuc,butan-1-ol,CCCCO,CH3-CH2-O-CH2-CH3,nham_dong_phan,ete thay vi ancol
+S40,nhom_chuc,glyxin,NCC(=O)O,CH3-CH2-NO2,nham_dong_phan,nitroetan thay vi glyxin

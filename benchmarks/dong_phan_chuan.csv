@@ -1,0 +1,19 @@
+ma_ca,cong_thuc,dap_an_so,nguon_dap_an
+I01,CH4,1,Hiển nhiên: 1 cấu trúc
+I02,C2H6,1,Hiển nhiên: 1 cấu trúc
+I03,C3H8,1,Hiển nhiên: 1 cấu trúc
+I04,C4H10,2,OEIS A000602 (n=4)
+I05,C5H12,3,OEIS A000602 (n=5)
+I06,C6H14,5,OEIS A000602 (n=6)
+I07,C7H16,9,OEIS A000602 (n=7)
+I08,C8H18,18,OEIS A000602 (n=8)
+I09,C2H6O,2,Đếm tay: 1 ancol + 1 ete
+I10,C3H8O,3,Đếm tay: 2 ancol + 1 ete
+I11,C4H10O,7,Đếm tay: 4 ancol + 3 ete
+I12,C5H12O,14,Đếm tay: 8 ancol + 6 ete
+I13,C4H9Cl,4,Số gốc ankyl C4H9 = 4
+I14,C5H11Cl,8,Số gốc ankyl C5H11 = 8
+I15,C3H6,2,Đếm tay: propen + xiclopropan
+I16,C4H8,5,Đếm tay: 3 anken + 2 xicloankan
+I17,C5H10,10,Đếm tay: 5 anken + 5 xicloankan
+I18,C3H6O,9,Đếm tay: 2 cacbonyl + 4 hở có C=C + 3 vòng
