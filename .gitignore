@@ -1,6 +1,3 @@
-.venv/
-__pycache__/
-.pytest_cache/
-.streamlit/secrets.toml
-results/
-*.pyc
+
+# Lịch sử học sinh (tự tạo khi chạy)
+data/

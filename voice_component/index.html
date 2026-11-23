@@ -6,17 +6,24 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#1b2150}
 #b{display:flex;align-items:center;gap:10px;border:1px solid #cfd6f5;background:#fff;color:#1b2150;border-radius:12px;padding:9px 16px;font-size:15px;font-weight:600;cursor:pointer}
 #b:hover{background:#eef1ff}
 #b.on{background:#fee2e2;border-color:#fca5a5}
-#mic{width:20px;height:20px;color:#4f46e5;flex:none}
-#b.on #mic{color:#ef4444;animation:p 1s infinite}
-@keyframes p{50%{transform:scale(1.25);opacity:.55}}
+#ic{width:20px;height:20px;color:#6366f1;flex:none}
+#b.on #ic{color:#ef4444;animation:p 1s infinite}
+@keyframes p{50%{transform:scale(1.5);opacity:.5}}
 #m{font-size:13px;color:#64748b}#m.err{color:#b42318}
+body.c{height:46px;display:flex;align-items:flex-end}body.c #m{display:none}body.c #t{display:none}body.c.f #t{display:inline}body.c .row{gap:0;width:100%}
+body.c #b{width:100%;height:40px;box-sizing:border-box;justify-content:center;padding:0 10px;font-size:14px;border-radius:10px}
 </style></head><body>
-<div class="row"><button id="b" type="button"><svg id="mic" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14a3.5 3.5 0 0 0 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5A3.5 3.5 0 0 0 12 14z"/><path d="M6 10.5a1 1 0 0 0-2 0 8 8 0 0 0 7 7.94V21H8.5a1 1 0 0 0 0 2h7a1 1 0 0 0 0-2H13v-2.56a8 8 0 0 0 7-7.94 1 1 0 0 0-2 0 6 6 0 0 1-12 0z"/></svg><span id="t">Bấm để nói</span></button><span id="m"></span></div>
+<div class="row"><button id="b" type="button" title="Bấm để nói" aria-label="Bấm để nói"><svg id="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v4"/></svg><span id="t">Bấm để nói</span></button><span id="m">Nói xong tự dừng và chuyển thành chữ.</span></div>
 <script>
 // Giao thức thành phần Streamlit viết tay (không cần npm)
 function send(type, extra) { window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: "streamlit:" + type }, extra || {}), "*"); }
+let compact = false;
+const lbl = () => compact ? "Nói" : "Bấm để nói";
+function applyMode() { document.body.classList.toggle("c", compact); if (!rec_on) $("t").textContent = lbl(); send("setFrameHeight", { height: compact ? 46 : 56 }); }
+window.addEventListener("message", e => { const d = e.data || {}; if (d.type === "streamlit:render") { const c = !!(d.args && d.args.compact); if (c !== compact) { compact = c; applyMode(); } } });
 send("componentReady", { apiVersion: 1 }); send("setFrameHeight", { height: 56 });
 const $ = id => document.getElementById(id);
+const flash = t => { $("t").textContent = t; document.body.classList.add("f"); setTimeout(() => { document.body.classList.remove("f"); if (!rec_on) $("t").textContent = lbl(); }, 2200); };
 const say = (t, err) => { $("m").textContent = t; $("m").className = err ? "err" : ""; };
 let stream = null, rec = null, chunks = [], ctx = null, timer = null, rec_on = false, cancelled = false;
 
@@ -26,7 +33,7 @@ function stop(noSpeech) {
   try { rec.stop(); } catch (e) { }
   if (stream) stream.getTracks().forEach(t => t.stop());
   if (ctx) { try { ctx.close(); } catch (e) { } }
-  $("b").classList.remove("on"); $("t").textContent = "Bấm để nói";
+  $("b").classList.remove("on"); $("t").textContent = lbl();
 }
 async function start() {
   say("Đang mở micro…");
@@ -38,7 +45,7 @@ async function start() {
   rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}); chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.onstop = finish; rec.start(250); rec_on = true; cancelled = false;
-  $("b").classList.add("on"); $("t").textContent = "Đang nghe… (bấm để dừng)"; say("");
+  $("b").classList.add("on"); $("t").textContent = compact ? "Đang nghe…" : "Đang nghe… (bấm để dừng)"; say("Hãy nói, nói xong tôi tự dừng.");
   const buf = new Float32Array(an.fftSize), t0 = performance.now(); let noise = 0.004, spoke = false, last = 0;
   timer = setInterval(() => {
     an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
@@ -63,7 +70,7 @@ async function toWav16k(blob) {
 }
 function b64(u8) { let s = ""; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192)); return btoa(s); }
 async function finish() {
-  if (cancelled) { say("Không nghe thấy gì. Bấm lại rồi nói."); return; }
+  if (cancelled) { say("Không nghe thấy gì. Bấm lại rồi nói."); flash("Không nghe rõ"); return; }
   say("Đang chuyển thành chữ…");
   try {
     const wav = await toWav16k(new Blob(chunks, { type: (rec && rec.mimeType) || "audio/webm" }));
