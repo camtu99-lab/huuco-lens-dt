@@ -5991,7 +5991,7 @@ topbar()
 
 nav = st.session_state.nav
 if nav == PRACTICE_TAB:
-    page_banner("practice", PRACTICE_TAB, "Làm bài, máy chấm ngay và gợi ý từng bước; giáo viên có thể giao bài cho cả lớp.")
+    page_banner("practice", PRACTICE_TAB, "")
     with st.container(key="panel"):
         practice_ui()
         tab_history_ui(nav)
