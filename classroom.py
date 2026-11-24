@@ -24,6 +24,15 @@ CLASSES_H = ["ma_lop", "ten_lop", "tao_luc"]
 ACC_H = ["ma_lop", "hoc_sinh", "salt", "pin_hash", "tao_luc"]
 ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y"]
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
+FILE_H = ["id_tep", "id_bai", "ma_lop", "hoc_sinh", "loai", "ten_tep", "mime", "kich_thuoc", "tao_luc"]
+DATA_H = ["id_tep", "stt", "du_lieu_base64"]
+MAX_FILE = 1_000_000          # byte; tệp nằm trong ô Google Sheets nên giữ nhỏ
+CHUNK = 45_000                # ký tự base64 mỗi ô (Sheets cho tối đa 50 000)
+MAX_ATT = 5                   # số tệp đính kèm tối đa cho một bài giao
+ALLOWED_EXT = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv", "png", "jpg", "jpeg", "gif", "zip"}
+IMG_EXT = {"png", "jpg", "jpeg"}
+MAX_IMG_RAW = 20_000_000      # ảnh gốc tối đa 20 MB, sẽ được nén xuống dưới MAX_FILE
+ATT, SUBF = "att", "sub"      # tệp giáo viên đính kèm / tệp học sinh nộp
 TOKEN_DAYS = 14
 PIN_ROUNDS = 120_000
 TEACHER = "teacher"
@@ -128,6 +137,7 @@ def delete_class(auth, code):
     """Xóa lớp cùng tài khoản, bài giao và bài nộp của lớp."""
     _need_teacher(auth)
     c = norm_code(code)
+    _purge_files(lambda r: r[2] == c)
     for name, head, col in (("classes", CLASSES_H, 0), ("accounts", ACC_H, 0), ("assignments", ASG_H, 1), ("submissions", SUB_H, 1)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""] * 3)[col] != c]
@@ -297,11 +307,158 @@ def assignments(auth, code):
 
 def delete_assignment(auth, aid):
     _need_teacher(auth)
+    _purge_files(lambda r: r[1] == aid)
     for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
             hs.tbl_write(name, head, keep)
+
+
+# ---------------- Tệp đính kèm & tệp nộp ----------------
+def _pad(r, n=9):
+    return r + [""] * (n - len(r))
+
+
+def safe_name(name):
+    n = re.sub(r"[\\/:*?\"<>|\x00-\x1f]+", "_", (name or "").strip()).strip(". ")
+    return n[-80:] or "tep"
+
+
+def ext_of(name):
+    return name.rsplit(".", 1)[-1].lower() if "." in name else ""
+
+
+def size_limit(name):
+    """Dung lượng tối đa của tệp được chọn (ảnh được phép lớn hơn vì sẽ tự nén)."""
+    return MAX_IMG_RAW if ext_of(name) in IMG_EXT else MAX_FILE
+
+
+def shrink_image(name, data):
+    """Nén ảnh png/jpg lớn xuống dưới MAX_FILE: xoay đúng chiều, thu nhỏ dần, lưu JPEG. Trả về (tên, dữ liệu, mime)."""
+    from io import BytesIO
+    from PIL import Image, ImageOps
+    try:
+        im = ImageOps.exif_transpose(Image.open(BytesIO(data)))
+        im.load()
+    except Exception:
+        raise Denied("Không đọc được ảnh này.")
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGBA")
+        bg = Image.new("RGB", im.size, "white")
+        bg.paste(im, mask=im.split()[-1])
+        im = bg
+    else:
+        im = im.convert("RGB")
+    target = int(MAX_FILE * 0.9)
+    side = 2000
+    while True:
+        w = im.copy()
+        w.thumbnail((side, side))
+        for q in (85, 75, 65, 55, 45):
+            buf = BytesIO()
+            w.save(buf, "JPEG", quality=q, optimize=True)
+            if buf.tell() <= target:
+                return name.rsplit(".", 1)[0] + ".jpg", buf.getvalue(), "image/jpeg"
+        side = int(side * 0.75)
+        if side < 400:
+            raise Denied("Không nén được ảnh xuống đủ nhỏ.")
+
+
+def _file_meta(r):
+    r = _pad(r)
+    try:
+        size = int(r[7])
+    except ValueError:
+        size = 0
+    return {"id": r[0], "aid": r[1], "code": r[2], "student": r[3], "kind": r[4], "name": r[5], "mime": r[6], "size": size, "ts": r[8]}
+
+
+def _can_see(auth, m):
+    if is_teacher(auth):
+        return True
+    if not is_student(auth) or m["code"] != auth["cls"]:
+        return False
+    return m["kind"] == ATT or hs.slug(m["student"]) == hs.slug(auth["key"])
+
+
+def add_file(auth, aid, kind, name, mime, data, now):
+    """Giáo viên đính kèm đề (kind=att) hoặc học sinh nộp bài làm (kind=sub). Trả về id tệp."""
+    if kind == ATT:
+        _need_teacher(auth)
+        asg = next((a for a in _all_asg() if a[0] == aid), None)
+        code, who = (asg[1] if asg else ""), ""
+        if not asg:
+            raise Denied("Không tìm thấy bài giao.")
+        if sum(1 for r in hs.tbl_read("files", FILE_H, force=True) if _pad(r)[1] == aid and _pad(r)[4] == ATT) >= MAX_ATT:
+            raise Denied(f"Mỗi bài chỉ đính kèm tối đa {MAX_ATT} tệp.")
+    elif kind == SUBF:
+        if not is_student(auth):
+            raise Denied("Cần đăng nhập học sinh để nộp tệp.")
+        asg = next((a for a in _all_asg() if a[0] == aid and a[1] == auth["cls"]), None)
+        if not asg:
+            raise Denied("Không tìm thấy bài giao của lớp em.")
+        code, who = auth["cls"], auth["key"]
+    else:
+        raise Denied("Loại tệp không hợp lệ.")
+    name = safe_name(name)
+    if name.rsplit(".", 1)[-1].lower() not in ALLOWED_EXT or "." not in name:
+        raise Denied("Chỉ nhận tệp: " + ", ".join(sorted(ALLOWED_EXT)) + ".")
+    if not data:
+        raise Denied("Tệp rỗng.")
+    if len(data) > size_limit(name):
+        raise Denied(f"Tệp quá lớn (tối đa {size_limit(name) // 1_000_000 if ext_of(name) in IMG_EXT else MAX_FILE // 1000} {'MB' if ext_of(name) in IMG_EXT else 'KB'}).")
+    if ext_of(name) in IMG_EXT and len(data) > MAX_FILE // 2:
+        name, data, mime = shrink_image(name, data)
+    fid = secrets.token_hex(5)
+    b64 = base64.b64encode(data).decode("ascii")
+    chunks = [[fid, i, b64[o:o + CHUNK]] for i, o in enumerate(range(0, len(b64), CHUNK))]
+    hs.tbl_append_many("filedata", DATA_H, chunks)
+    hs.tbl_append("files", FILE_H, [fid, aid, code, who, kind, name, mime or "application/octet-stream", len(data), now])
+    return fid
+
+
+def _all_asg():
+    return [_pad(r, 7) for r in hs.tbl_read("assignments", ASG_H)]
+
+
+def list_files(auth, aid, kind=None, student=None, force=False):
+    """Tệp của một bài giao mà người gọi được phép thấy (học sinh chỉ thấy đề của lớp và tệp nộp của mình)."""
+    if not (is_teacher(auth) or is_student(auth)):
+        raise Denied("Cần đăng nhập.")
+    out = [_file_meta(r) for r in hs.tbl_read("files", FILE_H, force=force) if _pad(r)[1] == aid]
+    out = [m for m in out if _can_see(auth, m) and (kind is None or m["kind"] == kind)
+           and (student is None or hs.slug(m["student"]) == hs.slug(student))]
+    return sorted(out, key=lambda m: m["ts"])
+
+
+def read_file(auth, fid):
+    """(meta, bytes) của tệp nếu được phép, ngược lại Denied/None."""
+    meta = next((_file_meta(r) for r in hs.tbl_read("files", FILE_H, force=True) if _pad(r)[0] == fid), None)
+    if not meta or not _can_see(auth, meta):
+        raise Denied("Không có quyền tải tệp này.")
+    parts = sorted(((int(r[1]), r[2]) for r in hs.tbl_read("filedata", DATA_H, force=True) if len(r) >= 3 and r[0] == fid))
+    return meta, base64.b64decode("".join(p for _, p in parts))
+
+
+def delete_file(auth, fid):
+    meta = next((_file_meta(r) for r in hs.tbl_read("files", FILE_H, force=True) if _pad(r)[0] == fid), None)
+    if not meta:
+        return
+    if not (is_teacher(auth) or (meta["kind"] == SUBF and is_student(auth) and hs.slug(meta["student"]) == hs.slug(auth["key"]) and meta["code"] == auth["cls"])):
+        raise Denied("Không có quyền xóa tệp này.")
+    _purge_files(lambda r: r[0] == fid)
+
+
+def _purge_files(pred):
+    """Xóa các tệp (và mảnh dữ liệu) có dòng metadata thỏa pred."""
+    rows = hs.tbl_read("files", FILE_H, force=True)
+    gone = {_pad(r)[0] for r in rows if pred(_pad(r))}
+    if not gone:
+        return
+    hs.tbl_write("files", FILE_H, [r for r in rows if _pad(r)[0] not in gone])
+    data = hs.tbl_read("filedata", DATA_H, force=True)
+    hs.tbl_write("filedata", DATA_H, [r for r in data if (r + [""])[0] not in gone])
 
 
 # ---------------- Bài nộp ----------------
