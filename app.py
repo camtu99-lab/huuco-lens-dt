@@ -3398,6 +3398,11 @@ st.markdown("<style>"
             ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#c7cdf5;font-size:.68rem;margin-top:.15rem}"
             ".acct-none{margin-top:.6rem;font-size:.76rem;color:#c7cdf5;text-align:center}"
             ".st-key-sbacct button{width:100%}"
+            ".st-key-guestcenter{max-width:26rem;margin:1.2rem auto 0;display:flex;flex-direction:column;align-items:center}"
+            ".gcard{width:100%;display:flex;align-items:center;gap:.8rem;background:linear-gradient(135deg,#4f5cf0,#8b5cf6);border-radius:1.3rem;padding:.9rem 1.1rem;box-shadow:0 .8rem 1.8rem rgba(79,92,240,.28)}"
+            ".gcard .gav{flex:0 0 auto;width:3rem;height:3rem;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.2)}"
+            ".gcard .gwho b{display:block;color:#fff;font-size:1.05rem;line-height:1.2}.gcard .gwho span{display:block;color:#dfe3ff;font-size:.8rem;margin-top:.1rem}"
+            ".st-key-guestcenter [data-testid=\"stButton\"]{width:100%;margin-top:.6rem}.st-key-guestcenter button{width:100%}"
             ".tb-right .av.guest{background:#e4e7ff;color:#4f46e5}"
             "@media(max-width:640px){.acct-kpi b{font-size:1.1rem}}"
             "</style>", unsafe_allow_html=True)
@@ -5928,6 +5933,18 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
          "Sơ đồ": ("mind", "c3"), "Mô phỏng": ("equipment", "c2"), "Luyện tập": ("practice", "c0"), "Hỏi đáp": ("chat", "c1")}
 
 
+def guest_home_card():
+    """Thẻ Khách + nút đăng nhập, đặt ở giữa trang chủ (chỉ hiện khi chưa đăng nhập)."""
+    if cur_auth():
+        return
+    with st.container(key="guestcenter"):
+        st.markdown(f'<div class="gcard"><div class="gav"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
+                    f'<div class="gwho"><b>{html.escape(tx("Khách", "Guest"))}</b><span>{html.escape(tx("Chưa đăng nhập", "Not logged in"))}</span></div></div>',
+                    unsafe_allow_html=True)
+        if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="home_login", type="primary"):
+            auth_dialog()
+
+
 def home_ui():
     left, right = st.columns([2.15, 1], gap="large")
     with left:
@@ -5940,6 +5957,7 @@ def home_ui():
                     st.button("Mở", key=f"qkb_{i}", on_click=go, args=(target,))
 
         st.markdown('<div class="feat">' + '<i></i>'.join(f"<span>{e} {tx(t)}</span>" for e, t in FEATS) + '</div>', unsafe_allow_html=True)
+        guest_home_card()
 
     with right:
         with st.container(key="quick"):
@@ -6150,6 +6168,8 @@ def sidebar_account():
     """Thẻ tài khoản ở thanh bên: khách / học sinh / giáo viên."""
     au = cur_auth()
     if not au:
+        if st.session_state.get("nav", HOME) == HOME:
+            return   # trang chủ: thẻ Khách + nút đăng nhập đã nằm giữa trang
         st.markdown(f'<div class="acct"><div class="acct-top"><div class="avt guest"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
                     f'<div class="who"><b>{html.escape(tx("Khách", "Guest"))}</b><span>{html.escape(tx("Chưa đăng nhập", "Not logged in"))}</span></div></div></div>',
                     unsafe_allow_html=True)
