@@ -35,3 +35,10 @@
 - Định dạng nhận: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv, png, jpg, jpeg, gif, zip.
 - Ảnh png/jpg tới 20 MB được tự nén xuống dưới 1 MB (đổi thành .jpg); các định dạng khác vẫn giới hạn 1 MB.
 - Tệp được lưu cùng nơi với bài giao (Google Sheets nếu đã cấu hình, ngược lại thư mục data/tables/), nên giữ tệp nhỏ.
+
+## Phiếu trả lời trực tuyến (trắc nghiệm / đúng-sai / trả lời ngắn)
+- **Xem đề:** file Word (.docx) hiện đúng định dạng gốc (đậm/nghiêng, chỉ số trên/dưới, bảng, hình PNG/JPG). Hình dạng EMF/WMF trình duyệt không vẽ được, sẽ hiện khung "tải file Word để xem". Công thức Word (equation) không hiện, nên để học sinh tải file về nếu đề có.
+- **Giáo viên:** khi giao bài, đính kèm đề .docx rồi tick "📝 Tạo phiếu trả lời trực tuyến". App tự đoán số câu mỗi phần từ đề (Phần I/II/III), có thể chỉnh. Nhập đáp án: phần I là chuỗi chữ A–D viết liền (dấu - nếu chưa có), phần II nhập Đ/S cho từng ý (vd. ĐSĐS), phần III nhập đáp án (nhiều cách viết chấp nhận cách nhau dấu ;). Bài đã giao có thể tạo/sửa phiếu trong mục "📝 Phiếu trả lời".
+- **Học sinh:** xem đề rồi làm phiếu ngay bên dưới: Phần I chọn 1 đáp án, Phần II chọn Đúng/Sai từng ý, Phần III nhập đáp án. Bấm Nộp bài để được chấm tự động, được nộp lại nhiều lần; hệ thống chỉ báo điểm và các câu cần xem lại, không lộ đáp án.
+- **Thang điểm (THPT 2025+):** phần I và III mỗi câu 0,25; phần II đúng 1/2/3/4 ý được 0,1/0,25/0,5/1,0. Đề chuẩn 18+4+6 câu = 10 điểm. Câu chưa có đáp án không tính điểm.
+- **Kết quả:** tab *Kết quả bài → 📝 Điểm phiếu trả lời*: điểm từng học sinh, người chưa nộp, các câu hay sai.

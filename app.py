@@ -2295,6 +2295,53 @@ def _docx_text(data):
     return html.unescape(re.sub(r"<[^>]+>", "", xml)).strip()
 
 
+_DOC_CSS = """<style>
+body{margin:0;background:#fff;color:#111;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1.55}
+.doc{max-width:820px;margin:0 auto;padding:24px 32px}
+p{margin:.35em 0}table{border-collapse:collapse;margin:.6em 0;max-width:100%}
+td,th{border:1px solid #444;padding:4px 8px;vertical-align:top}img{max-width:100%;height:auto;vertical-align:middle}
+sub,sup{line-height:0}h1,h2,h3{margin:.6em 0 .3em}
+</style>"""
+
+
+def _docx_html(data):
+    """Word -> HTML giữ nguyên định dạng (đậm/nghiêng, chỉ số trên/dưới, bảng, hình). Hình EMF/WMF trình duyệt không vẽ được nên thay bằng khung chú thích."""
+    try:
+        import mammoth
+        from io import BytesIO
+        import base64 as _b64
+    except ImportError:
+        return ""
+
+    def img(image):
+        ct = image.content_type or ""
+        if ct in ("image/x-emf", "image/x-wmf", "image/emf", "image/wmf"):
+            svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="260" height="60"><rect width="260" height="60" fill="#f3f4f6" stroke="#999"/>'
+                   '<text x="130" y="35" font-size="13" text-anchor="middle" fill="#555">[Hình] tải file Word để xem</text></svg>')
+            return {"src": "data:image/svg+xml;base64," + _b64.b64encode(svg.encode()).decode(), "alt": "hình"}
+        with image.open() as f:
+            return {"src": f"data:{ct};base64," + _b64.b64encode(f.read()).decode("ascii")}
+
+    try:
+        body = mammoth.convert_to_html(BytesIO(data), convert_image=mammoth.images.img_element(img)).value
+    except Exception:
+        return ""
+    body = re.sub(r"(?is)<script.*?</script>", "", body)
+    body = re.sub(r"(?i)<a\b[^>]*>", "<a>", body)          # bỏ liên kết trong tệp (tránh javascript:)
+    return _DOC_CSS + '<div class="doc">' + body + "</div>"
+
+
+def _html_frame(page, height):
+    """Nhúng HTML vào khung: dùng st.iframe (Streamlit mới), lùi về components.html nếu bản cũ."""
+    if hasattr(st, "iframe"):
+        try:
+            st.iframe(page, height=height)
+            return
+        except Exception:
+            pass
+    components.html(page, height=height, scrolling=True)
+
+
 def preview_ui(m, data):
     """Xem nội dung tệp ngay trên trang: ảnh, PDF, văn bản, Word. Excel/PowerPoint thì tải về."""
     ext = cr.ext_of(m["name"])
@@ -2303,18 +2350,22 @@ def preview_ui(m, data):
     elif ext == "pdf":
         import base64 as _b64
         b = _b64.b64encode(data).decode("ascii")
-        components.html(
+        _html_frame(
             f"""<iframe id="f" style="width:100%;height:640px;border:1px solid #ccc;border-radius:8px"></iframe>
 <script>
 const bin=atob("{b}"),u=new Uint8Array(bin.length);
 for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
 document.getElementById("f").src=URL.createObjectURL(new Blob([u],{{type:"application/pdf"}}));
-</script>""", height=660)
+</script>""", 660)
     elif ext in ("txt", "csv"):
         st.text(data.decode("utf-8", "replace")[:20000])
     elif ext == "docx":
-        t = _docx_text(data)
-        st.text(t[:20000]) if t else st.info(tx("Không xem trước được, hãy tải về.", "No preview available, please download."))
+        page = _docx_html(data)
+        if page:
+            _html_frame(page, 720)
+        else:
+            t = cr.docx_text(data)
+            st.text(t[:20000]) if t else st.info(tx("Không xem trước được, hãy tải về.", "No preview available, please download."))
     else:
         st.info(tx("Loại tệp này không xem trước được trên web, hãy bấm Tải về.", "This file type can't be previewed here, please download it."))
 
@@ -2383,6 +2434,141 @@ def upload_ui(aid, kind, key, label, multiple):
     return 0
 
 
+def sheet_editor_ui(prefix, detected=None, existing=None):
+    """Nhập cấu trúc và đáp án phiếu trả lời: phần I chọn 1 đáp án, phần II đúng/sai, phần III trả lời ngắn. Trả về cấu hình (dict)."""
+    ex = existing or {}
+    d = detected or {}
+    c1, c2, c3 = st.columns(3)
+    n_mc = int(c1.number_input(tx("Phần I: số câu (chọn 1 đáp án)", "Part I: questions (single choice)"), 0, 60, len(ex["mc"]) if ex else d.get("mc") or 18, key=f"{prefix}_nmc"))
+    n_tf = int(c2.number_input(tx("Phần II: số câu (đúng/sai)", "Part II: questions (true/false)"), 0, 20, len(ex["tf"]) if ex else d.get("tf") or 4, key=f"{prefix}_ntf"))
+    n_sa = int(c3.number_input(tx("Phần III: số câu (trả lời ngắn)", "Part III: questions (short answer)"), 0, 40, len(ex["sa"]) if ex else d.get("sa") or 6, key=f"{prefix}_nsa"))
+    st.caption(tx("Điền đáp án để hệ thống tự chấm (để trống nếu chưa có thì câu đó không tính điểm). Học sinh không nhìn thấy đáp án.",
+                  "Enter the answer key so answers are auto-graded (blank = not graded). Students never see the key."))
+    mc_str = st.text_input(tx(f"Đáp án phần I: {n_mc} chữ A–D viết liền (vd. BACD…)", f"Part I key: {n_mc} letters A–D (e.g. BACD…)"),
+                           value="".join(x or "-" for x in ex.get("mc", [])), key=f"{prefix}_mc", max_chars=80)
+    mc_clean = re.sub(r"[\s,;]", "", mc_str.upper())
+    if mc_clean and len(mc_clean) != n_mc:
+        st.warning(tx(f"Đang nhập {len(mc_clean)} chữ nhưng có {n_mc} câu. Dùng dấu - cho câu chưa có đáp án.", f"{len(mc_clean)} letters for {n_mc} questions. Use - for unknown."))
+    mc = [(mc_clean[i] if i < len(mc_clean) else "") for i in range(n_mc)]
+    tf, sa = [], []
+    if n_tf:
+        st.markdown("**" + tx("Phần II: nhập Đ/S cho từng ý a, b, c, d (vd. ĐSĐS)", "Part II: T/F per statement (e.g. TFTF)") + "**")
+        cols = st.columns(4)
+        for i in range(n_tf):
+            tf.append(cols[i % 4].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), value=(ex.get("tf") or [""] * n_tf)[i] if i < len(ex.get("tf", [])) else "",
+                                             key=f"{prefix}_tf{i}", max_chars=8, placeholder="ĐSĐS"))
+    if n_sa:
+        st.markdown("**" + tx("Phần III: đáp án trả lời ngắn (nhiều đáp án chấp nhận cách nhau dấu ;)", "Part III: short answers (separate accepted variants with ;)") + "**")
+        cols = st.columns(3)
+        for i in range(n_sa):
+            sa.append(cols[i % 3].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), value=ex["sa"][i] if i < len(ex.get("sa", [])) else "",
+                                             key=f"{prefix}_sa{i}", max_chars=60))
+    return {"mc": [("" if x in ("-", "?", "_") else x) for x in mc], "tf": tf, "sa": sa}
+
+
+def answer_sheet_ui(a):
+    """Phiếu trả lời của học sinh: chọn 1 đáp án / đúng-sai / trả lời ngắn, chấm tự động."""
+    au = cur_auth()
+    try:
+        sh = cr.get_sheet(au, a["id"], force=True)
+        mine = cr.sheet_results(au, a["id"], force=True) if sh else []
+    except (OSError, cr.Denied) as e:
+        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        return
+    if not sh:
+        return
+    st.markdown("#### " + tx("📝 Phiếu trả lời", "📝 Answer sheet"))
+    if mine:
+        last = mine[-1]
+        det = last["detail"]
+        wrong = {"mc": [i + 1 for i, v in enumerate(det.get("mc", [])) if v is False],
+                 "tf": [i + 1 for i, v in enumerate(det.get("tf", [])) if v and not all(v)],
+                 "sa": [i + 1 for i, v in enumerate(det.get("sa", [])) if v is False]}
+        st.success(tx(f"Lần nộp gần nhất ({last['ts']}): **{last['score']:g}/{last['max']:g} điểm** · đã nộp {len(mine)} lần.",
+                      f"Latest attempt ({last['ts']}): **{last['score']:g}/{last['max']:g}** · {len(mine)} attempt(s)."))
+        names = {"mc": tx("Phần I", "Part I"), "tf": tx("Phần II", "Part II"), "sa": tx("Phần III", "Part III")}
+        bad = [f"{names[k]}: " + ", ".join(map(str, v)) for k, v in wrong.items() if v]
+        if bad:
+            st.caption(tx("Câu cần xem lại — ", "Review these — ") + " · ".join(bad))
+    n = len(mine)
+    with st.form(f"sheet_{a['id']}_{n}"):
+        mc, tf, sa = [], [], []
+        if sh["mc"]:
+            st.markdown("**" + tx("Phần I. Chọn 1 đáp án", "Part I. Pick one answer") + "**")
+            cols = st.columns(3)
+            for i in range(len(sh["mc"])):
+                mc.append(cols[i % 3].radio(tx(f"Câu {i + 1}", f"Q{i + 1}"), list("ABCD"), index=None, horizontal=True, key=f"sm_{a['id']}_{n}_{i}"))
+        if sh["tf"]:
+            st.markdown("**" + tx("Phần II. Đúng / Sai từng ý", "Part II. True / False per statement") + "**")
+            for i, items in enumerate(sh["tf"]):
+                st.markdown(tx(f"Câu {i + 1}", f"Q{i + 1}"))
+                cols = st.columns(len(items))
+                row = []
+                for j in range(len(items)):
+                    v = cols[j].radio(f"{'abcdefgh'[j]})", [tx("Đúng", "True"), tx("Sai", "False")], index=None, horizontal=True, key=f"st_{a['id']}_{n}_{i}_{j}")
+                    row.append(None if v is None else v == tx("Đúng", "True"))
+                tf.append(row)
+        if sh["sa"]:
+            st.markdown("**" + tx("Phần III. Trả lời ngắn (nhập số hoặc đáp án)", "Part III. Short answer") + "**")
+            cols = st.columns(3)
+            for i in range(len(sh["sa"])):
+                sa.append(cols[i % 3].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), key=f"ss_{a['id']}_{n}_{i}", max_chars=60))
+        go = st.form_submit_button(tx("📨 Nộp bài", "📨 Submit"), type="primary")
+    if go:
+        try:
+            g = cr.submit_sheet(au, a["id"], {"mc": [x or "" for x in mc], "tf": tf, "sa": sa}, _now().strftime("%Y-%m-%d %H:%M"))
+            st.session_state["_toast"] = tx(f"Đã nộp: {g['score']:g}/{g['max']:g} điểm.", f"Submitted: {g['score']:g}/{g['max']:g}.")
+            st.rerun()
+        except (OSError, cr.Denied) as e:
+            st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+
+
+def sheet_results_ui(a):
+    """Giáo viên xem điểm phiếu trả lời của lớp và câu nào hay sai."""
+    try:
+        sh = cr.get_sheet(cur_auth(), a["id"], force=True)
+        subs = cr.sheet_results(cur_auth(), a["id"], force=True) if sh else []
+    except OSError:
+        st.error(hs.last_error)
+        return
+    if not sh:
+        return
+    last, count = {}, {}
+    for r in subs:
+        last[r["student"]] = r
+        count[r["student"]] = count.get(r["student"], 0) + 1
+    with st.expander(tx(f"📝 Điểm phiếu trả lời ({len(last)} học sinh đã nộp)", f"📝 Answer sheet scores ({len(last)} submitted)"), expanded=bool(last)):
+        if not last:
+            st.caption(tx("Chưa có học sinh nào nộp phiếu.", "No submissions yet."))
+            return
+        rows = [{tx("Học sinh", "Student"): k.rsplit(" [", 1)[0], tx("Điểm", "Score"): v["score"], tx("Tối đa", "Max"): v["max"],
+                 tx("Phần I đúng", "Part I ok"): v["right"].get("mc", 0), tx("Phần II đúng cả ý", "Part II ok"): v["right"].get("tf", 0),
+                 tx("Phần III đúng", "Part III ok"): v["right"].get("sa", 0), tx("Số lần nộp", "Attempts"): count[k], tx("Lúc nộp", "Time"): v["ts"]}
+                for k, v in sorted(last.items())]
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+        done = {hs.slug(k) for k in last}
+        try:
+            missing = [n for n in cr.students(cur_auth(), a["code"]) if hs.slug(cr.identity(a["code"], n)) not in done]
+        except OSError:
+            missing = []
+        if missing:
+            st.caption(tx("Chưa nộp phiếu: ", "Not submitted: ") + ", ".join(missing))
+        qrows = []
+        for part, lab in (("mc", "I"), ("tf", "II"), ("sa", "III")):
+            for i in range(len(sh[part])):
+                ok = []
+                for v in last.values():
+                    x = (v["detail"].get(part) or [None] * (i + 1))[i] if i < len(v["detail"].get(part) or []) else None
+                    if x is None:
+                        continue
+                    ok.append(all(x) if isinstance(x, list) else bool(x))
+                if ok:
+                    qrows.append({tx("Phần", "Part"): lab, tx("Câu", "Q"): i + 1, tx("% sai", "% wrong"): round(100 * (1 - sum(ok) / len(ok)))})
+        if qrows:
+            st.markdown("**" + tx("Câu hay sai (sắp theo tỉ lệ sai)", "Most missed questions") + "**")
+            st.dataframe(sorted(qrows, key=lambda r: -list(r.values())[2])[:12], use_container_width=True, hide_index=True)
+
+
 def student_files_ui(a):
     """Tệp giáo viên đính kèm (tải về) và khu nộp tệp bài làm của học sinh."""
     au = cur_auth()
@@ -2395,7 +2581,8 @@ def student_files_ui(a):
     if atts:
         st.markdown("#### " + tx("📎 Tài liệu của giáo viên", "📎 Teacher's files"))
         file_rows_ui(atts, f"sa_{a['id']}")
-    with st.expander(tx("📤 Nộp tệp bài làm", "📤 Submit a file"), expanded=bool(mine) or not a["questions"]):
+    answer_sheet_ui(a)
+    with st.expander(tx("📤 Nộp tệp bài làm", "📤 Submit a file"), expanded=bool(mine)):
         if mine:
             file_rows_ui(mine, f"sm_{a['id']}", can_delete=True)
         upload_ui(a["id"], cr.SUBF, f"su_{a['id']}", tx("Chọn tệp bài làm (ảnh, PDF, Word…)", "Choose your file (photo, PDF, Word…)"), True)
@@ -2427,7 +2614,7 @@ def practice_assign_ui():
                      format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     student_files_ui(a)
     if not a["questions"]:
-        st.info(tx("Bài này không có câu hỏi trực tuyến. Hãy tải tài liệu và nộp tệp bài làm ở trên.", "This assignment has no online questions. Download the files and submit your work above."))
+        st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
         return
     try:
         prog = cr.progress(a, cr.submissions(au, aid=a["id"])).get(me, {})
@@ -5484,12 +5671,24 @@ def teacher_assign_ui():
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
                              help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Có thể giao bài chỉ gồm tệp, không cần chọn chất.",
                                      f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). File-only assignments are allowed."))
+    use_sheet = st.checkbox(tx("📝 Tạo phiếu trả lời trực tuyến (trắc nghiệm / đúng-sai / trả lời ngắn) cho đề này", "📝 Add an online answer sheet (multiple choice / true-false / short answer)"), key="ta_sheet_on")
+    sheet_cfg = None
+    if use_sheet:
+        det = {}
+        for f in files or []:
+            if cr.ext_of(f.name) == "docx":
+                det = cr.detect_structure(cr.docx_text(f.getvalue()))
+                break
+        if det and any(det.values()):
+            st.caption(tx(f"Đã nhận ra từ đề: {det['mc']} câu phần I, {det['tf']} câu phần II, {det['sa']} câu phần III. Có thể chỉnh lại.",
+                          f"Detected from the exam: {det['mc']} / {det['tf']} / {det['sa']} questions. You can adjust."))
+        sheet_cfg = sheet_editor_ui(f"ta_sh{hash(tuple(sorted(det.items()))) % 10**6}", detected=det)
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
         pool = (chosen if how == "pick" else random.sample(names, int(n))) or []
         ks = ["draw", "name"] if kinds == "both" else [kinds]
         qs = [{"k": k, "n": nm} for nm in pool for k in ks]
-        if not title.strip() or (not qs and not files):
-            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất hoặc đính kèm một tệp.", "Enter a title and pick at least one compound or attach a file."))
+        if not title.strip() or (not qs and not files and not use_sheet):
+            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất, đính kèm tệp hoặc tạo phiếu trả lời.", "Enter a title and pick a compound, attach a file or add an answer sheet."))
         elif len(files or []) > cr.MAX_ATT:
             st.error(tx(f"Tối đa {cr.MAX_ATT} tệp cho mỗi bài.", f"At most {cr.MAX_ATT} files per assignment."))
         else:
@@ -5506,6 +5705,11 @@ def teacher_assign_ui():
                             up += 1
                         except cr.Denied as e:
                             st.error(f"{f.name}: {e}")
+                    if use_sheet and sheet_cfg:
+                        try:
+                            cr.set_sheet(cur_auth(), aid, sheet_cfg)
+                        except cr.Denied as e:
+                            st.error(tx("Đã giao bài nhưng chưa lưu được phiếu: ", "Assigned, but the sheet was not saved: ") + str(e))
                     st.session_state["_ta_n"] = st.session_state.get("_ta_n", 0) + 1
                     st.session_state["_toast"] = tx(f"Đã giao {len(qs)} câu và {up} tệp cho lớp {cls}.", f"Assigned {len(qs)} questions and {up} file(s) to {cls}.")
                     st.rerun()
@@ -5535,6 +5739,19 @@ def teacher_assign_ui():
             file_rows_ui(atts, f"ta_{a['id']}", can_delete=True)
             if len(atts) < cr.MAX_ATT:
                 upload_ui(a["id"], cr.ATT, f"tau_{a['id']}", tx("Thêm tệp đính kèm", "Add attachment"), True)
+        try:
+            ex_sheet = cr.get_sheet(cur_auth(), a["id"], force=True)
+        except OSError:
+            ex_sheet = None
+        with st.expander(tx("📝 Phiếu trả lời" + (" (đã có)" if ex_sheet else " (chưa có)"), "📝 Answer sheet" + (" (set)" if ex_sheet else " (none)"))):
+            cfg = sheet_editor_ui(f"tsh_{a['id']}", existing=ex_sheet)
+            if st.button(tx("💾 Lưu phiếu", "💾 Save sheet"), key=f"tsh_save_{a['id']}", type="primary"):
+                try:
+                    cr.set_sheet(cur_auth(), a["id"], cfg)
+                    st.session_state["_toast"] = tx("Đã lưu phiếu trả lời.", "Sheet saved.")
+                    st.rerun()
+                except (OSError, cr.Denied) as e:
+                    st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
 
 
 def teacher_results_ui():
@@ -5562,6 +5779,7 @@ def teacher_results_ui():
             file_rows_ui(subf, f"tf_{a['id']}", can_delete=True, show_student=True)
         else:
             st.caption(tx("Chưa có học sinh nào nộp tệp.", "No student has submitted a file yet."))
+    sheet_results_ui(a)
     if not a["questions"]:
         return
     prog = cr.progress(a, cr.submissions(cur_auth(), aid=a["id"]))

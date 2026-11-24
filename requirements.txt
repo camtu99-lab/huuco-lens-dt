@@ -5,3 +5,4 @@ pillow
 python-pptx
 gspread
 google-auth
+mammoth

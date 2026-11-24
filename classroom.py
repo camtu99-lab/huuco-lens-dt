@@ -24,6 +24,10 @@ CLASSES_H = ["ma_lop", "ten_lop", "tao_luc"]
 ACC_H = ["ma_lop", "hoc_sinh", "salt", "pin_hash", "tao_luc"]
 ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y"]
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
+SHEET_H = ["id_bai", "ma_lop", "cau_hinh_json"]
+SSUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "tra_loi_json", "diem", "chi_tiet_json"]
+TF_POINTS = {0: 0.0, 1: 0.1, 2: 0.25, 3: 0.5, 4: 1.0}   # thang điểm đúng/sai THPT: số ý đúng -> điểm
+MC_POINT = SA_POINT = 0.25
 FILE_H = ["id_tep", "id_bai", "ma_lop", "hoc_sinh", "loai", "ten_tep", "mime", "kich_thuoc", "tao_luc"]
 DATA_H = ["id_tep", "stt", "du_lieu_base64"]
 MAX_FILE = 1_000_000          # byte; tệp nằm trong ô Google Sheets nên giữ nhỏ
@@ -138,7 +142,8 @@ def delete_class(auth, code):
     _need_teacher(auth)
     c = norm_code(code)
     _purge_files(lambda r: r[2] == c)
-    for name, head, col in (("classes", CLASSES_H, 0), ("accounts", ACC_H, 0), ("assignments", ASG_H, 1), ("submissions", SUB_H, 1)):
+    for name, head, col in (("classes", CLASSES_H, 0), ("accounts", ACC_H, 0), ("assignments", ASG_H, 1), ("submissions", SUB_H, 1),
+                            ("sheets", SHEET_H, 1), ("sheetsubs", SSUB_H, 1)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""] * 3)[col] != c]
         if len(keep) != len(rows):
@@ -308,7 +313,7 @@ def assignments(auth, code):
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
@@ -459,6 +464,202 @@ def _purge_files(pred):
     hs.tbl_write("files", FILE_H, [r for r in rows if _pad(r)[0] not in gone])
     data = hs.tbl_read("filedata", DATA_H, force=True)
     hs.tbl_write("filedata", DATA_H, [r for r in data if (r + [""])[0] not in gone])
+
+
+# ---------------- Phiếu trả lời (trắc nghiệm / đúng-sai / trả lời ngắn) ----------------
+def docx_text(data):
+    """Lấy chữ từ .docx (không cần thư viện ngoài), mỗi đoạn một dòng."""
+    import zipfile
+    from io import BytesIO
+    try:
+        xml = zipfile.ZipFile(BytesIO(data)).read("word/document.xml").decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    xml = re.sub(r"</w:p>", "\n", xml)
+    xml = re.sub(r"<w:tab/>", "\t", xml)
+    import html as _h
+    return _h.unescape(re.sub(r"<[^>]+>", "", xml)).strip()
+
+
+def detect_structure(text):
+    """Đoán số câu mỗi phần từ đề: {'mc': n, 'tf': n, 'sa': n} (0 nếu không thấy)."""
+    parts = re.split(r"(?im)^\s*PHẦN\s+(I{1,3}|IV)\b", text)
+    out = {"mc": 0, "tf": 0, "sa": 0}
+    names = {"I": "mc", "II": "tf", "III": "sa"}
+    for i in range(1, len(parts) - 1, 2):
+        k = names.get(parts[i].upper())
+        if k:
+            nums = {int(n) for n in re.findall(r"(?m)^\s*Câu\s+(\d+)\s*[.:]", parts[i + 1])}
+            out[k] = max(nums) if nums else 0
+    return out
+
+
+def _tf_bools(s):
+    """'ĐSĐĐ' / 'DSDD' / 'TFTT' -> [True, False, ...]; ký tự lạ -> None."""
+    out = []
+    for ch in re.sub(r"[\s,;-]", "", (s or "").upper()):
+        out.append(True if ch in "ĐDT1" else False if ch in "SF0" else None)
+    return out
+
+
+def clean_sheet(cfg):
+    """Chuẩn hóa cấu hình phiếu từ giáo viên: mc = chuỗi chữ A-D (rỗng nếu chưa có), tf = chuỗi Đ/S, sa = đáp án."""
+    mc = [(x or "").strip().upper()[:1] for x in cfg.get("mc", [])]
+    mc = [x if x in "ABCD" and x else "" for x in mc]
+    tf = ["".join("Đ" if b else "S" for b in _tf_bools(x) if b is not None) for x in cfg.get("tf", [])]
+    sa = [(x or "").strip()[:60] for x in cfg.get("sa", [])]
+    if len(mc) > 60 or len(tf) > 20 or len(sa) > 40:
+        raise Denied("Phiếu có quá nhiều câu.")
+    if not (mc or tf or sa):
+        raise Denied("Phiếu cần có ít nhất một câu.")
+    if any(len(x) > 8 for x in tf):
+        raise Denied("Mỗi câu đúng/sai tối đa 8 ý.")
+    return {"mc": mc, "tf": tf, "sa": sa, "n_tf_items": [len(x) or 4 for x in tf]}
+
+
+def _num(x):
+    try:
+        return float(str(x).strip().replace(",", ".").replace(" ", ""))
+    except ValueError:
+        return None
+
+
+def _sa_match(given, key):
+    g = (given or "").strip()
+    if not g or not key:
+        return False
+    for alt in key.split(";"):
+        alt = alt.strip()
+        a, b = _num(g), _num(alt)
+        if a is not None and b is not None:
+            if abs(a - b) <= 1e-9 + 1e-9 * abs(b):
+                return True
+        elif g.lower() == alt.lower():
+            return True
+    return False
+
+
+def grade_sheet(cfg, ans):
+    """Chấm phiếu. Câu chưa có đáp án -> None (không tính điểm). Điểm theo thang THPT (0,25/câu TN và TLN; đúng/sai 0,1-0,25-0,5-1)."""
+    res = {"mc": [], "tf": [], "sa": []}
+    score = mx = 0.0
+    right = {"mc": 0, "tf": 0, "sa": 0}
+    mca = (ans.get("mc") or []) + [""] * len(cfg["mc"])
+    for i, key in enumerate(cfg["mc"]):
+        if not key:
+            res["mc"].append(None)
+            continue
+        ok = (mca[i] or "").upper() == key
+        res["mc"].append(ok)
+        mx += MC_POINT
+        if ok:
+            score += MC_POINT
+            right["mc"] += 1
+    tfa = (ans.get("tf") or []) + [[]] * len(cfg["tf"])
+    for i, key in enumerate(cfg["tf"]):
+        kb = _tf_bools(key)
+        if not kb:
+            res["tf"].append(None)
+            continue
+        given = list(tfa[i]) + [None] * len(kb)
+        marks = [given[j] is not None and bool(given[j]) == kb[j] for j in range(len(kb))]
+        res["tf"].append(marks)
+        n_ok = sum(marks)
+        mx += 1.0
+        score += TF_POINTS[n_ok] if len(kb) == 4 else round(n_ok / len(kb), 2)
+        right["tf"] += n_ok == len(kb)
+    saa = (ans.get("sa") or []) + [""] * len(cfg["sa"])
+    for i, key in enumerate(cfg["sa"]):
+        if not key:
+            res["sa"].append(None)
+            continue
+        ok = _sa_match(saa[i], key)
+        res["sa"].append(ok)
+        mx += SA_POINT
+        if ok:
+            score += SA_POINT
+            right["sa"] += 1
+    return {"detail": res, "score": round(score, 2), "max": round(mx, 2), "right": right}
+
+
+def _find_asg(aid):
+    return next((a for a in _all_asg() if a[0] == aid), None)
+
+
+def set_sheet(auth, aid, cfg):
+    _need_teacher(auth)
+    asg = _find_asg(aid)
+    if not asg:
+        raise Denied("Không tìm thấy bài giao.")
+    cfg = clean_sheet(cfg)
+    rows = [r for r in hs.tbl_read("sheets", SHEET_H, force=True) if (r + [""])[0] != aid]
+    rows.append([aid, asg[1], json.dumps(cfg, ensure_ascii=False)])
+    hs.tbl_write("sheets", SHEET_H, rows)
+
+
+def _sheet_row(aid, force=False):
+    for r in hs.tbl_read("sheets", SHEET_H, force=force):
+        if len(r) >= 3 and r[0] == aid:
+            try:
+                return r[1], json.loads(r[2])
+            except ValueError:
+                return None
+    return None
+
+
+def get_sheet(auth, aid, force=False):
+    """Giáo viên: đủ đáp án. Học sinh: chỉ cấu trúc (số câu, số ý), tuyệt đối không có đáp án. Chưa có phiếu -> None."""
+    got = _sheet_row(aid, force)
+    if not got:
+        return None
+    code, cfg = got
+    if is_teacher(auth):
+        return cfg
+    if not is_student(auth) or auth["cls"] != code:
+        raise Denied("Không có quyền xem phiếu này.")
+    return {"mc": ["?"] * len(cfg["mc"]), "tf": ["?" * n for n in cfg.get("n_tf_items", [4] * len(cfg["tf"]))],
+            "sa": ["?"] * len(cfg["sa"])}
+
+
+def submit_sheet(auth, aid, ans, now):
+    """Học sinh nộp phiếu; chấm ở máy chủ rồi lưu. Trả về kết quả chấm (không lộ đáp án đúng)."""
+    if not is_student(auth):
+        raise Denied("Cần đăng nhập học sinh để nộp phiếu.")
+    got = _sheet_row(aid, True)
+    if not got or got[0] != auth["cls"]:
+        raise Denied("Không tìm thấy phiếu trả lời của lớp em.")
+    cfg = got[1]
+    clean = {"mc": [str(x or "")[:1].upper() for x in (ans.get("mc") or [])][:len(cfg["mc"])],
+             "tf": [[(None if b is None else bool(b)) for b in row][:8] for row in (ans.get("tf") or [])][:len(cfg["tf"])],
+             "sa": [str(x or "").strip()[:60] for x in (ans.get("sa") or [])][:len(cfg["sa"])]}
+    g = grade_sheet(cfg, clean)
+    hs.tbl_append("sheetsubs", SSUB_H, [aid, auth["cls"], auth["key"], now, json.dumps(clean, ensure_ascii=False), g["score"],
+                                        json.dumps({"detail": g["detail"], "max": g["max"], "right": g["right"]}, ensure_ascii=False)])
+    return g
+
+
+def sheet_results(auth, aid, student=None, force=False):
+    """Các lần nộp phiếu của một bài. Giáo viên xem tất cả; học sinh chỉ xem của chính mình."""
+    if is_student(auth):
+        student = auth["key"]
+    elif not is_teacher(auth):
+        raise Denied("Cần đăng nhập.")
+    out = []
+    for r in hs.tbl_read("sheetsubs", SSUB_H, force=force):
+        r = r + [""] * (7 - len(r))
+        if r[0] != aid or (student and hs.slug(r[2]) != hs.slug(student)):
+            continue
+        try:
+            d, a = json.loads(r[6]), json.loads(r[4])
+        except ValueError:
+            d, a = {}, {}
+        try:
+            sc = float(r[5])
+        except ValueError:
+            sc = 0.0
+        out.append({"student": r[2], "ts": r[3], "score": sc, "max": d.get("max", 0), "detail": d.get("detail", {}),
+                    "right": d.get("right", {}), "answers": a})
+    return out
 
 
 # ---------------- Bài nộp ----------------
