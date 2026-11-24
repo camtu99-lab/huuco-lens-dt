@@ -424,6 +424,7 @@ def tbl_read(name, head, force=False):
             except Exception as e:
                 raise OSError(_set_err(e))
             c["rows"], c["t"] = [list(r) for r in vals[1:]], time.time()
+            _ok()
             return [list(r) for r in c["rows"]]
     with _LOCK:
         try:
@@ -440,6 +441,12 @@ def _set_err(e):
     return last_error
 
 
+def _ok():
+    """Một lần gọi Google Sheets thành công: xóa lỗi cũ để trạng thái kết nối hiện đúng."""
+    global last_error
+    last_error = ""
+
+
 def tbl_append(name, head, row):
     row = [str(x) for x in row]
     if _CFG:
@@ -453,6 +460,7 @@ def tbl_append(name, head, row):
                 raise OSError(_set_err(e))
             if c["rows"] is not None:
                 c["rows"].append(row)
+            _ok()
         return
     with _LOCK:
         rows = tbl_read(name, head)

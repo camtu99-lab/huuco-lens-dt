@@ -47,15 +47,13 @@ if not (hasattr(hs, "tbl_read") and hasattr(cr, "login") and hasattr(i18n, "inst
              "i18n.py) lên cùng thư mục rồi khởi động lại app.")
     st.stop()
 
-# Ngôn ngữ (vi / bi / en) và tên học sinh được nhớ trong địa chỉ trang (?lang=bi&hs=An) để tải lại vẫn còn.
+# Ngôn ngữ (vi / bi / en) được nhớ trong địa chỉ trang (?lang=bi) để tải lại vẫn còn.
 try:
-    _q_lang, _q_hs = st.query_params.get("lang"), st.query_params.get("hs")
+    _q_lang = st.query_params.get("lang")
 except Exception:
-    _q_lang = _q_hs = None
+    _q_lang = None
 if "lang" not in st.session_state:
     st.session_state["lang"] = _q_lang if _q_lang in i18n.LANGS else "vi"
-if "student" not in st.session_state:
-    st.session_state["student"] = (_q_hs or "")[:40]
 i18n.install()
 
 # Lưu bền bằng Google Sheets nếu secrets có HISTORY_SHEET_ID và [gcp_service_account]; không thì dùng tệp cục bộ.
@@ -73,10 +71,12 @@ try:
 except Exception as _e:
     hs.last_error = f"{type(_e).__name__}: {str(_e)[:200]}"
 
-# Đăng nhập lớp: giữ đăng nhập khi tải lại trang bằng mã ký (?tk=...), không chứa PIN.
+# Danh tính duy nhất của phiên: st.session_state["auth"] = None (khách) hoặc dict từ cr.make_auth (học sinh / giáo viên).
+# Học sinh giữ đăng nhập khi tải lại trang bằng mã ký (?tk=...), không chứa PIN; giáo viên luôn nhập lại mã sau khi tải lại trang.
 _SECRET = str(st.secrets.get("APP_SECRET", "") or st.secrets.get("TEACHER_CODE", "") or st.secrets.get("GEMINI_API_KEY", ""))
-st.session_state.setdefault("acct", None)
-if st.session_state["acct"] is None and not st.session_state.get("_tk_tried"):
+_TEACHER_CODE = str(st.secrets.get("TEACHER_CODE", "") or "")
+st.session_state.setdefault("auth", None)
+if st.session_state["auth"] is None and not st.session_state.get("_tk_tried"):
     st.session_state["_tk_tried"] = True
     try:
         _tk = st.query_params.get("tk")
@@ -84,8 +84,7 @@ if st.session_state["acct"] is None and not st.session_state.get("_tk_tried"):
     except Exception:
         _v = None
     if _v:
-        st.session_state["acct"] = {"cls": _v[0], "name": _v[1]}
-        st.session_state["student"] = cr.identity(_v[0], _v[1])
+        st.session_state["auth"] = cr.make_auth(cr.STUDENT, _v[0], _v[1])
 
 RULES = """Bạn là giáo viên Hóa hữu cơ Việt Nam kiêm chuyên gia nhận dạng công thức. Quy ước trong SGK Việt Nam: công thức khai triển/thu gọn (CH3-CH2-OH, CH3COOH), công thức khung (mỗi đầu mút/đỉnh là C, H gắn vào C không vẽ), vòng benzen vẽ lục giác với 3 liên kết đôi xen kẽ hoặc có vòng tròn bên trong, C6H5- hoặc Ph là phenyl, nhóm chức như -OH, -CHO, -COOH, -COO-, -CO-, -NH2, -NO2, -C≡N, -X. Đếm cẩn thận số C, vị trí nhánh và nhóm thế trên vòng (o-, m-, p-). Danh pháp dùng cách đọc tiếng Việt theo SGK (metan, etanol, propan-2-ol, axit etanoic, etanal, benzen, phenol, anilin, toluen, etyl axetat...), kèm tên thường gọi nếu có."""
 
@@ -2116,14 +2115,14 @@ def _go_next_asg(aid, idx, total):
 
 
 def record_submission(q, ten, given, res, mt):
-    """Ghi bài nộp lên bảng chung nếu học sinh đã đăng nhập lớp."""
-    acct = st.session_state.get("acct")
-    if not acct:
+    """Ghi bài nộp lên bảng chung nếu học sinh đã đăng nhập (khách thì chỉ lưu trong phiên)."""
+    if not cr.is_student(cur_auth()):
         return
     try:
-        cr.add_submission(q["aid"], acct["cls"], student_name(), _now().strftime("%Y-%m-%d %H:%M:%S"), q["spec"], topic_of(mt),
-                          given, res["kq"], q["tries"], q["hints"])
+        cr.add_submission(cur_auth(), q["aid"], q["spec"], topic_of(mt), given, res["kq"], q["tries"], q["hints"],
+                          _now().strftime("%Y-%m-%d %H:%M:%S"))
         st.session_state.pop("_sub_err", None)
+        st.session_state.pop("_prof", None)
     except OSError:
         st.session_state["_sub_err"] = hs.last_error
 
@@ -2278,14 +2277,21 @@ def _q_label(i, qd, st_):
 
 
 def practice_assign_ui():
-    acct = st.session_state.get("acct")
-    if not acct:
-        st.info(tx("Đăng nhập lớp học ở thanh bên (mã lớp, tên, PIN) để làm bài giáo viên giao.",
-                   "Log in to your class in the sidebar (class code, name, PIN) to do the teacher's assignments."))
+    au = cur_auth()
+    if not cr.is_student(au):
+        if cr.is_teacher(au):
+            st.info(tx("Tài khoản giáo viên không làm bài. Giao bài và xem kết quả ở tab Lịch sử tra cứu.",
+                       "Teacher accounts do not take assignments. Assign work and see results in the History tab."))
+        else:
+            st.info(tx("Cần đăng nhập để làm bài giáo viên giao và lưu kết quả. Tự luyện thì không cần đăng nhập.",
+                       "Log in to do assignments and save your results. Self practice needs no login."))
+            if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="pa_login", type="primary"):
+                auth_dialog()
         return
-    me = student_name()
+    acct = {"cls": au["cls"]}
+    me = au["key"]
     try:
-        asgs = cr.assignments(acct["cls"])
+        asgs = cr.assignments(au, au["cls"])
     except OSError:
         st.error(tx("Không đọc được bài giao: ", "Cannot read assignments: ") + hs.last_error)
         return
@@ -2295,7 +2301,7 @@ def practice_assign_ui():
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
                      format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     try:
-        prog = cr.progress(a, cr.submissions(aid=a["id"], student=me)).get(me, {})
+        prog = cr.progress(a, cr.submissions(au, aid=a["id"])).get(me, {})
     except OSError:
         st.error(hs.last_error)
         return
@@ -3375,9 +3381,25 @@ st.markdown(CSS, unsafe_allow_html=True)
 _UP_BTN = {"en": "Upload image", "bi": "Tải ảnh lên · Upload image"}
 _UP_HINT = {"en": "Drag and drop an image or choose a file  |  JPG, PNG, WEBP (max 200MB)",
             "bi": "Kéo thả ảnh hoặc chọn file · Drag and drop or choose a file  |  JPG, PNG, WEBP (200MB)"}
-st.markdown("<style>.st-key-logincard{background:linear-gradient(135deg,#eef0ff,#f6f0ff);border:1px solid #dcdfff;border-radius:22px;padding:1.3rem 1.5rem}"
-            ".lg-h{display:flex;gap:1rem;align-items:center;margin-bottom:.8rem}.lg-h h3{margin:0;font-size:1.35rem;color:#1d2a8a}.lg-h p{margin:.15rem 0 0;color:#4b5280;font-size:.95rem}"
-            ".lg-ic{display:inline-flex;align-items:center;justify-content:center;min-width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#4f46e5,#7c3aed)}</style>", unsafe_allow_html=True)
+st.markdown("<style>"
+            ".st-key-sbacct{margin:.2rem 0 .9rem}"
+            ".acct{background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(139,92,246,.22));border:1px solid rgba(167,139,250,.35);border-radius:16px;padding:.8rem .85rem}"
+            ".acct-top{display:flex;align-items:center;gap:.7rem}"
+            ".acct .avt{flex:0 0 auto;width:2.9rem;height:2.9rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;color:#fff;background:linear-gradient(135deg,#4f46e5,#8b5cf6);box-shadow:0 .3rem .9rem rgba(110,90,255,.45)}"
+            ".acct .avt.guest{background:rgba(255,255,255,.14);box-shadow:none}"
+            ".acct .who{min-width:0}.acct .who b{display:block;color:#fff;font-size:1rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
+            ".acct .who span{display:block;color:#c7cdf5;font-size:.78rem;margin-top:.1rem}"
+            ".acct .role{display:inline-block;margin-left:.35rem;padding:0 .4rem;border-radius:99px;background:rgba(255,255,255,.16);font-size:.68rem;color:#fff}"
+            ".acct-st{display:flex;align-items:center;gap:.4rem;margin-top:.6rem;font-size:.74rem;color:#d6dafc}"
+            ".acct-st i{width:.55rem;height:.55rem;border-radius:50%;background:#9ca3af;flex:0 0 auto}.acct-st i.ok{background:#34d399}.acct-st i.warn{background:#fbbf24}.acct-st i.err{background:#f87171}"
+            ".acct-kpi{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.65rem}"
+            ".acct-kpi div{background:rgba(255,255,255,.09);border-radius:12px;padding:.45rem .3rem;text-align:center}"
+            ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#c7cdf5;font-size:.68rem;margin-top:.15rem}"
+            ".acct-none{margin-top:.6rem;font-size:.76rem;color:#c7cdf5;text-align:center}"
+            ".st-key-sbacct button{width:100%}"
+            ".tb-right .av.guest{background:#e4e7ff;color:#4f46e5}"
+            "@media(max-width:640px){.acct-kpi b{font-size:1.1rem}}"
+            "</style>", unsafe_allow_html=True)
 st.markdown("<style>@media(max-width:640px){.block-container{padding-left:.7rem!important;padding-right:.7rem!important}"
             "[data-testid='stDataFrame']{max-width:100%;overflow-x:auto}.stTabs [data-baseweb='tab-list']{overflow-x:auto}"
             "[data-testid='stFileUploaderDropzone']{padding:1rem!important}}</style>", unsafe_allow_html=True)
@@ -3422,7 +3444,7 @@ def show_top_error(top, msg, exc=None):
 
 # ---------------- Lịch sử tra cứu của học sinh ----------------
 # Mỗi lượt: {"q": nội dung, "k": loại, "d": ngày, "t": giờ, "p": dữ liệu để tra lại (tùy chọn)}.
-# Có tên học sinh (ô ở thanh bên) thì lượt tra cứu được lưu vào tệp riêng của học sinh đó (history_store.py),
+# Học sinh đã đăng nhập thì lượt tra cứu được lưu vào tệp riêng của học sinh đó (history_store.py),
 # lần sau nhập lại tên là thấy lại. Không có tên thì chỉ giữ trong phiên đang mở.
 HIST_MAX = 300
 try:
@@ -3436,12 +3458,19 @@ def _now():
     return datetime.now(_TZ) if _TZ else datetime.now()
 
 
+def cur_auth():
+    """Danh tính hiện tại của phiên: None (khách), học sinh hoặc giáo viên."""
+    return st.session_state.get("auth")
+
+
 def student_name():
-    return (st.session_state.get("student") or "").strip()
+    """Khóa lưu dữ liệu của học sinh đã đăng nhập ('Tên [LỚP]'); khách và giáo viên thì rỗng (chỉ lưu trong phiên)."""
+    a = cur_auth()
+    return a["key"] if cr.is_student(a) else ""
 
 
 def add_history(label, kind="Công thức", payload=None):
-    """Ghi một lượt tra cứu (bỏ trùng liên tiếp); có tên học sinh thì lưu luôn vào tệp."""
+    """Ghi một lượt tra cứu (bỏ trùng liên tiếp); học sinh đã đăng nhập thì lưu luôn vào kho dữ liệu."""
     h = st.session_state.hist
     label = (label or "").strip()
     if not label or (h and h[0].get("q") == label and h[0].get("k") == kind):
@@ -3455,7 +3484,7 @@ def add_history(label, kind="Công thức", payload=None):
     who = student_name()
     if who:
         try:
-            hs.append(who, dict(e))
+            cr.append_history(cur_auth(), who, dict(e))
         except OSError:
             pass   # ổ đĩa chỉ đọc: vẫn giữ trong phiên
 
@@ -3465,84 +3494,115 @@ def _hkey(x):
 
 
 def sync_student():
-    """Gọi mỗi lần chạy và khi đổi tên: nạp lịch sử đã lưu của học sinh vừa nhập (hoặc gắn các lượt đã làm trước khi nhập tên)."""
+    """Gọi mỗi lần chạy và khi đăng nhập/đăng xuất: nạp lịch sử đã lưu của tài khoản (hoặc gắn các lượt đã tra cứu khi còn là khách)."""
     who = student_name()
     prev = st.session_state.get("_hist_owner")
     if prev == who:
         return
     cur = st.session_state.hist
     try:
-        saved = hs.load(who) if who else []
+        saved = cr.read_history(cur_auth(), who) if who else []
     except OSError:
         saved = []   # Sheets/ổ đĩa tạm lỗi: vẫn dùng app, lượt mới ghi lại khi nối được
-    if who and not prev and cur:   # đã tra cứu trước khi nhập tên: gắn vào tên vừa nhập
+    if who and not prev and cur:   # đã tra cứu khi còn là khách: gắn vào tài khoản vừa đăng nhập
         seen = {_hkey(x) for x in saved}
         saved = sorted([x for x in cur if _hkey(x) not in seen] + saved, key=lambda x: (x.get("d", ""), x.get("t", "")), reverse=True)[:HIST_MAX]
         try:
-            hs.save(who, saved)
+            cr.write_history(cur_auth(), who, saved)
         except OSError:
             pass
     st.session_state.hist = saved
     st.session_state["_hist_owner"] = who
     if who:
         try:
-            hs.touch(who, _now().strftime("%Y-%m-%d %H:%M"))   # ghi nhận lần truy cập để giáo viên xem
+            cr.touch_visit(cur_auth(), who, _now().strftime("%Y-%m-%d %H:%M"))   # ghi nhận lần truy cập để giáo viên xem
         except OSError:
             pass
 
 
-def on_student():
-    who = student_name()
+def _set_token(on, au=None):
+    """Nhớ (hoặc quên) đăng nhập của học sinh trong địa chỉ trang để tải lại vẫn còn."""
     try:
-        if who:
-            st.query_params["hs"] = who
+        if on and cr.is_student(au):
+            st.query_params["tk"] = cr.make_token(_SECRET, au["cls"], au["name"])
         else:
-            st.query_params.pop("hs", None)
+            st.query_params.pop("tk", None)
     except Exception:
         pass
-    sync_student()
 
 
-def do_login():
+def finish_login(au, msg):
     ss = st.session_state
-    if ss.get("lg_fail", 0) >= 5:
-        ss["lg_msg"] = ("err", tx("Nhập sai quá nhiều lần. Hãy tải lại trang hoặc nhờ giáo viên đặt lại PIN.", "Too many wrong attempts. Reload the page or ask your teacher to reset the PIN."))
-        return
-    try:
-        stt, nm = cr.login(ss.get("lg_code", ""), ss.get("lg_name", ""), ss.get("lg_pin", ""), _now().strftime("%Y-%m-%d %H:%M"))
-    except OSError:
-        ss["lg_msg"] = ("err", tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error)
-        return
-    if stt in ("ok", "new"):
-        code = cr.norm_code(ss.get("lg_code", ""))
-        ss["acct"] = {"cls": code, "name": nm}
-        ss["student"] = cr.identity(code, nm)
-        ss["lg_fail"] = 0
-        ss["lg_pin"] = ""
-        ss["lg_msg"] = ("ok", tx("Đã tạo tài khoản mới với PIN này. Hãy nhớ PIN nhé!", "Account created with this PIN. Remember it!") if stt == "new"
-                        else tx("Đăng nhập thành công.", "Logged in."))
-        try:
-            st.query_params["tk"] = cr.make_token(_SECRET, code, nm)
-        except Exception:
-            pass
-        on_student()
-    else:
-        ss["lg_fail"] = ss.get("lg_fail", 0) + 1
-        ss["lg_msg"] = ("err", {"no_class": tx("Mã lớp không tồn tại.", "Unknown class code."), "bad_name": tx("Hãy nhập tên.", "Please enter your name."),
-                                "bad_pin": tx("PIN phải từ 4 đến 12 ký tự.", "The PIN must be 4-12 characters."),
-                                "wrong": tx("Sai PIN.", "Wrong PIN.")}.get(stt, stt))
+    ss["auth"] = au
+    ss["lg_fail"] = 0
+    ss["_toast"] = msg
+    ss.pop("_prof", None)
+    _set_token(True, au)
+    sync_student()
 
 
 def do_logout():
     ss = st.session_state
-    ss["acct"] = None
-    ss["student"] = ""
-    ss["lg_msg"] = None
+    ss["auth"] = None
+    ss.pop("_prof", None)
+    ss["_toast"] = tx("Đã đăng xuất.", "Logged out.")
+    _set_token(False)
+    ss["pq"] = None
+    sync_student()
+
+
+_AUTH_ERR = {
+    "bad_code": ("Mã lớp gồm 2-20 ký tự chữ, số, gạch nối.", "The class code is 2-20 letters, digits or dashes."),
+    "bad_name": ("Họ tên cần 2-40 ký tự, bắt đầu bằng chữ cái và không có ký tự đặc biệt.", "Your name needs 2-40 characters, starting with a letter, with no special symbols."),
+    "bad_pin": ("PIN phải từ 4 đến 12 ký tự.", "The PIN must be 4-12 characters."),
+    "mismatch": ("Hai lần nhập PIN chưa giống nhau.", "The two PINs do not match."),
+    "no_class": ("Mã lớp không tồn tại. Hãy hỏi giáo viên mã lớp.", "Unknown class code. Ask your teacher for it."),
+    "no_account": ("Chưa có tài khoản với tên này trong lớp. Hãy chọn \"Đăng ký lần đầu\".", "No account with this name in the class. Choose \"First time here\"."),
+    "exists": ("Tên này đã có tài khoản trong lớp. Hãy chọn \"Đã có tài khoản\" và nhập PIN.", "This name already has an account in the class. Choose \"I have an account\" and enter the PIN."),
+    "wrong": ("Sai PIN. Quên PIN thì nhờ giáo viên đặt lại.", "Wrong PIN. If you forgot it, ask your teacher to reset it."),
+}
+
+
+def _auth_error(stt):
+    vi, en = _AUTH_ERR.get(stt, (stt, stt))
+    return tx(vi, en)
+
+
+def submit_student_auth(mode, code, name, pin, pin2):
+    """Đăng nhập lại hoặc đăng ký lần đầu. Trả về chuỗi lỗi, hoặc '' nếu thành công."""
+    ss = st.session_state
+    if ss.get("lg_fail", 0) >= 5:
+        return tx("Nhập sai quá nhiều lần. Hãy tải lại trang hoặc nhờ giáo viên đặt lại PIN.", "Too many wrong attempts. Reload the page or ask your teacher to reset the PIN.")
     try:
-        st.query_params.pop("tk", None)
-    except Exception:
-        pass
-    on_student()
+        if mode == "register":
+            stt, nm = cr.register(code, name, pin, pin2, _now().strftime("%Y-%m-%d %H:%M"))
+            ok = stt == "new"
+        else:
+            stt, nm = cr.login(code, name, pin)
+            ok = stt == "ok"
+    except OSError:
+        return tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error
+    if not ok:
+        if stt in ("wrong", "no_account", "exists"):
+            ss["lg_fail"] = ss.get("lg_fail", 0) + 1
+        return _auth_error(stt)
+    finish_login(cr.make_auth(cr.STUDENT, code, nm),
+                 tx(f"Chào {nm}! Đã tạo tài khoản, hãy nhớ PIN nhé.", f"Welcome {nm}! Account created, remember your PIN.") if stt == "new"
+                 else tx(f"Chào mừng {nm} quay lại!", f"Welcome back, {nm}!"))
+    return ""
+
+
+def submit_teacher_auth(code):
+    ss = st.session_state
+    if not _TEACHER_CODE:
+        return tx('Chưa đặt TEACHER_CODE trong Secrets nên chưa có tài khoản giáo viên.', 'TEACHER_CODE is not set in Secrets, so there is no teacher account yet.')
+    if ss.get("lg_fail", 0) >= 5:
+        return tx("Nhập sai quá nhiều lần. Hãy tải lại trang.", "Too many wrong attempts. Reload the page.")
+    if not cr.check_teacher_code(code, _TEACHER_CODE):
+        ss["lg_fail"] = ss.get("lg_fail", 0) + 1
+        return tx("Mã giáo viên chưa đúng.", "Wrong teacher code.")
+    finish_login(cr.make_auth(cr.TEACHER), tx("Đã đăng nhập giáo viên.", "Logged in as teacher."))
+    return ""
 
 
 def on_lang():
@@ -4998,7 +5058,6 @@ HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
 PRACTICE_TAB = "Luyện tập"
 HISTORY_TAB = "Lịch sử tra cứu"
-TEACHER_ON = bool(st.secrets.get("TEACHER_CODE", ""))
 SECTIONS = [
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
     ("Phương trình phản ứng", "Phương trình phản ứng", "Đọc phương trình, cho biết loại phản ứng và kiểm tra đã cân bằng chưa.", reaction_ui, "flask"),
@@ -5120,7 +5179,7 @@ def clear_tab_hist(kinds):
     who = student_name()
     if who:
         try:
-            hs.clear(who, kinds)
+            cr.clear_history(cur_auth(), who, kinds)
         except OSError:
             pass
 
@@ -5130,7 +5189,7 @@ def clear_all_hist():
     who = student_name()
     if who:
         try:
-            hs.clear(who)
+            cr.clear_history(cur_auth(), who)
         except OSError:
             pass
 
@@ -5144,8 +5203,8 @@ def tab_history_ui(tab):
         if who:
             st.caption(tx(f"Đang lưu lịch sử cho: {who}", f"Saving history for: {who}"))
         else:
-            st.caption(tx("Nhập tên học sinh ở thanh bên để lịch sử được lưu lại cho lần sau.",
-                          "Enter the student name in the sidebar so the history is kept for next time."))
+            st.caption(tx("Bạn đang dùng với tư cách khách: lịch sử chỉ lưu trong phiên này. Đăng nhập để lưu cho lần sau.",
+                          "You are a guest: history is kept for this session only. Log in to keep it for next time."))
         if not items:
             st.caption(tx("Chưa có lượt tra cứu nào ở tab này.", "No lookups in this tab yet."))
             return
@@ -5173,11 +5232,13 @@ def my_history_ui():
     who = student_name()
     items = st.session_state.hist
     if who:
-        st.caption(tx(f"Lịch sử của: {who}. Đổi tên ở thanh bên là chuyển sang hồ sơ khác, hồ sơ tên cũ vẫn được giữ và giáo viên xem ở mục \"Tất cả học sinh\".",
-                      f"History of: {who}. Changing the name in the sidebar switches to another profile; the old profile is kept and teachers see it under \"All students\"."))
+        st.caption(tx(f"Lịch sử của: {who}. Mọi lượt tra cứu được lưu theo tài khoản này.",
+                      f"History of: {who}. Every lookup is saved to this account."))
     else:
-        st.info(tx("Nhập tên học sinh ở thanh bên để lịch sử được lưu lại cho lần sau.",
-                   "Enter the student name in the sidebar so your history is kept for next time."))
+        st.info(tx("Bạn đang dùng với tư cách khách: lịch sử chỉ lưu trong phiên này. Đăng nhập để lưu cho lần sau.",
+                   "You are a guest: history is kept for this session only. Log in to keep it for next time."))
+        if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="mh_login", type="primary"):
+            auth_dialog()
     if not items:
         st.caption(tx("Chưa có lượt tra cứu nào.", "No lookups yet."))
         return
@@ -5204,7 +5265,7 @@ def my_history_ui():
 def _t_class_pick(key):
     """Chọn lớp (mã lớp). Trả về mã hoặc None nếu chưa có lớp."""
     try:
-        cl = cr.classes()
+        cl = cr.classes(cur_auth())
     except OSError:
         st.error(tx("Không đọc được danh sách lớp: ", "Cannot read the class list: ") + hs.last_error)
         return None
@@ -5222,7 +5283,7 @@ def teacher_classes_ui():
     name = b.text_input(tx("Tên lớp", "Class name"), key="tc_name", max_chars=60)
     if c.button(tx("Tạo lớp", "Create"), key="tc_make"):
         try:
-            if cr.create_class(code, name, _now().strftime("%Y-%m-%d %H:%M")):
+            if cr.create_class(cur_auth(), code, name, _now().strftime("%Y-%m-%d %H:%M")):
                 st.success(tx(f"Đã tạo lớp {cr.norm_code(code)}. Học sinh đăng nhập bằng mã lớp này.", f"Class {cr.norm_code(code)} created."))
             else:
                 st.error(tx("Mã lớp không hợp lệ (2-20 ký tự chữ, số, - hoặc _) hoặc đã tồn tại.", "Invalid or duplicate class code."))
@@ -5232,7 +5293,7 @@ def teacher_classes_ui():
     if not cls:
         return
     try:
-        stu = cr.students(cls)
+        stu = cr.students(cur_auth(), cls)
     except OSError:
         st.error(hs.last_error)
         return
@@ -5244,14 +5305,14 @@ def teacher_classes_ui():
         if st.button(tx("Đặt lại PIN (xóa tài khoản, giữ lịch sử và bài nộp)", "Reset PIN (delete account, keep history and submissions)"), key="tc_reset"):
             try:
                 st.success(tx(f"Đã đặt lại {who}. Em đăng nhập lại và đặt PIN mới.", f"{who} reset. They can log in and choose a new PIN.")
-                          if cr.reset_pin(cls, who) else tx("Không tìm thấy.", "Not found."))
+                          if cr.reset_pin(cur_auth(), cls, who) else tx("Không tìm thấy.", "Not found."))
             except OSError:
                 st.error(hs.last_error)
     with st.expander(tx("Xóa cả lớp", "Delete the whole class")):
         if st.checkbox(tx(f"Tôi chắc chắn muốn xóa lớp {cls} cùng tài khoản, bài giao và bài nộp", f"I am sure I want to delete class {cls} with accounts, assignments and submissions"), key="tc_sure"):
             if st.button(tx("Xóa lớp", "Delete class"), key="tc_del"):
                 try:
-                    cr.delete_class(cls)
+                    cr.delete_class(cur_auth(), cls)
                     st.session_state["tc_sure"] = False
                     st.rerun()
                 except OSError:
@@ -5286,13 +5347,13 @@ def teacher_assign_ui():
             st.error(tx("Cần nhập tên bài và chọn ít nhất một chất.", "Enter a title and pick at least one compound."))
         else:
             try:
-                cr.create_assignment(cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
+                cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
                 st.success(tx(f"Đã giao {len(qs)} câu cho lớp {cls}.", f"Assigned {len(qs)} questions to {cls}."))
             except OSError:
                 st.error(hs.last_error)
     st.markdown("#### " + tx("Bài đã giao", "Assignments"))
     try:
-        asgs = cr.assignments(cls)
+        asgs = cr.assignments(cur_auth(), cls)
     except OSError:
         st.error(hs.last_error)
         return
@@ -5302,7 +5363,7 @@ def teacher_assign_ui():
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
         if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
             try:
-                cr.delete_assignment(a["id"])
+                cr.delete_assignment(cur_auth(), a["id"])
                 st.rerun()
             except OSError:
                 st.error(hs.last_error)
@@ -5313,8 +5374,8 @@ def teacher_results_ui():
     if not cls:
         return
     try:
-        asgs = cr.assignments(cls)
-        stu = [cr.identity(cls, n) for n in cr.students(cls)]
+        asgs = cr.assignments(cur_auth(), cls)
+        stu = [cr.identity(cls, n) for n in cr.students(cur_auth(), cls)]
     except OSError:
         st.error(hs.last_error)
         return
@@ -5323,8 +5384,8 @@ def teacher_results_ui():
         return
     a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{x['title']} ({x['created']})", key="tr_asg")
     if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key="tr_refresh"):
-        cr.submissions(aid=a["id"], force=True)
-    prog = cr.progress(a, cr.submissions(aid=a["id"]))
+        cr.submissions(cur_auth(), aid=a["id"], force=True)
+    prog = cr.progress(a, cr.submissions(cur_auth(), aid=a["id"]))
     qs = a["questions"]
     rows, total_ok = [], 0
     for sname in sorted(set(stu) | set(prog), key=str.lower):
@@ -5354,8 +5415,8 @@ def teacher_weak_ui():
     if not cls:
         return
     try:
-        subs = cr.submissions(code=cls)
-        summ = [r for r in hs.summary() if r["name"].endswith(f"[{cls}]")]
+        subs = cr.submissions(cur_auth(), code=cls)
+        summ = [r for r in cr.history_summary(cur_auth()) if r["name"].endswith(f"[{cls}]")]
     except OSError:
         st.error(hs.last_error)
         return
@@ -5390,16 +5451,7 @@ def teacher_weak_ui():
 
 def teacher_ui():
     """Tab giáo viên: ai đã truy cập, khi nào, tra cứu gì ở tab nào. Dữ liệu đọc từ các tệp đã lưu nên vẫn còn sau khi tắt app."""
-    code = st.secrets.get("TEACHER_CODE", "")
-    if not code:
-        st.warning(tx('Chưa đặt TEACHER_CODE trong Secrets nên chưa xem được danh sách cả lớp. Thêm dòng TEACHER_CODE = "mã-của-bạn" vào Secrets rồi khởi động lại app.',
-                      'TEACHER_CODE is not set in Secrets, so the class list is unavailable. Add TEACHER_CODE = "your-code" to Secrets and restart the app.'))
-        return
-    if st.session_state.get("_th_ok") != code:
-        if st.text_input("Mã giáo viên", type="password", key="th_code") == code:
-            st.session_state["_th_ok"] = code
-            st.rerun()
-        st.info("Tab này dành cho giáo viên hoặc nhóm nghiên cứu. Nhập mã giáo viên để dùng.")
+    if not cr.is_teacher(cur_auth()):
         return
     t1, t2, t3, t4, t5 = st.tabs([tx("Học sinh", "Students"), tx("Lớp & tài khoản", "Classes"), tx("Giao bài", "Assign"),
                                   tx("Kết quả bài", "Results"), tx("Chỗ hay sai", "Weak spots")])
@@ -5423,13 +5475,13 @@ def teacher_students_ui():
     if st.button(tx("🔄 Tải lại dữ liệu", "🔄 Refresh data"), key="th_refresh"):
         st.session_state["_th_force"] = True
     try:
-        rows = hs.summary(force=st.session_state.pop("_th_force", False))
+        rows = cr.history_summary(cur_auth(), force=st.session_state.pop("_th_force", False))
     except OSError:
         st.error(tx("Không đọc được dữ liệu lịch sử: ", "Cannot read the history data: ") + hs.last_error)
         return
     if not rows:
-        st.info(tx("Chưa có học sinh nào được lưu. Học sinh cần nhập tên ở thanh bên để lịch sử được ghi lại.",
-                   "No students saved yet. Students must enter their name in the sidebar for history to be recorded."))
+        st.info(tx("Chưa có học sinh nào được lưu. Học sinh cần đăng nhập để lịch sử được ghi lại.",
+                   "No students saved yet. Students must log in for their history to be recorded."))
         return
     today = _now().strftime("%Y-%m-%d")
     a, b, c = st.columns(3)
@@ -5448,7 +5500,7 @@ def teacher_students_ui():
     by_slug = {r["slug"]: r for r in rows}
     sel = st.selectbox(tx("Chọn học sinh", "Choose a student"), list(by_slug), format_func=lambda k: f'{by_slug[k]["name"]} ({by_slug[k]["total"]})', key="th_pick")
     r = by_slug[sel]
-    items = hs.load(r["name"])
+    items = cr.read_history(cur_auth(), r["name"])
     f1, f2 = st.columns(2)
     tabs_pick = f1.multiselect(tx("Lọc theo tab", "Filter by tab"), sorted({KIND_TAB.get(h.get("k"), h.get("k", "")) for h in items}),
                                format_func=tx, key="th_tabs")
@@ -5460,19 +5512,19 @@ def teacher_students_ui():
     st.dataframe([{tx("Ngày", "Date"): h.get("d", ""), tx("Giờ", "Time"): h.get("t", ""), "Tab": tx(KIND_TAB.get(h.get("k"), "")),
                    tx("Loại", "Type"): tx(h.get("k", "")), tx("Nội dung tra cứu", "Lookup"): h.get("q", "")} for h in shown],
                  hide_index=True, width="stretch")
-    with st.expander(tx("Các lần truy cập (mỗi lần học sinh nhập tên)", "Visits (each time the student entered the name)")):
+    with st.expander(tx("Các lần truy cập (mỗi lần học sinh đăng nhập)", "Visits (each time the student logged in)")):
         st.write(", ".join(r["visit_log"][:60]) or "-")
 
     d1, d2 = st.columns(2)
     d1.download_button(tx("⬇️ Tải học sinh này (CSV)", "⬇️ Download this student (CSV)"), hs.to_csv([(r["name"], h) for h in items], tab_of=lambda k: KIND_TAB.get(k, "")),
                        file_name=f'lich_su_{r["slug"]}.csv', mime="text/csv", key="th_dl_one")
     d2.download_button(tx("⬇️ Tải cả lớp (CSV)", "⬇️ Download whole class (CSV)"),
-                       hs.to_csv([(x["name"], h) for x in rows for h in hs.load(x["name"])], tab_of=lambda k: KIND_TAB.get(k, "")),
+                       hs.to_csv([(x["name"], h) for x in rows for h in cr.read_history(cur_auth(), x["name"])], tab_of=lambda k: KIND_TAB.get(k, "")),
                        file_name="lich_su_ca_lop.csv", mime="text/csv", key="th_dl_all")
     with st.expander(tx("Xóa dữ liệu học sinh này", "Delete this student's data")):
         if st.checkbox(tx(f'Tôi chắc chắn muốn xóa toàn bộ dữ liệu của "{r["name"]}"', f'I am sure I want to delete all data of "{r["name"]}"'), key="th_sure"):
             if st.button(tx("Xóa", "Delete"), key="th_del"):
-                hs.delete(r["name"])
+                cr.delete_history(cur_auth(), r["name"])
                 st.session_state["th_sure"] = False
                 st.rerun()
 
@@ -5834,7 +5886,7 @@ def topbar():
         with a:
             st.text_input("Tìm kiếm", key="gsearch", placeholder="Tìm công cụ, công thức, tên chất…", on_change=on_search, label_visibility="collapsed")
         with b:
-            st.markdown(f'<div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}<div class="av">T</div></div>',
+            st.markdown(f'<div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}<div class="av{"" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"}">{html.escape(_initials())}</div></div>',
                         unsafe_allow_html=True)
 
 
@@ -5875,41 +5927,9 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
          "Sơ đồ": ("mind", "c3"), "Mô phỏng": ("equipment", "c2"), "Luyện tập": ("practice", "c0"), "Hỏi đáp": ("chat", "c1")}
 
 
-def login_card():
-    """Khung đăng nhập lớp học ở trang chủ (rộng rãi hơn thanh bên)."""
-    acct = st.session_state.get("acct")
-    if acct:
-        cls = acct["cls"]
-        hello = f'{tx("Xin chào", "Hello")}, {acct["name"]}!'
-        sub = tx(f"Bạn đã đăng nhập lớp {cls}. Lịch sử và bài làm được lưu theo tài khoản này.",
-                 f"You are logged in to class {cls}. Your history and work are saved to this account.")
-        st.markdown(f'<div class="lg-h"><span class="lg-ic">{icon_svg("pen", "#fff", 30, 2)}</span><div><h3>{html.escape(hello)}</h3>'
-                    f'<p>{html.escape(sub)}</p></div></div>', unsafe_allow_html=True)
-        c1, c2 = st.columns(2)
-        c1.button(tx("📝 Vào Luyện tập", "📝 Go to Practice"), key="lc_prac", on_click=go, args=(PRACTICE_TAB,), type="primary")
-        c2.button(tx("Đăng xuất", "Log out"), key="lc_out", on_click=do_logout)
-        return
-    st.markdown(f'<div class="lg-h"><span class="lg-ic">{icon_svg("pen", "#fff", 30, 2)}</span><div><h3>{html.escape(tx("Đăng nhập lớp học", "Class login"))}</h3>'
-                f'<p>{html.escape(tx("Nhập mã lớp do giáo viên đưa, tên của em và PIN. Lần đầu em tự đặt PIN 4-12 ký tự, lần sau nhập lại đúng PIN đó.", "Enter the class code from your teacher, your name and a PIN. First time you choose a 4-12 character PIN; next time enter the same one."))}</p></div></div>',
-                unsafe_allow_html=True)
-    a, b, c = st.columns([1, 1.4, 1])
-    a.text_input(tx("Mã lớp", "Class code"), key="lg_code", max_chars=20, placeholder="12A1")
-    b.text_input(tx("Tên của em", "Your name"), key="lg_name", max_chars=40, placeholder=tx("Nguyễn Văn A", "Your full name"))
-    c.text_input("PIN", key="lg_pin", type="password", max_chars=12)
-    st.button(tx("Đăng nhập / tạo tài khoản", "Log in / create account"), key="lg_go", on_click=do_login, type="primary")
-    m = st.session_state.get("lg_msg")
-    if m:
-        (st.success if m[0] == "ok" else st.error)(m[1])
-    st.caption(tx("Chưa có mã lớp? Hỏi giáo viên. Không đăng nhập vẫn dùng được các công cụ, chỉ không làm được bài giáo viên giao.",
-                  "No class code? Ask your teacher. You can still use the tools without logging in, just not the assigned work."))
-
-
 def home_ui():
     left, right = st.columns([2.15, 1], gap="large")
     with left:
-        with st.container(key="logincard"):
-            login_card()
-
         st.markdown(f'<div class="sec-title">{icon_svg("home", "currentColor", 22)}{tx("Khám phá nhanh")}</div>', unsafe_allow_html=True)
         with st.container(key="tilesrow"):
             for c, (txt, ic, cls, target), i in zip(st.columns(5, gap="small"), TILES, range(5)):
@@ -5958,16 +5978,214 @@ def home_ui():
                     unsafe_allow_html=True)
 
 
+def _initials(name=None):
+    au = cur_auth()
+    if cr.is_teacher(au):
+        return "GV"
+    if not cr.is_student(au):
+        return "👤"
+    w = (name or au["name"]).split()
+    return (w[0][0] + (w[-1][0] if len(w) > 1 else (w[0][1] if len(w[0]) > 1 else ""))).upper()
+
+
+def my_profile(force=False):
+    """Thống kê thật của học sinh đang đăng nhập (đọc từ bảng bài nộp, nhớ 15 giây). None nếu không đọc được."""
+    au = cur_auth()
+    if not cr.is_student(au):
+        return None
+    c = st.session_state.get("_prof")
+    if c and not force and c[1] == au["key"] and time.time() - c[0] < 15:
+        return c[2]
+    try:
+        p = cr.profile(cr.submissions(au, force=force), MAX_TRIES)
+    except OSError:
+        return None
+    st.session_state["_prof"] = (time.time(), au["key"], p)
+    return p
+
+
+def conn_state():
+    """(màu, chữ) trạng thái nơi lưu dữ liệu."""
+    if hs.backend_name() == "Google Sheets":
+        return ("err", tx("Mất kết nối Google Sheets", "Google Sheets offline")) if hs.last_error else ("ok", tx("Đã kết nối · Google Sheets", "Connected · Google Sheets"))
+    return "warn", tx("Lưu tạm trên máy chủ", "Temporary server storage")
+
+
+_BANK_TOPIC = {}
+
+
+def bank_by_topic():
+    """{chủ đề: [tên chất]} tính từ ngân hàng đề bằng RDKit (cùng cách đặt chủ đề với bài nộp)."""
+    if not _BANK_TOPIC:
+        for b in BANK:
+            m = Chem.MolFromSmiles(b[1])
+            if m is not None:
+                _BANK_TOPIC.setdefault(topic_of(m), []).append(b[0])
+    return _BANK_TOPIC
+
+
+def _start_practice(name):
+    st.session_state["pr_mode"] = "free"
+    st.session_state["pr_kind"] = PRACTICE_KINDS["draw"]
+    st.session_state["pq"] = new_qstate({"k": "draw", "n": name})
+    st.session_state["pr_pick"] = name
+    go(PRACTICE_TAB)
+
+
+def _auth_form():
+    """Nội dung hộp thoại: chọn vai trò, đăng ký lần đầu / đăng nhập lại, hiện-ẩn PIN, kiểm tra dữ liệu."""
+    role = st.radio(tx("Bạn là", "I am a"), [cr.STUDENT, cr.TEACHER], horizontal=True, key="au_role",
+                    format_func=lambda r: tx("🎓 Học sinh", "🎓 Student") if r == cr.STUDENT else tx("👩‍🏫 Giáo viên", "👩‍🏫 Teacher"))
+    show = st.checkbox(tx("Hiện PIN / mã", "Show PIN / code"), key="au_show")
+    ptype = "default" if show else "password"
+    if role == cr.TEACHER:
+        tcode = st.text_input(tx("Mã giáo viên", "Teacher code"), type=ptype, key="au_tcode")
+        if st.button(tx("Đăng nhập giáo viên", "Teacher log in"), type="primary", key="au_go_t"):
+            err = submit_teacher_auth(tcode)
+            if err:
+                st.error(err)
+            else:
+                st.rerun()
+        return
+    mode = st.radio(tx("Bạn đã có tài khoản chưa?", "Do you have an account?"), ["login", "register"], horizontal=True, key="au_mode",
+                    format_func=lambda m: tx("Đã có tài khoản", "I have an account") if m == "login" else tx("Đăng ký lần đầu", "First time here"))
+    code = st.text_input(tx("Mã lớp (giáo viên cung cấp)", "Class code (from your teacher)"), key="au_code", max_chars=20, placeholder="10A1")
+    name = st.text_input(tx("Họ và tên", "Full name"), key="au_name", max_chars=40, placeholder=tx("Nguyễn Văn An", "Your full name"))
+    pin = st.text_input(tx("PIN cá nhân (4-12 ký tự)", "Personal PIN (4-12 characters)"), type=ptype, key="au_pin", max_chars=12)
+    pin2 = ""
+    if mode == "register":
+        pin2 = st.text_input(tx("Nhập lại PIN", "Repeat the PIN"), type=ptype, key="au_pin2", max_chars=12)
+        if pin2 and pin2 != pin:
+            st.caption("⚠️ " + _auth_error("mismatch"))
+        st.caption(tx("Lần sau em chỉ cần chọn \"Đã có tài khoản\" và nhập đúng PIN này. Mỗi tên chỉ có một tài khoản trong lớp.",
+                      "Next time choose \"I have an account\" and enter this same PIN. Each name has one account per class."))
+    if st.button(tx("Tạo tài khoản và vào lớp", "Create account and join") if mode == "register" else tx("Đăng nhập", "Log in"),
+                 type="primary", key="au_go_s"):
+        err = submit_student_auth(mode, code, name, pin, pin2)
+        if err:
+            st.error(err)
+        else:
+            st.rerun()
+
+
+if hasattr(st, "dialog"):
+    @st.dialog("🔐 Tài khoản · Account")
+    def auth_dialog():
+        _auth_form()
+else:   # bản Streamlit cũ chưa có st.dialog: hiện ngay trong thanh bên
+    def auth_dialog():
+        with st.sidebar.expander("🔐 Tài khoản · Account", expanded=True):
+            _auth_form()
+
+
+@st.dialog("👤 Hồ sơ của tôi · My profile", width="large")
+def profile_dialog():
+    au = cur_auth()
+    if not cr.is_student(au):
+        st.info(tx("Cần đăng nhập học sinh.", "Student login required."))
+        return
+    st.markdown(f'<div class="acct" style="background:#eef0ff;border-color:#dcdfff"><div class="acct-top"><div class="avt">{html.escape(_initials())}</div>'
+                f'<div class="who"><b style="color:#1d2a8a">{html.escape(au["name"])}</b><span style="color:#4b5280">{html.escape(tx("Lớp", "Class"))} {html.escape(au["cls"])}'
+                f' · {html.escape(tx("Mã định danh", "ID"))}: {html.escape(au["uid"])}</span></div></div></div>', unsafe_allow_html=True)
+    prof = my_profile(force=True)
+    c1, c2, c3, c4 = st.columns(4)
+    if prof is None:
+        st.error(tx("Chưa đọc được dữ liệu học tập: ", "Could not read your learning data: ") + hs.last_error)
+    else:
+        c1.metric(tx("Câu đã làm", "Questions tried"), prof["done"])
+        c2.metric(tx("Câu hoàn thành", "Finished"), prof["finished"])
+        c3.metric(tx("Độ chính xác", "Accuracy"), "–" if prof["accuracy"] is None else f'{prof["accuracy"]}%')
+        c4.metric(tx("Lượt tra cứu", "Lookups"), len(st.session_state.hist))
+        if not prof["attempts"]:
+            st.info(tx("Chưa có hoạt động học tập. Làm bài ở tab Luyện tập để thấy thống kê và gợi ý ôn tập tại đây.",
+                       "No learning activity yet. Do exercises in the Practice tab to see statistics and review suggestions here."))
+            if st.button(tx("📝 Vào Luyện tập", "📝 Go to Practice"), key="pf_prac", type="primary"):
+                go(PRACTICE_TAB)
+                st.rerun()
+        else:
+            st.markdown("#### " + tx("Chủ đề hay sai", "Topics you often miss"))
+            if not prof["weak"]:
+                st.success(tx("Chưa sai chủ đề nào. Tiếp tục luyện thêm để giữ phong độ!", "No missed topics yet. Keep practising!"))
+            for w in prof["weak"][:4]:
+                st.progress(w["pct"] / 100, text=tx(f'{w["topic"]}: sai {w["wrong"]}/{w["n"]} lượt ({w["pct"]}%)', f'{w["topic"]}: {w["wrong"]}/{w["n"]} wrong ({w["pct"]}%)'))
+            solved = {k.split(":", 1)[1] for k in prof["solved_keys"] if ":" in k}
+            recs = []
+            for w in prof["weak"][:3]:
+                todo = [n for n in bank_by_topic().get(w["topic"], []) if n not in solved][:3]
+                if todo:
+                    recs.append((w["topic"], todo))
+            if recs:
+                st.markdown("#### " + tx("Gợi ý ôn tập", "Suggested review"))
+                st.caption(tx("Dựa trên các câu em đã làm sai; chỉ gợi ý những chất em chưa làm đúng.", "Based on the questions you got wrong; only compounds you have not solved yet."))
+                for i, (topic, todo) in enumerate(recs):
+                    for j, n in enumerate(todo[:2]):
+                        a, b = st.columns([4, 1.6], vertical_alignment="center")
+                        a.markdown(f"**{html.escape(topic)}** → {html.escape(n)}")
+                        if b.button(tx("Luyện ngay", "Practise"), key=f"pf_rec_{i}_{j}"):
+                            _start_practice(n)
+                            st.rerun()
+    with st.expander(tx("🔑 Đổi PIN", "🔑 Change PIN")):
+        o = st.text_input(tx("PIN hiện tại", "Current PIN"), type="password", key="pf_old", max_chars=12)
+        n1 = st.text_input(tx("PIN mới (4-12 ký tự)", "New PIN (4-12 characters)"), type="password", key="pf_new", max_chars=12)
+        n2 = st.text_input(tx("Nhập lại PIN mới", "Repeat the new PIN"), type="password", key="pf_new2", max_chars=12)
+        if st.button(tx("Lưu PIN mới", "Save new PIN"), key="pf_pin"):
+            try:
+                r = cr.change_pin(au, o, n1, n2)
+            except OSError:
+                r = None
+                st.error(tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error)
+            if r == "ok":
+                _set_token(True, au)
+                st.success(tx("Đã đổi PIN.", "PIN changed."))
+            elif r:
+                st.error(_auth_error(r))
+    st.caption(tx("Tên và mã lớp là danh tính của em nên không tự sửa được; cần đổi thì nhờ giáo viên.", "Your name and class code are your identity and cannot be edited here; ask your teacher."))
+    if st.button(tx("Đăng xuất", "Log out"), key="pf_out"):
+        do_logout()
+        st.rerun()
+
+
+def sidebar_account():
+    """Thẻ tài khoản ở thanh bên: khách / học sinh / giáo viên."""
+    au = cur_auth()
+    if not au:
+        st.markdown(f'<div class="acct"><div class="acct-top"><div class="avt guest"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
+                    f'<div class="who"><b>{html.escape(tx("Khách", "Guest"))}</b><span>{html.escape(tx("Chưa đăng nhập", "Not logged in"))}</span></div></div></div>',
+                    unsafe_allow_html=True)
+        if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="sb_login", type="primary"):
+            auth_dialog()
+        return
+    dot, label = conn_state()
+    status = f'<div class="acct-st"><i class="{dot}"></i><span>{html.escape(label)}</span></div>'
+    if cr.is_teacher(au):
+        st.markdown(f'<div class="acct"><div class="acct-top"><div class="avt">GV</div><div class="who"><b>{html.escape(tx("Giáo viên", "Teacher"))}</b>'
+                    f'<span>{html.escape(tx("Quản lý lớp học", "Class management"))}</span></div></div>{status}</div>', unsafe_allow_html=True)
+        st.button(tx("Quản lý lớp", "Manage classes"), key="sb_manage", on_click=go, args=(HISTORY_TAB,))
+        st.button(tx("Đăng xuất", "Log out"), key="sb_out", on_click=do_logout)
+        return
+    prof = my_profile()
+    if prof is None:
+        kpi = f'<div class="acct-none">{html.escape(tx("Chưa tải được thống kê", "Statistics unavailable"))}</div>'
+    elif not prof["attempts"]:
+        kpi = f'<div class="acct-none">{html.escape(tx("Chưa có hoạt động học tập", "No learning activity yet"))}</div>'
+    else:
+        kpi = (f'<div class="acct-kpi"><div><b>{prof["finished"]}</b><span>{html.escape(tx("Bài hoàn thành", "Finished"))}</span></div>'
+               f'<div><b>{prof["accuracy"]}%</b><span>{html.escape(tx("Chính xác", "Accuracy"))}</span></div></div>')
+    st.markdown(f'<div class="acct"><div class="acct-top"><div class="avt">{html.escape(_initials())}</div><div class="who"><b>{html.escape(au["name"])}</b>'
+                f'<span>{html.escape(tx("Lớp", "Class"))} {html.escape(au["cls"])}<em class="role">{html.escape(tx("Học sinh", "Student"))}</em></span></div></div>'
+                f'{status}{kpi}</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    if c1.button(tx("Hồ sơ", "Profile"), key="sb_prof"):
+        profile_dialog()
+    c2.button(tx("Đăng xuất", "Log out"), key="sb_out", on_click=do_logout)
+
+
+_ACCT_SLOT = None
 with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
                 f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
-    _acct = st.session_state.get("acct")
-    st.text_input("👤 Tên học sinh · Student name", key="student", max_chars=60, on_change=on_student, disabled=bool(_acct),
-                  placeholder=tx("Nhập tên để lưu lịch sử", "Enter name to save history"))
-    if _acct:
-        st.caption(tx(f"✅ Đã đăng nhập lớp {_acct['cls']}", f"✅ Logged in to class {_acct['cls']}"))
-        st.button(tx("Đăng xuất", "Log out"), key="lg_out", on_click=do_logout)
+    _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
     with st.container(key="sidenav"):
         st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
     with st.container(key="aibtn"):
@@ -5990,25 +6208,19 @@ d.head.appendChild(s);})();
 topbar()
 
 nav = st.session_state.nav
-if nav not in (HOME, HISTORY_TAB) and (nav in NAV_OPTS or nav == ASSIST) and not student_name():
-    # Chưa đăng nhập và chưa nhập tên: chỉ cho dùng Trang chủ (có khung đăng nhập) và Lịch sử.
-    with st.container(key="panel"):
-        st.warning(tx("🔒 Vui lòng đăng nhập lớp học (ở Trang chủ) hoặc nhập tên học sinh ở thanh bên để sử dụng.",
-                      "🔒 Please log in to your class (on the Home page) or enter your name in the sidebar to use this tab."))
-        st.button(tx("🏠 Về Trang chủ để đăng nhập", "🏠 Go to Home to log in"), key="gate_home", on_click=go, args=(HOME,), type="primary")
-elif nav == PRACTICE_TAB:
+if nav == PRACTICE_TAB:
     page_banner("practice", PRACTICE_TAB, "")
     with st.container(key="panel"):
         practice_ui()
         tab_history_ui(nav)
 elif nav == HISTORY_TAB:
-    page_banner("search", HISTORY_TAB, "Xem lại những gì bạn đã tra cứu ở từng tab; giáo viên xem được cả lớp.")
+    page_banner("search", HISTORY_TAB, "Theo dõi học sinh, giao bài và xem kết quả cả lớp." if cr.is_teacher(cur_auth())
+                else "Xem lại những gì bạn đã tra cứu ở từng tab.")
     with st.container(key="panel"):
-        t_me, t_gv = st.tabs([tx("Của tôi", "Mine"), tx("Tất cả học sinh (giáo viên)", "All students (teacher)")])
-        with t_me:
-            my_history_ui()
-        with t_gv:
+        if cr.is_teacher(cur_auth()):
             teacher_ui()
+        else:
+            my_history_ui()
 elif nav == HOME or (nav not in LABELS and nav != ASSIST):
     hero()
     home_ui()
@@ -6023,3 +6235,10 @@ else:
     with st.container(key="panel"):
         fn()
         tab_history_ui(nav)
+
+# Thanh bên được điền sau cùng để thống kê gồm cả bài vừa nộp ở trang này.
+_toast = st.session_state.pop("_toast", None)
+if _toast:
+    st.toast(_toast)
+with _ACCT_SLOT:
+    sidebar_account()
