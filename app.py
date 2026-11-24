@@ -3398,11 +3398,17 @@ st.markdown("<style>"
             ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#c7cdf5;font-size:.68rem;margin-top:.15rem}"
             ".acct-none{margin-top:.6rem;font-size:.76rem;color:#c7cdf5;text-align:center}"
             ".st-key-sbacct button{width:100%}"
-            ".st-key-guestcenter{max-width:26rem;margin:1.2rem auto 0;display:flex;flex-direction:column;align-items:center}"
-            ".gcard{width:100%;display:flex;align-items:center;gap:.8rem;background:linear-gradient(135deg,#4f5cf0,#8b5cf6);border-radius:1.3rem;padding:.9rem 1.1rem;box-shadow:0 .8rem 1.8rem rgba(79,92,240,.28)}"
-            ".gcard .gav{flex:0 0 auto;width:3rem;height:3rem;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.2)}"
-            ".gcard .gwho b{display:block;color:#fff;font-size:1.05rem;line-height:1.2}.gcard .gwho span{display:block;color:#dfe3ff;font-size:.8rem;margin-top:.1rem}"
-            ".st-key-guestcenter [data-testid=\"stButton\"]{width:100%;margin-top:.6rem}.st-key-guestcenter button{width:100%}"
+            ".st-key-guestcenter{max-width:25rem;margin:1.1rem auto 0;background:#fff;border:1px solid #e6e9fb;border-radius:1.6rem;padding:1.5rem 1.6rem 1.2rem;box-shadow:0 1.2rem 2.6rem rgba(79,92,240,.16);text-align:center}"
+            ".lg-logo{width:4.2rem;height:4.2rem;margin:-3.1rem auto .7rem;border-radius:50%;background:#fff;border:1px solid #e6e9fb;box-shadow:0 .5rem 1.2rem rgba(79,92,240,.25);display:flex;align-items:center;justify-content:center}"
+            ".lg-logo img{width:2.6rem;height:2.6rem}"
+            ".lg-top h3{margin:0;padding:0;font-size:1.25rem;font-weight:800;color:#1f2559;line-height:1.25}"
+            ".lg-top p{margin:.4rem 0 1rem;font-size:.85rem;color:#6b73a8;line-height:1.45}"
+            ".st-key-guestcenter [data-testid=\"stButton\"]{width:100%}"
+            ".st-key-guestcenter button{width:100%;height:3rem;border-radius:99px!important;font-size:1rem;box-shadow:0 .6rem 1.3rem rgba(79,92,240,.35)}"
+            ".lg-or{display:flex;align-items:center;gap:.7rem;margin:1rem 0 .7rem;color:#9aa1c9;font-size:.78rem}"
+            ".lg-or:before,.lg-or:after{content:'';flex:1;height:1px;background:#e6e9fb}"
+            ".lg-guest{display:flex;align-items:center;justify-content:center;gap:.45rem;font-size:.78rem;color:#6b73a8;background:#f3f4fe;border-radius:99px;padding:.45rem .8rem}"
+            ".lg-guest .gdot{width:.5rem;height:.5rem;border-radius:50%;background:#34d399;flex:0 0 auto}"
             ".tb-right .av.guest{background:#e4e7ff;color:#4f46e5}"
             "@media(max-width:640px){.acct-kpi b{font-size:1.1rem}}"
             "</style>", unsafe_allow_html=True)
@@ -5934,15 +5940,21 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
 
 
 def guest_home_card():
-    """Thẻ Khách + nút đăng nhập, đặt ở giữa trang chủ (chỉ hiện khi chưa đăng nhập)."""
+    """Khung đăng nhập kiểu ứng dụng, đặt giữa trang chủ (chỉ hiện khi chưa đăng nhập)."""
     if cur_auth():
         return
     with st.container(key="guestcenter"):
-        st.markdown(f'<div class="gcard"><div class="gav"><svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
-                    f'<div class="gwho"><b>{html.escape(tx("Khách", "Guest"))}</b><span>{html.escape(tx("Chưa đăng nhập", "Not logged in"))}</span></div></div>',
-                    unsafe_allow_html=True)
-        if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="home_login", type="primary"):
+        st.markdown(
+            f'<div class="lg-top"><div class="lg-logo"><img src="{_uri(LOGO_SVG)}"></div>'
+            f'<h3>{html.escape(tx("Chào mừng bạn đến với", "Welcome to"))} {html.escape(APP_NAME)}</h3>'
+            f'<p>{html.escape(tx("Đăng nhập để lưu lịch sử, làm bài tập và theo dõi tiến độ của lớp.", "Log in to save your history, do assignments and track your class progress."))}</p></div>',
+            unsafe_allow_html=True)
+        if st.button(tx("Đăng nhập / Tham gia lớp", "Log in / Join a class"), icon=":material/login:", key="home_login", type="primary"):
             auth_dialog()
+        st.markdown(
+            f'<div class="lg-or"><span>{html.escape(tx("hoặc", "or"))}</span></div>'
+            f'<div class="lg-guest"><span class="gdot"></span>{html.escape(tx("Đang dùng với tư cách Khách – vẫn dùng được mọi công cụ tra cứu", "Browsing as Guest – all lookup tools still work"))}</div>',
+            unsafe_allow_html=True)
 
 
 def home_ui():
