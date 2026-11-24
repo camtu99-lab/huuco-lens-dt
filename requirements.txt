@@ -3,3 +3,5 @@ google-genai
 rdkit
 pillow
 python-pptx
+gspread
+google-auth

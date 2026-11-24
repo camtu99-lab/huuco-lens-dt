@@ -47,6 +47,21 @@ if "student" not in st.session_state:
     st.session_state["student"] = (_q_hs or "")[:40]
 i18n.install()
 
+# Lưu bền bằng Google Sheets nếu secrets có HISTORY_SHEET_ID và [gcp_service_account]; không thì dùng tệp cục bộ.
+try:
+    _sa = None
+    if st.secrets.get("GCP_SERVICE_ACCOUNT_JSON"):      # cách dễ nhất: dán nguyên nội dung file .json vào một chuỗi
+        import json as _json
+        _sa = _json.loads(st.secrets["GCP_SERVICE_ACCOUNT_JSON"])
+    elif "gcp_service_account" in st.secrets:            # hoặc từng trường theo bảng TOML
+        _sa = dict(st.secrets["gcp_service_account"])
+    if _sa and st.secrets.get("HISTORY_SHEET_ID"):
+        if isinstance(_sa.get("private_key"), str):      # phòng khi dấu xuống dòng bị dán thành \\n chữ
+            _sa["private_key"] = _sa["private_key"].replace("\\n", "\n")
+        hs.configure_sheets(st.secrets["HISTORY_SHEET_ID"], _sa)
+except Exception as _e:
+    hs.last_error = f"{type(_e).__name__}: {str(_e)[:200]}"
+
 RULES = """Bạn là giáo viên Hóa hữu cơ Việt Nam kiêm chuyên gia nhận dạng công thức. Quy ước trong SGK Việt Nam: công thức khai triển/thu gọn (CH3-CH2-OH, CH3COOH), công thức khung (mỗi đầu mút/đỉnh là C, H gắn vào C không vẽ), vòng benzen vẽ lục giác với 3 liên kết đôi xen kẽ hoặc có vòng tròn bên trong, C6H5- hoặc Ph là phenyl, nhóm chức như -OH, -CHO, -COOH, -COO-, -CO-, -NH2, -NO2, -C≡N, -X. Đếm cẩn thận số C, vị trí nhánh và nhóm thế trên vòng (o-, m-, p-). Danh pháp dùng cách đọc tiếng Việt theo SGK (metan, etanol, propan-2-ol, axit etanoic, etanal, benzen, phenol, anilin, toluen, etyl axetat...), kèm tên thường gọi nếu có."""
 
 FMT = """Chỉ trả về MỘT đối tượng JSON, không markdown, không lời dẫn, các khóa:
@@ -3127,7 +3142,7 @@ html{font-size:14.5px!important}
 """
 
 # Biểu tượng cho từng mục điều hướng (thứ tự = thứ tự trong thanh bên)
-NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind"]
+NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "search"]
 _nav_css = "".join(
     f'.st-key-sidenav label[data-baseweb="radio"]:nth-of-type({i + 1}){{--ic:{_mask(n)}}}.st-key-sidenav [role="radiogroup"]>div:nth-of-type({i + 1}) [data-testid="stRadioOption"]{{--ic:{_mask(n)}}}' for i, n in enumerate(NAV_ICON_ORDER)
 )
@@ -3136,6 +3151,15 @@ CSS = (CSS.replace("__ROOT__", _ROOT).replace("__NAVICONS__", _nav_css)
           .replace("__SEARCHIC__", _uri(icon_svg("search", "#7a82b8", 20)))
           .replace("__IMGIC__", _uri(icon_svg("image", "#4f5cf0", 30))))
 st.markdown(CSS, unsafe_allow_html=True)
+_UP_BTN = {"en": "Upload image", "bi": "Tải ảnh lên · Upload image"}
+_UP_HINT = {"en": "Drag and drop an image or choose a file  |  JPG, PNG, WEBP (max 200MB)",
+            "bi": "Kéo thả ảnh hoặc chọn file · Drag and drop or choose a file  |  JPG, PNG, WEBP (200MB)"}
+if i18n.lang() != "vi":   # nút/dòng chú thích của khung tải ảnh được viết bằng CSS nên phải đổi ở đây
+    st.markdown('<style>[data-testid="stFileUploaderDropzone"]>span>button::after{content:"%s"}'
+                '[data-testid="stFileUploaderDropzoneInstructions"]::before{content:"%s"}</style>'
+                % (_UP_BTN[i18n.lang()], _UP_HINT[i18n.lang()]), unsafe_allow_html=True)
+st.markdown("<style>[data-testid='stSidebar'] [data-testid='stWidgetLabel'] p{color:#dfe5ff!important;font-weight:600}"
+            "[data-testid='stSidebar'] [data-baseweb='select'] *{color:#fff!important}</style>", unsafe_allow_html=True)
 if i18n.lang() != "vi":   # chữ song ngữ dài hơn: ô công cụ cao tự động, dòng tiếng Anh nhỏ bên dưới
     st.markdown("<style>.tile{height:auto!important;min-height:7.4rem}.tile b small{display:block;font-weight:500;opacity:.8;font-size:.74rem;margin-top:2px}"
                 ".pbanner span{font-size:.88rem}</style>", unsafe_allow_html=True)
@@ -3220,7 +3244,10 @@ def sync_student():
     if prev == who:
         return
     cur = st.session_state.hist
-    saved = hs.load(who) if who else []
+    try:
+        saved = hs.load(who) if who else []
+    except OSError:
+        saved = []   # Sheets/ổ đĩa tạm lỗi: vẫn dùng app, lượt mới ghi lại khi nối được
     if who and not prev and cur:   # đã tra cứu trước khi nhập tên: gắn vào tên vừa nhập
         seen = {_hkey(x) for x in saved}
         saved = sorted([x for x in cur if _hkey(x) not in seen] + saved, key=lambda x: (x.get("d", ""), x.get("t", "")), reverse=True)[:HIST_MAX]
@@ -3230,6 +3257,11 @@ def sync_student():
             pass
     st.session_state.hist = saved
     st.session_state["_hist_owner"] = who
+    if who:
+        try:
+            hs.touch(who, _now().strftime("%Y-%m-%d %H:%M"))   # ghi nhận lần truy cập để giáo viên xem
+        except OSError:
+            pass
 
 
 def on_student():
@@ -4679,6 +4711,8 @@ def _sim_ui(top):
 # ---------------- Điều hướng ----------------
 HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
+HISTORY_TAB = "Lịch sử tra cứu"
+TEACHER_ON = bool(st.secrets.get("TEACHER_CODE", ""))
 SECTIONS = [
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
     ("Phương trình phản ứng", "Phương trình phản ứng", "Đọc phương trình, cho biết loại phản ứng và kiểm tra đã cân bằng chưa.", reaction_ui, "flask"),
@@ -4687,7 +4721,7 @@ SECTIONS = [
     ("Sơ đồ tư duy", "Sơ đồ tư duy", "Nhập chủ đề hoặc tên chất, máy vẽ sơ đồ để ôn tập, sửa được và tải về PowerPoint, draw.io.", mindmap_ui, "mind"),
 ]
 LABELS = [x[0] for x in SECTIONS]
-NAV_OPTS = [HOME] + LABELS
+NAV_OPTS = [HOME] + LABELS + [HISTORY_TAB]
 STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4]
 
 st.session_state.setdefault("nav", HOME)
@@ -4844,29 +4878,108 @@ def tab_history_ui(tab):
         b.button(tx("🗑️ Xóa lịch sử tab này", "🗑️ Clear this tab's history"), key=f"thc_{tab}", on_click=clear_tab_hist, args=(kinds,))
 
 
-@st.dialog(tx("Lịch sử cả lớp (giáo viên)", "Class history (teacher)"), width="large")
-def teacher_dialog():
+
+
+def my_history_ui():
+    """Lịch sử của chính học sinh đang dùng, gom từ mọi tab."""
+    who = student_name()
+    items = st.session_state.hist
+    if who:
+        st.caption(tx(f"Lịch sử của: {who}", f"History of: {who}"))
+    else:
+        st.info(tx("Nhập tên học sinh ở thanh bên để lịch sử được lưu lại cho lần sau.",
+                   "Enter the student name in the sidebar so your history is kept for next time."))
+    if not items:
+        st.caption(tx("Chưa có lượt tra cứu nào.", "No lookups yet."))
+        return
+    tabs_all = [t for t in dict.fromkeys(KIND_TAB.values())]
+    counts = {t: sum(1 for h in items if KIND_TAB.get(h.get("k")) == t) for t in tabs_all}
+    cols = st.columns(len(tabs_all) + 1)
+    cols[0].metric(tx("Tổng", "Total"), len(items))
+    for col, t in zip(cols[1:], tabs_all):
+        col.metric(tx(t), counts[t])
+    f1, f2 = st.columns(2)
+    pick = f1.multiselect(tx("Lọc theo tab", "Filter by tab"), tabs_all, format_func=tx, key="mh_tabs")
+    day = f2.selectbox(tx("Lọc theo ngày", "Filter by date"), [""] + sorted({h.get("d", "") for h in items}, reverse=True),
+                       format_func=lambda d: d or tx("Tất cả", "All"), key="mh_day")
+    shown = [h for h in items if (not pick or KIND_TAB.get(h.get("k")) in pick) and (not day or h.get("d") == day)]
+    st.dataframe([{tx("Ngày", "Date"): h.get("d", ""), tx("Giờ", "Time"): h.get("t", ""), "Tab": tx(KIND_TAB.get(h.get("k"), "")),
+                   tx("Loại", "Type"): tx(h.get("k", "")), tx("Nội dung tra cứu", "Lookup"): h.get("q", "")} for h in shown],
+                 hide_index=True, width="stretch")
+    a, b = st.columns(2)
+    a.download_button(tx("⬇️ Tải lịch sử (CSV)", "⬇️ Download history (CSV)"), hs.to_csv([(who or "khách", h) for h in shown], tab_of=lambda k: KIND_TAB.get(k, "")),
+                      file_name=f"lich_su_{hs.slug(who) or 'khach'}.csv", mime="text/csv", key="mh_dl")
+    b.button(tx("🗑️ Xóa toàn bộ lịch sử của tôi", "🗑️ Clear all my history"), key="mh_clear", on_click=clear_all_hist)
+
+
+def teacher_ui():
+    """Tab giáo viên: ai đã truy cập, khi nào, tra cứu gì ở tab nào. Dữ liệu đọc từ các tệp đã lưu nên vẫn còn sau khi tắt app."""
     code = st.secrets.get("TEACHER_CODE", "")
-    if st.text_input("Mã giáo viên", type="password", key="th_code") != code:
+    if st.session_state.get("_th_ok") != code:
+        if st.text_input("Mã giáo viên", type="password", key="th_code") == code:
+            st.session_state["_th_ok"] = code
+            st.rerun()
         st.info("Tab này dành cho giáo viên hoặc nhóm nghiên cứu. Nhập mã giáo viên để dùng.")
         return
-    stu = hs.students()
-    if not stu:
-        st.caption(tx("Chưa có học sinh nào được lưu lịch sử.", "No student history has been saved yet."))
+    st.caption(tx("Nơi lưu: ", "Storage: ") + (tx("Google Sheets (bền, không mất khi khởi động lại)", "Google Sheets (durable, survives restarts)")
+                                               if hs.backend_name() == "Google Sheets"
+                                               else tx("tệp trên máy chủ (MẤT khi app khởi động lại, hãy cấu hình Google Sheets hoặc tải CSV)",
+                                                       "server files (LOST on restart; set up Google Sheets or download CSV)")))
+    if st.button(tx("🔄 Tải lại dữ liệu", "🔄 Refresh data"), key="th_refresh"):
+        st.session_state["_th_force"] = True
+    try:
+        rows = hs.summary(force=st.session_state.pop("_th_force", False))
+    except OSError:
+        st.error(tx("Không đọc được dữ liệu lịch sử: ", "Cannot read the history data: ") + hs.last_error)
         return
-    counts = dict(stu)
-    pick = st.selectbox(tx("Học sinh", "Student"), list(counts), format_func=lambda n: f"{n} ({counts[n]})", key="th_pick")
-    rows = [(pick, h) for h in hs.load(pick)]
-    st.dataframe([{tx("Ngày", "Date"): h.get("d", ""), tx("Giờ", "Time"): h.get("t", ""),
-                   "Tab": tx(KIND_TAB.get(h.get("k"), "")), tx("Loại", "Type"): tx(h.get("k", "")),
-                   tx("Nội dung", "Content"): h.get("q", "")} for _, h in rows], hide_index=True, width="stretch")
-    st.download_button(tx("⬇️ Tải lịch sử học sinh này (CSV)", "⬇️ Download this student (CSV)"),
-                       hs.to_csv(rows, tab_of=lambda k: KIND_TAB.get(k, "")), file_name=f"lich_su_{hs.slug(pick)}.csv",
-                       mime="text/csv", key="th_dl_one")
-    allrows = [(n, h) for n in counts for h in hs.load(n)]
-    st.download_button(tx("⬇️ Tải lịch sử cả lớp (CSV)", "⬇️ Download whole class (CSV)"),
-                       hs.to_csv(allrows, tab_of=lambda k: KIND_TAB.get(k, "")), file_name="lich_su_ca_lop.csv",
-                       mime="text/csv", key="th_dl_all")
+    if not rows:
+        st.info(tx("Chưa có học sinh nào được lưu. Học sinh cần nhập tên ở thanh bên để lịch sử được ghi lại.",
+                   "No students saved yet. Students must enter their name in the sidebar for history to be recorded."))
+        return
+    today = _now().strftime("%Y-%m-%d")
+    a, b, c = st.columns(3)
+    a.metric(tx("Số học sinh", "Students"), len(rows))
+    b.metric(tx("Tổng lượt tra cứu", "Total lookups"), sum(r["total"] for r in rows))
+    c.metric(tx("Truy cập hôm nay", "Active today"), sum(1 for r in rows if r["last"].startswith(today)))
+
+    kinds = list(KIND_TAB)
+    st.markdown("#### " + tx("Danh sách học sinh", "Student list"))
+    table = [{tx("Học sinh", "Student"): r["name"], tx("Lần đầu", "First seen"): r["first"], tx("Gần nhất", "Last seen"): r["last"],
+              tx("Số lần truy cập", "Visits"): r["visits"], tx("Tổng lượt", "Lookups"): r["total"],
+              **{tx(k): r["by_kind"].get(k, 0) for k in kinds}} for r in rows]
+    st.dataframe(table, hide_index=True, width="stretch")
+
+    st.markdown("#### " + tx("Chi tiết một học sinh", "Student details"))
+    by_slug = {r["slug"]: r for r in rows}
+    sel = st.selectbox(tx("Chọn học sinh", "Choose a student"), list(by_slug), format_func=lambda k: f'{by_slug[k]["name"]} ({by_slug[k]["total"]})', key="th_pick")
+    r = by_slug[sel]
+    items = hs.load(r["name"])
+    f1, f2 = st.columns(2)
+    tabs_pick = f1.multiselect(tx("Lọc theo tab", "Filter by tab"), sorted({KIND_TAB.get(h.get("k"), h.get("k", "")) for h in items}),
+                               format_func=tx, key="th_tabs")
+    day_pick = f2.selectbox(tx("Lọc theo ngày", "Filter by date"), [""] + sorted({h.get("d", "") for h in items}, reverse=True),
+                            format_func=lambda d: d or tx("Tất cả", "All"), key="th_day")
+    shown = [h for h in items if (not tabs_pick or KIND_TAB.get(h.get("k"), h.get("k", "")) in tabs_pick) and (not day_pick or h.get("d") == day_pick)]
+    st.caption(tx(f'{r["name"]}: {r["visits"]} lần truy cập, lần gần nhất {r["last"]}. Hiện {len(shown)}/{len(items)} lượt tra cứu.',
+                  f'{r["name"]}: {r["visits"]} visits, last seen {r["last"]}. Showing {len(shown)}/{len(items)} lookups.'))
+    st.dataframe([{tx("Ngày", "Date"): h.get("d", ""), tx("Giờ", "Time"): h.get("t", ""), "Tab": tx(KIND_TAB.get(h.get("k"), "")),
+                   tx("Loại", "Type"): tx(h.get("k", "")), tx("Nội dung tra cứu", "Lookup"): h.get("q", "")} for h in shown],
+                 hide_index=True, width="stretch")
+    with st.expander(tx("Các lần truy cập (mỗi lần học sinh nhập tên)", "Visits (each time the student entered the name)")):
+        st.write(", ".join(r["visit_log"][:60]) or "-")
+
+    d1, d2 = st.columns(2)
+    d1.download_button(tx("⬇️ Tải học sinh này (CSV)", "⬇️ Download this student (CSV)"), hs.to_csv([(r["name"], h) for h in items], tab_of=lambda k: KIND_TAB.get(k, "")),
+                       file_name=f'lich_su_{r["slug"]}.csv', mime="text/csv", key="th_dl_one")
+    d2.download_button(tx("⬇️ Tải cả lớp (CSV)", "⬇️ Download whole class (CSV)"),
+                       hs.to_csv([(x["name"], h) for x in rows for h in hs.load(x["name"])], tab_of=lambda k: KIND_TAB.get(k, "")),
+                       file_name="lich_su_ca_lop.csv", mime="text/csv", key="th_dl_all")
+    with st.expander(tx("Xóa dữ liệu học sinh này", "Delete this student's data")):
+        if st.checkbox(tx(f'Tôi chắc chắn muốn xóa toàn bộ dữ liệu của "{r["name"]}"', f'I am sure I want to delete all data of "{r["name"]}"'), key="th_sure"):
+            if st.button(tx("Xóa", "Delete"), key="th_del"):
+                hs.delete(r["name"])
+                st.session_state["th_sure"] = False
+                st.rerun()
 
 
 # ---------------- Tài liệu học tập (dữ liệu tra cứu có sẵn, không gọi AI) ----------------
@@ -5338,7 +5451,7 @@ def home_ui():
 
 with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
-                '<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
+                f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
     st.text_input("👤 Tên học sinh · Student name", key="student", max_chars=40, on_change=on_student,
                   placeholder=tx("Nhập tên để lưu lịch sử", "Enter name to save history"))
@@ -5348,10 +5461,7 @@ with st.sidebar:
         st.markdown(f'<div class="aicard"><img src="{_uri(AI_FACE)}"><div><b>{tx("Trợ lý AI")}</b><span>{tx("Hỏi bất cứ điều gì về")}<br>{tx("hóa học, mình luôn ở đây!")}</span></div>'
                     '<div class="go">›</div></div>', unsafe_allow_html=True)
         st.button("Mở trợ lý AI", key="aibtn_b", on_click=go, args=(ASSIST,))
-    if st.secrets.get("TEACHER_CODE", ""):
-        if st.button(tx("👩‍🏫 Lịch sử cả lớp", "👩‍🏫 Class history"), key="th_open"):
-            teacher_dialog()
-    st.markdown(f'<div class="mascot"><img src="{_uri(MASCOT_SVG)}"><div class="hw">{tx("Học hóa")}<br>{tx("thật dễ!")}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="mascot"><img src="{_uri(MASCOT_SVG)}"><div class="hw">{tx("Học hóa") if i18n.lang() != "bi" else "Học hóa"}<br>{tx("thật dễ!") if i18n.lang() != "bi" else "thật dễ!"}</div></div>', unsafe_allow_html=True)
 
 # Trên điện thoại: tự đóng thanh bên sau khi chọn một mục (mã chạy trong trang chính để không bị hủy khi làm mới)
 components.html("""<script>
@@ -5367,7 +5477,18 @@ d.head.appendChild(s);})();
 topbar()
 
 nav = st.session_state.nav
-if nav == HOME or (nav not in LABELS and nav != ASSIST):
+if nav == HISTORY_TAB:
+    page_banner("search", HISTORY_TAB, "Xem lại những gì bạn đã tra cứu ở từng tab; giáo viên xem được cả lớp.")
+    with st.container(key="panel"):
+        if TEACHER_ON:
+            t_me, t_gv = st.tabs([tx("Của tôi", "Mine"), tx("Giáo viên", "Teacher")])
+            with t_me:
+                my_history_ui()
+            with t_gv:
+                teacher_ui()
+        else:
+            my_history_ui()
+elif nav == HOME or (nav not in LABELS and nav != ASSIST):
     hero()
     home_ui()
 elif nav == ASSIST:

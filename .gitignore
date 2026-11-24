@@ -1,3 +1,2 @@
-
-# Lịch sử học sinh (tự tạo khi chạy)
 data/
+.streamlit/secrets.toml
