@@ -42,9 +42,11 @@ APP_ICON = st.secrets.get("APP_ICON", "🧪")
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="auto")
 
 # Kiểm tra đủ file cùng một phiên bản (hay quên chép lại history_store.py / classroom.py / i18n.py khi cập nhật).
-if not (hasattr(hs, "tbl_read") and hasattr(cr, "login") and hasattr(i18n, "install")):
-    st.error("Các file của app chưa cùng phiên bản. Hãy chép LẠI TẤT CẢ file trong bản zip mới (app.py, classroom.py, history_store.py, "
-             "i18n.py) lên cùng thư mục rồi khởi động lại app.")
+_OLD = [n for n, ok in (("classroom.py", all(hasattr(cr, x) for x in ("make_auth", "is_student", "register", "profile", "read_history"))),
+                        ("history_store.py", hasattr(hs, "tbl_read")), ("i18n.py", hasattr(i18n, "install"))) if not ok]
+if _OLD:
+    st.error("Các file của app chưa cùng phiên bản. File còn là bản cũ: " + ", ".join(_OLD) + ". Hãy chép LẠI TẤT CẢ file trong bản zip mới "
+             "(app.py, classroom.py, history_store.py, i18n.py) lên cùng thư mục rồi khởi động lại app.")
     st.stop()
 
 # Ngôn ngữ (vi / bi / en) được nhớ trong địa chỉ trang (?lang=bi) để tải lại vẫn còn.
