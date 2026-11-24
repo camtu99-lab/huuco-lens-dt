@@ -3542,9 +3542,17 @@ def finish_login(au, msg):
     sync_student()
 
 
+def is_logged_in():
+    """Đã đăng nhập (học sinh hoặc giáo viên) mới được dùng các tab ngoài Trang chủ."""
+    a = cur_auth()
+    return bool(a) and (cr.is_student(a) or cr.is_teacher(a))
+
+
 def do_logout():
     ss = st.session_state
     ss["auth"] = None
+    ss["nav"] = "Trang chủ"
+    ss["nav_side"] = "Trang chủ"
     ss.pop("_prof", None)
     ss["_toast"] = tx("Đã đăng xuất.", "Logged out.")
     _set_token(False)
@@ -5112,6 +5120,10 @@ def quick_lookup(text):
 
 
 def on_quick():
+    if not is_logged_in():
+        st.session_state["_toast"] = tx("🔒 Vui lòng đăng nhập để sử dụng.", "🔒 Please log in to use this.")
+        st.session_state.quick_in = ""
+        return
     quick_lookup(st.session_state.get("quick_in", ""))
     st.session_state.quick_in = ""
 
@@ -5956,15 +5968,15 @@ def home_ui():
             st.markdown(f'<div class="rsh">{icon_svg("equipment", "currentColor", 24)}'
                         f'<div><b>{tx("Tài liệu học tập")}</b><span>{html.escape(tx("Kho tài liệu & công thức quan trọng"))}</span></div></div>', unsafe_allow_html=True)
             if st.button("Bảng tuần hoàn", icon=":material/grid_view:", key="r_pt"):
-                periodic_dialog()
+                periodic_dialog() if is_logged_in() else auth_dialog()
             if st.button("Bảng tính tan", icon=":material/water_drop:", key="r_sol"):
-                solubility_dialog()
+                solubility_dialog() if is_logged_in() else auth_dialog()
             if st.button("Công thức hữu cơ", icon=":material/hub:", key="r_org"):
-                organic_dialog()
+                organic_dialog() if is_logged_in() else auth_dialog()
             if st.button("Phương trình phản ứng", icon=":material/science:", key="r_rx"):
-                reactions_dialog()
+                reactions_dialog() if is_logged_in() else auth_dialog()
             if st.button("Mẹo & lưu ý", icon=":material/lightbulb:", key="r_tip"):
-                tips_dialog()
+                tips_dialog() if is_logged_in() else auth_dialog()
 
         hist = st.session_state.hist
         rows = "".join(
@@ -6188,7 +6200,8 @@ with st.sidebar:
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
     _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
     with st.container(key="sidenav"):
-        st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
+        st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed",
+                 format_func=lambda o: o if (o == HOME or is_logged_in()) else "🔒 " + o)
     with st.container(key="aibtn"):
         st.markdown(f'<div class="aicard"><img src="{_uri(AI_FACE)}"><div><b>{tx("Trợ lý AI")}</b><span>{tx("Hỏi bất cứ điều gì về")}<br>{tx("hóa học, mình luôn ở đây!")}</span></div>'
                     '<div class="go">›</div></div>', unsafe_allow_html=True)
@@ -6208,8 +6221,21 @@ d.head.appendChild(s);})();
 
 topbar()
 
+def login_gate():
+    page_banner("search", "Cần đăng nhập", "Đăng nhập để sử dụng các tab công cụ.")
+    with st.container(key="panel"):
+        st.warning(tx("🔒 Bạn chưa đăng nhập nên chưa thể dùng tab này. Hãy đăng nhập (hoặc tham gia lớp) để mở khóa toàn bộ các tab.",
+                      "🔒 You are not logged in, so this tab is locked. Log in (or join a class) to unlock all tabs."))
+        c1, c2, _ = st.columns([1.3, 1, 2])
+        if c1.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="gate_login", type="primary"):
+            auth_dialog()
+        c2.button(tx("🏠 Về Trang chủ", "🏠 Back to Home"), key="gate_home", on_click=go, args=(HOME,))
+
+
 nav = st.session_state.nav
-if nav == PRACTICE_TAB:
+if nav in NAV_OPTS + [ASSIST] and nav != HOME and not is_logged_in():
+    login_gate()
+elif nav == PRACTICE_TAB:
     page_banner("practice", PRACTICE_TAB, "")
     with st.container(key="panel"):
         practice_ui()
