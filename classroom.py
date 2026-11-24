@@ -44,13 +44,13 @@ def qkey(q):
 
 
 # ---------------- Lớp ----------------
-def classes():
-    return [(r[0], r[1] if len(r) > 1 else r[0]) for r in hs.tbl_read("classes", CLASSES_H) if r and r[0]]
+def classes(force=False):
+    return [(r[0], r[1] if len(r) > 1 else r[0]) for r in hs.tbl_read("classes", CLASSES_H, force=force) if r and r[0]]
 
 
-def class_exists(code):
+def class_exists(code, force=False):
     c = norm_code(code)
-    return bool(c) and any(x[0] == c for x in classes())
+    return bool(c) and any(x[0] == c for x in classes(force))
 
 
 def create_class(code, name, now):
@@ -81,7 +81,7 @@ def login(code, name, pin, now):
     Lần đầu dùng tên trong lớp thì tạo tài khoản với PIN đó ('new'); sau đó phải đúng PIN."""
     c = norm_code(code)
     name = re.sub(r"\s+", " ", str(name or "")).strip()[:40]
-    if not c or not class_exists(c):
+    if not c or not class_exists(c, force=True):
         return "no_class", name
     if not hs.slug(name):
         return "bad_name", name
