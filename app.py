@@ -5990,7 +5990,13 @@ d.head.appendChild(s);})();
 topbar()
 
 nav = st.session_state.nav
-if nav == PRACTICE_TAB:
+if nav not in (HOME, HISTORY_TAB) and (nav in NAV_OPTS or nav == ASSIST) and not student_name():
+    # Chưa đăng nhập và chưa nhập tên: chỉ cho dùng Trang chủ (có khung đăng nhập) và Lịch sử.
+    with st.container(key="panel"):
+        st.warning(tx("🔒 Vui lòng đăng nhập lớp học (ở Trang chủ) hoặc nhập tên học sinh ở thanh bên để sử dụng.",
+                      "🔒 Please log in to your class (on the Home page) or enter your name in the sidebar to use this tab."))
+        st.button(tx("🏠 Về Trang chủ để đăng nhập", "🏠 Go to Home to log in"), key="gate_home", on_click=go, args=(HOME,), type="primary")
+elif nav == PRACTICE_TAB:
     page_banner("practice", PRACTICE_TAB, "")
     with st.container(key="panel"):
         practice_ui()
