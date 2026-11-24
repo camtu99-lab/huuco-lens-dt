@@ -2278,76 +2278,6 @@ def _q_label(i, qd, st_):
     return f'{mark} {i + 1}. {tx("Vẽ", "Draw") if qd["k"] == "draw" else tx("Gọi tên", "Name")}: {qd["n"] if qd["k"] == "draw" else "(hình)"}'
 
 
-def _fmt_size(n):
-    return f"{n / 1000:.0f} KB" if n < 1_000_000 else f"{n / 1_000_000:.1f} MB"
-
-
-def file_rows_ui(files, prefix, can_delete=False, show_student=False):
-    """Danh sách tệp: mỗi dòng có nút Tải về (chỉ đọc dữ liệu khi bấm để đỡ chậm) và nút Xóa nếu được phép."""
-    for m in files:
-        c1, c2, c3 = st.columns([5, 1.6, 1.1], vertical_alignment="center")
-        who = f" · {html.escape(m['student'].rsplit(' [', 1)[0])}" if show_student and m["student"] else ""
-        c1.markdown(f"📎 **{html.escape(m['name'])}** · {_fmt_size(m['size'])}{who} · {m['ts']}", unsafe_allow_html=True)
-        ck = f"_dl_{m['id']}"
-        if ck in st.session_state:
-            c2.download_button(tx("⬇️ Lưu về máy", "⬇️ Save"), st.session_state[ck], file_name=m["name"], mime=m["mime"], key=f"{prefix}_sv_{m['id']}")
-        elif c2.button(tx("⬇️ Tải về", "⬇️ Download"), key=f"{prefix}_dl_{m['id']}"):
-            try:
-                st.session_state[ck] = cr.read_file(cur_auth(), m["id"])[1]
-                st.rerun()
-            except (OSError, cr.Denied) as e:
-                st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
-        if can_delete and c3.button(tx("Xóa", "Delete"), key=f"{prefix}_rm_{m['id']}"):
-            try:
-                cr.delete_file(cur_auth(), m["id"])
-                st.session_state.pop(ck, None)
-                st.rerun()
-            except (OSError, cr.Denied) as e:
-                st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
-
-
-def upload_ui(aid, kind, key, label, multiple):
-    """Chọn tệp và bấm nút để lưu. Trả về số tệp đã lưu (0 nếu chưa có)."""
-    exts = sorted(cr.ALLOWED_EXT)
-    ups = st.file_uploader(label, type=exts, accept_multiple_files=True, key=f"{key}_{st.session_state.get('_up_n', 0)}",
-                           help=tx(f"Tối đa {cr.MAX_FILE // 1000} KB mỗi tệp (ảnh png/jpg tới {cr.MAX_IMG_RAW // 1_000_000} MB sẽ tự nén). Định dạng: " + ", ".join(exts), f"Up to {cr.MAX_FILE // 1000} KB per file (png/jpg photos up to {cr.MAX_IMG_RAW // 1_000_000} MB are auto-compressed). Formats: " + ", ".join(exts)))
-    if not ups:
-        return 0
-    if st.button(tx("📤 Tải lên", "📤 Upload"), key=f"{key}_go", type="primary"):
-        n = 0
-        for f in ups[:cr.MAX_ATT]:
-            try:
-                cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
-                n += 1
-            except cr.Denied as e:
-                st.error(f"{f.name}: {e}")
-            except OSError:
-                st.error(hs.last_error)
-        if n:
-            st.session_state["_up_n"] = st.session_state.get("_up_n", 0) + 1
-            st.session_state["_toast"] = tx(f"Đã tải lên {n} tệp.", f"Uploaded {n} file(s).")
-            st.rerun()
-    return 0
-
-
-def student_files_ui(a):
-    """Tệp giáo viên đính kèm (tải về) và khu nộp tệp bài làm của học sinh."""
-    au = cur_auth()
-    try:
-        atts = cr.list_files(au, a["id"], kind=cr.ATT)
-        mine = cr.list_files(au, a["id"], kind=cr.SUBF)
-    except OSError:
-        st.error(hs.last_error)
-        return
-    if atts:
-        st.markdown("#### " + tx("📎 Tài liệu của giáo viên", "📎 Teacher's files"))
-        file_rows_ui(atts, f"sa_{a['id']}")
-    with st.expander(tx("📤 Nộp tệp bài làm", "📤 Submit a file"), expanded=bool(mine) or not a["questions"]):
-        if mine:
-            file_rows_ui(mine, f"sm_{a['id']}", can_delete=True)
-        upload_ui(a["id"], cr.SUBF, f"su_{a['id']}", tx("Chọn tệp bài làm (ảnh, PDF, Word…)", "Choose your file (photo, PDF, Word…)"), True)
-
-
 def practice_assign_ui():
     au = cur_auth()
     if not cr.is_student(au):
@@ -2372,10 +2302,6 @@ def practice_assign_ui():
         return
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
                      format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
-    student_files_ui(a)
-    if not a["questions"]:
-        st.info(tx("Bài này không có câu hỏi trực tuyến. Hãy tải tài liệu và nộp tệp bài làm ở trên.", "This assignment has no online questions. Download the files and submit your work above."))
-        return
     try:
         prog = cr.progress(a, cr.submissions(au, aid=a["id"])).get(me, {})
     except OSError:
@@ -5426,38 +5352,18 @@ def teacher_assign_ui():
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
     hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
-    exts = sorted(cr.ALLOWED_EXT)
-    files = st.file_uploader(tx("📎 Đính kèm tệp cho học sinh tải về (đề, phiếu bài tập, tài liệu…)", "📎 Attach files for students to download (worksheet, handout…)"),
-                             type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
-                             help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Có thể giao bài chỉ gồm tệp, không cần chọn chất.",
-                                     f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). File-only assignments are allowed."))
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
-        pool = (chosen if how == "pick" else random.sample(names, int(n))) or []
+        pool = chosen if how == "pick" else random.sample(names, int(n))
         ks = ["draw", "name"] if kinds == "both" else [kinds]
         qs = [{"k": k, "n": nm} for nm in pool for k in ks]
-        if not title.strip() or (not qs and not files):
-            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất hoặc đính kèm một tệp.", "Enter a title and pick at least one compound or attach a file."))
-        elif len(files or []) > cr.MAX_ATT:
-            st.error(tx(f"Tối đa {cr.MAX_ATT} tệp cho mỗi bài.", f"At most {cr.MAX_ATT} files per assignment."))
+        if not title.strip() or not qs:
+            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất.", "Enter a title and pick at least one compound."))
         else:
-            bad = [f.name for f in files or [] if len(f.getvalue()) > cr.size_limit(f.name)]
-            if bad:
-                st.error(tx("Tệp quá lớn: ", "File too large: ") + ", ".join(bad))
-            else:
-                try:
-                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
-                    up = 0
-                    for f in files or []:
-                        try:
-                            cr.add_file(cur_auth(), aid, cr.ATT, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
-                            up += 1
-                        except cr.Denied as e:
-                            st.error(f"{f.name}: {e}")
-                    st.session_state["_ta_n"] = st.session_state.get("_ta_n", 0) + 1
-                    st.session_state["_toast"] = tx(f"Đã giao {len(qs)} câu và {up} tệp cho lớp {cls}.", f"Assigned {len(qs)} questions and {up} file(s) to {cls}.")
-                    st.rerun()
-                except OSError:
-                    st.error(hs.last_error)
+            try:
+                cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
+                st.success(tx(f"Đã giao {len(qs)} câu cho lớp {cls}.", f"Assigned {len(qs)} questions to {cls}."))
+            except OSError:
+                st.error(hs.last_error)
     st.markdown("#### " + tx("Bài đã giao", "Assignments"))
     try:
         asgs = cr.assignments(cur_auth(), cls)
@@ -5474,14 +5380,6 @@ def teacher_assign_ui():
                 st.rerun()
             except OSError:
                 st.error(hs.last_error)
-        try:
-            atts = cr.list_files(cur_auth(), a["id"], kind=cr.ATT)
-        except OSError:
-            atts = []
-        with st.expander(tx(f"📎 Tệp đính kèm ({len(atts)})", f"📎 Attached files ({len(atts)})")):
-            file_rows_ui(atts, f"ta_{a['id']}", can_delete=True)
-            if len(atts) < cr.MAX_ATT:
-                upload_ui(a["id"], cr.ATT, f"tau_{a['id']}", tx("Thêm tệp đính kèm", "Add attachment"), True)
 
 
 def teacher_results_ui():
@@ -5500,17 +5398,6 @@ def teacher_results_ui():
     a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{x['title']} ({x['created']})", key="tr_asg")
     if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key="tr_refresh"):
         cr.submissions(cur_auth(), aid=a["id"], force=True)
-    try:
-        subf = cr.list_files(cur_auth(), a["id"], kind=cr.SUBF, force=True)
-    except OSError:
-        subf = []
-    with st.expander(tx(f"📥 Tệp học sinh nộp ({len(subf)})", f"📥 Files submitted by students ({len(subf)})"), expanded=bool(subf)):
-        if subf:
-            file_rows_ui(subf, f"tf_{a['id']}", can_delete=True, show_student=True)
-        else:
-            st.caption(tx("Chưa có học sinh nào nộp tệp.", "No student has submitted a file yet."))
-    if not a["questions"]:
-        return
     prog = cr.progress(a, cr.submissions(cur_auth(), aid=a["id"]))
     qs = a["questions"]
     rows, total_ok = [], 0

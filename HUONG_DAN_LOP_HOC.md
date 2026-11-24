@@ -27,11 +27,3 @@
 ## Giới hạn hiện tại
 - Chấm tự động áp dụng cho ngân hàng đề có sẵn (khoảng 44 chất: gọi tên và vẽ công thức), chưa có cân bằng phương trình hay đồng phân.
 - Chưa có hạn mức theo lớp, chỉ theo phiên và theo học sinh.
-
-## Giao bài kèm tệp (tải lên / tải về)
-- **Giáo viên:** tab *Lịch sử tra cứu → Giao bài*, mục "📎 Đính kèm tệp" khi giao bài (tối đa 5 tệp, mỗi tệp 1 MB). Có thể giao bài **chỉ gồm tệp**, không cần chọn chất. Bài đã giao có thể thêm/xóa tệp trong mục "📎 Tệp đính kèm".
-- **Học sinh:** tab *Luyện tập → Bài giáo viên giao*: tải tài liệu của giáo viên và nộp tệp bài làm (ảnh, PDF, Word…).
-- **Giáo viên xem bài nộp:** tab *Kết quả bài → 📥 Tệp học sinh nộp*, bấm Tải về từng tệp.
-- Định dạng nhận: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv, png, jpg, jpeg, gif, zip.
-- Ảnh png/jpg tới 20 MB được tự nén xuống dưới 1 MB (đổi thành .jpg); các định dạng khác vẫn giới hạn 1 MB.
-- Tệp được lưu cùng nơi với bài giao (Google Sheets nếu đã cấu hình, ngược lại thư mục data/tables/), nên giữ tệp nhỏ.
