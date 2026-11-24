@@ -27,3 +27,9 @@
 ## Giới hạn hiện tại
 - Chấm tự động áp dụng cho ngân hàng đề có sẵn (khoảng 44 chất: gọi tên và vẽ công thức), chưa có cân bằng phương trình hay đồng phân.
 - Chưa có hạn mức theo lớp, chỉ theo phiên và theo học sinh.
+
+## Đính kèm tài liệu vào bài giao
+
+- Giáo viên: tab **Giao bài** → mục *Tài liệu đính kèm* → tải tệp (PDF, Word, ảnh, Excel…, tối đa 1 MB/tệp, 5 mục/bài) và/hoặc dán liên kết (Google Drive, YouTube…) rồi bấm **Giao bài**. Với bài đã giao, mở mục *📎 Tài liệu đính kèm* của bài đó để thêm hoặc xóa.
+- Học sinh: vào **Luyện tập → Bài giáo viên giao**, chọn bài, mục *📎 Tài liệu của bài này* có nút tải về hoặc mở liên kết.
+- Tệp được lưu trong bảng `attachments` (chia nhỏ base64). Tệp lớn hơn 1 MB nên dùng liên kết Google Drive để không làm nặng Google Sheets.

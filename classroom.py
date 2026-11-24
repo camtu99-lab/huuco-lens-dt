@@ -7,6 +7,7 @@ Bảng:
   classes      ma_lop, ten_lop, tao_luc
   accounts     ma_lop, hoc_sinh, salt, pin_hash, tao_luc
   assignments  id, ma_lop, tieu_de, tao_luc, han_nop, cau_hoi_json, cho_goi_y
+  attachments  id_bai, ma_lop, ten, loai (file|link), kich_thuoc, phan, du_lieu  (file chia nhỏ base64, mỗi dòng một phần)
   submissions  id_bai, ma_lop, hoc_sinh, thoi_diem, cau, dang, chu_de, bai_lam, ket_qua, so_lan, goi_y
 Mỗi câu hỏi được mô tả bằng {"k": "draw" | "name", "n": tên chất trong ngân hàng đề}, khóa câu là "draw:etanol".
 """
@@ -14,6 +15,8 @@ import base64
 import hashlib
 import hmac
 import json
+import mimetypes
+import os
 import re
 import secrets
 import time
@@ -23,6 +26,10 @@ import history_store as hs
 CLASSES_H = ["ma_lop", "ten_lop", "tao_luc"]
 ACC_H = ["ma_lop", "hoc_sinh", "salt", "pin_hash", "tao_luc"]
 ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y"]
+ATT_H = ["id_bai", "ma_lop", "ten", "loai", "kich_thuoc", "phan", "du_lieu"]
+MAX_FILE = 1_000_000      # byte mỗi tệp đính kèm
+MAX_ATT = 5               # số tệp/liên kết tối đa mỗi bài
+CHUNK = 40_000            # ký tự base64 mỗi ô (Google Sheets giới hạn 50.000)
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
 TOKEN_DAYS = 14
 PIN_ROUNDS = 120_000
@@ -297,11 +304,89 @@ def assignments(auth, code):
 
 def delete_assignment(auth, aid):
     _need_teacher(auth)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0)):
+    for name, head, col in (("assignments", ASG_H, 0), ("attachments", ATT_H, 0), ("submissions", SUB_H, 0)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
             hs.tbl_write(name, head, keep)
+
+
+# ---------------- Tài liệu đính kèm bài giao ----------------
+def add_attachments(auth, aid, code, files=(), links=()):
+    """files: [(tên, bytes)], links: [(nhãn, url)]. Chỉ giáo viên. Trả về số mục đã lưu."""
+    _need_teacher(auth)
+    code = norm_code(code)
+    if len(files) + len(links) > MAX_ATT:
+        raise ValueError(f"Tối đa {MAX_ATT} tệp/liên kết cho mỗi bài.")
+    rows = []
+    for name, data in files:
+        name = os.path.basename(str(name)).strip()[:100] or "tai-lieu"
+        if len(data) > MAX_FILE:
+            raise ValueError(f"Tệp {name} lớn hơn {MAX_FILE // 1_000_000} MB. Hãy dán liên kết Google Drive thay vì tải lên.")
+        b64 = base64.b64encode(data).decode()
+        for i in range(0, max(1, len(b64)), CHUNK):
+            rows.append([aid, code, name, "file", len(data), i // CHUNK, b64[i:i + CHUNK]])
+    for label, url in links:
+        url = str(url).strip()
+        if not re.match(r"^https?://\S+$", url):
+            raise ValueError("Liên kết phải bắt đầu bằng http:// hoặc https://")
+        rows.append([aid, code, (str(label).strip() or url)[:100], "link", 0, 0, url[:2000]])
+    hs.tbl_append_many("attachments", ATT_H, rows)
+    return len(files) + len(links)
+
+
+def _att_rows(auth, code):
+    if not is_teacher(auth) and not (is_student(auth) and auth["cls"] == norm_code(code)):
+        raise Denied("Không có quyền xem tài liệu của lớp này.")
+    return [r + [""] * (7 - len(r)) for r in hs.tbl_read("attachments", ATT_H) if len(r) >= 3 and r[1] == norm_code(code)]
+
+
+def attachments(auth, code, aid, with_data=False):
+    """Danh sách tài liệu của một bài: [{name, kind, size, url, data}]. data (bytes) chỉ giải mã khi with_data=True."""
+    out, chunks = {}, {}
+    for r in _att_rows(auth, code):
+        if r[0] != aid:
+            continue
+        key = (r[2], r[3])
+        if r[3] == "link":
+            out[key] = {"name": r[2], "kind": "link", "size": 0, "url": r[6]}
+        else:
+            try:
+                size = int(r[4] or 0)
+                part = int(r[5] or 0)
+            except ValueError:
+                continue
+            out.setdefault(key, {"name": r[2], "kind": "file", "size": size, "mime": mimetypes.guess_type(r[2])[0] or "application/octet-stream"})
+            chunks.setdefault(key, {})[part] = r[6]
+    res = []
+    for key, it in out.items():
+        if it["kind"] == "file" and with_data:
+            parts = chunks.get(key, {})
+            try:
+                it["data"] = base64.b64decode("".join(parts[i] for i in sorted(parts)))
+            except ValueError:
+                it["data"] = b""
+        res.append(it)
+    return res
+
+
+def attachment_counts(auth, code):
+    """{id bài: số tài liệu} để hiện biểu tượng 📎 trong danh sách."""
+    seen, cnt = set(), {}
+    for r in _att_rows(auth, code):
+        k = (r[0], r[2], r[3])
+        if k not in seen:
+            seen.add(k)
+            cnt[r[0]] = cnt.get(r[0], 0) + 1
+    return cnt
+
+
+def delete_attachment(auth, code, aid, name):
+    _need_teacher(auth)
+    rows = hs.tbl_read("attachments", ATT_H, force=True)
+    keep = [r for r in rows if not (len(r) >= 3 and r[0] == aid and r[1] == norm_code(code) and r[2] == name)]
+    if len(keep) != len(rows):
+        hs.tbl_write("attachments", ATT_H, keep)
 
 
 # ---------------- Bài nộp ----------------

@@ -2303,6 +2303,13 @@ def practice_assign_ui():
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
                      format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     try:
+        n_files = cr.attachment_counts(au, au["cls"]).get(a["id"], 0)
+    except OSError:
+        n_files = 0
+    if n_files:
+        with st.expander("📎 " + tx(f"Tài liệu của bài này ({n_files})", f"Materials for this assignment ({n_files})"), expanded=True):
+            _attach_show(au, au["cls"], a["id"])
+    try:
         prog = cr.progress(a, cr.submissions(au, aid=a["id"])).get(me, {})
     except OSError:
         st.error(hs.last_error)
@@ -3398,7 +3405,7 @@ st.markdown("<style>"
             ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#c7cdf5;font-size:.68rem;margin-top:.15rem}"
             ".acct-none{margin-top:.6rem;font-size:.76rem;color:#c7cdf5;text-align:center}"
             ".st-key-sbacct button{width:100%}"
-            ".st-key-guestcenter{max-width:25rem;margin:1.1rem auto 0;background:#fff;border:1px solid #e6e9fb;border-radius:1.6rem;padding:1.5rem 1.6rem 1.2rem;box-shadow:0 1.2rem 2.6rem rgba(79,92,240,.16);text-align:center}"
+            ".st-key-guestcenter{max-width:27rem;margin:3.2rem auto 1.5rem;background:#fff;border:1px solid #e6e9fb;border-radius:1.6rem;padding:1.5rem 1.6rem 1.2rem;box-shadow:0 1.2rem 2.6rem rgba(79,92,240,.16);text-align:center}"
             ".lg-logo{width:4.2rem;height:4.2rem;margin:-3.1rem auto .7rem;border-radius:50%;background:#fff;border:1px solid #e6e9fb;box-shadow:0 .5rem 1.2rem rgba(79,92,240,.25);display:flex;align-items:center;justify-content:center}"
             ".lg-logo img{width:2.6rem;height:2.6rem}"
             ".lg-top h3{margin:0;padding:0;font-size:1.25rem;font-weight:800;color:#1f2559;line-height:1.25}"
@@ -5331,6 +5338,51 @@ def teacher_classes_ui():
                     st.error(hs.last_error)
 
 
+def _fmt_size(n):
+    return f"{n / 1_000_000:.1f} MB" if n >= 1_000_000 else f"{max(1, round(n / 1000))} KB"
+
+
+def _attach_inputs(key):
+    """Khung đính kèm: tải tệp + dán liên kết. Trả về (files, links) hoặc None nếu có lỗi nhập."""
+    n = st.session_state.get(key + "_n", 0)
+    ups = st.file_uploader(tx("Tải tệp lên (PDF, Word, ảnh, Excel… tối đa 1 MB mỗi tệp)", "Upload files (PDF, Word, images, Excel… max 1 MB each)"),
+                           accept_multiple_files=True, key=f"{key}_up{n}")
+    link = st.text_input(tx("Hoặc dán liên kết tài liệu lớn (Google Drive, YouTube…)", "Or paste a link to a large document (Google Drive, YouTube…)"),
+                         key=f"{key}_lk{n}", placeholder="https://")
+    files = [(u.name, u.getvalue()) for u in (ups or [])]
+    links = [(tx("Liên kết tài liệu", "Document link"), link)] if link.strip() else []
+    return files, links
+
+
+def _attach_reset(key):
+    st.session_state[key + "_n"] = st.session_state.get(key + "_n", 0) + 1
+
+
+def _attach_show(auth, cls, aid, can_delete=False):
+    """Hiện danh sách tài liệu của một bài: nút tải về / mở liên kết (giáo viên có thêm nút xóa)."""
+    try:
+        items = cr.attachments(auth, cls, aid, with_data=True)
+    except (OSError, cr.Denied):
+        st.error(tx("Không đọc được tài liệu: ", "Cannot read attachments: ") + hs.last_error)
+        return []
+    for i, it in enumerate(items):
+        c1, c2 = st.columns([5, 1.2] if can_delete else [1], vertical_alignment="center")
+        with c1:
+            if it["kind"] == "link":
+                st.link_button(f"🔗 {it['name']}", it["url"], width="stretch")
+            else:
+                st.download_button(f"📥 {it['name']} · {_fmt_size(it['size'])}", it.get("data", b""), file_name=it["name"], mime=it["mime"],
+                                   key=f"dl_{aid}_{i}_{'t' if can_delete else 's'}", width="stretch")
+        if can_delete:
+            if c2.button(tx("Xóa", "Delete"), key=f"da_{aid}_{i}"):
+                try:
+                    cr.delete_attachment(auth, cls, aid, it["name"])
+                    st.rerun()
+                except OSError:
+                    st.error(hs.last_error)
+    return items
+
+
 def teacher_assign_ui():
     cls = _t_class_pick("ta_cls")
     if not cls:
@@ -5351,6 +5403,8 @@ def teacher_assign_ui():
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
     hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
+    st.markdown("##### 📎 " + tx("Tài liệu đính kèm (không bắt buộc)", "Attachments (optional)"))
+    new_files, new_links = _attach_inputs("ta_att")
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
         pool = chosen if how == "pick" else random.sample(names, int(n))
         ks = ["draw", "name"] if kinds == "both" else [kinds]
@@ -5359,8 +5413,16 @@ def teacher_assign_ui():
             st.error(tx("Cần nhập tên bài và chọn ít nhất một chất.", "Enter a title and pick at least one compound."))
         else:
             try:
-                cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
-                st.success(tx(f"Đã giao {len(qs)} câu cho lớp {cls}.", f"Assigned {len(qs)} questions to {cls}."))
+                aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
+                msg = tx(f"Đã giao {len(qs)} câu cho lớp {cls}.", f"Assigned {len(qs)} questions to {cls}.")
+                if new_files or new_links:
+                    try:
+                        k = cr.add_attachments(cur_auth(), aid, cls, new_files, new_links)
+                        msg += tx(f" Kèm {k} tài liệu.", f" With {k} attachment(s).")
+                        _attach_reset("ta_att")
+                    except ValueError as e:
+                        st.warning(tx("Đã giao bài nhưng chưa đính kèm được tài liệu: ", "Assignment created, but attachments failed: ") + str(e))
+                st.success(msg)
             except OSError:
                 st.error(hs.last_error)
     st.markdown("#### " + tx("Bài đã giao", "Assignments"))
@@ -5369,6 +5431,10 @@ def teacher_assign_ui():
     except OSError:
         st.error(hs.last_error)
         return
+    try:
+        n_att = cr.attachment_counts(cur_auth(), cls)
+    except OSError:
+        n_att = {}
     for a in asgs:
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
         c1.markdown(f"**{html.escape(a['title'])}** · {len(a['questions'])} {tx('câu', 'questions')} · {a['created']}"
@@ -5379,6 +5445,21 @@ def teacher_assign_ui():
                 st.rerun()
             except OSError:
                 st.error(hs.last_error)
+        with st.expander("📎 " + tx("Tài liệu đính kèm", "Attachments") + (f" ({n_att.get(a['id'], 0)})" if n_att.get(a["id"]) else "")):
+            _attach_show(cur_auth(), cls, a["id"], can_delete=True)
+            more_files, more_links = _attach_inputs(f"tm_{a['id']}")
+            if st.button(tx("Thêm vào bài này", "Add to this assignment"), key=f"tm_go_{a['id']}"):
+                if not (more_files or more_links):
+                    st.warning(tx("Chưa chọn tệp hay dán liên kết.", "Choose a file or paste a link first."))
+                else:
+                    try:
+                        cr.add_attachments(cur_auth(), a["id"], cls, more_files, more_links)
+                        _attach_reset(f"tm_{a['id']}")
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                    except OSError:
+                        st.error(hs.last_error)
 
 
 def teacher_results_ui():
@@ -5939,22 +6020,15 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
          "Sơ đồ": ("mind", "c3"), "Mô phỏng": ("equipment", "c2"), "Luyện tập": ("practice", "c0"), "Hỏi đáp": ("chat", "c1")}
 
 
-def guest_home_card():
-    """Khung đăng nhập kiểu ứng dụng, đặt giữa trang chủ (chỉ hiện khi chưa đăng nhập)."""
-    if cur_auth():
-        return
+def login_gate():
+    """Chưa đăng nhập thì không dùng được ứng dụng: khung đăng nhập nằm giữa trang, thay cho mọi tab."""
     with st.container(key="guestcenter"):
         st.markdown(
             f'<div class="lg-top"><div class="lg-logo"><img src="{_uri(LOGO_SVG)}"></div>'
-            f'<h3>{html.escape(tx("Chào mừng bạn đến với", "Welcome to"))} {html.escape(APP_NAME)}</h3>'
-            f'<p>{html.escape(tx("Đăng nhập để lưu lịch sử, làm bài tập và theo dõi tiến độ của lớp.", "Log in to save your history, do assignments and track your class progress."))}</p></div>',
+            f'<h3>{html.escape(tx("Đăng nhập để sử dụng", "Log in to use"))} {html.escape(APP_NAME)}</h3>'
+            f'<p>{html.escape(tx("Học sinh nhập mã lớp, họ tên và PIN. Giáo viên nhập mã giáo viên. Lần đầu thì chọn \"Đăng ký lần đầu\".", "Students: class code, name and PIN. Teachers: teacher code. First time? Choose \"First time here\"."))}</p></div>',
             unsafe_allow_html=True)
-        if st.button(tx("Đăng nhập / Tham gia lớp", "Log in / Join a class"), icon=":material/login:", key="home_login", type="primary"):
-            auth_dialog()
-        st.markdown(
-            f'<div class="lg-or"><span>{html.escape(tx("hoặc", "or"))}</span></div>'
-            f'<div class="lg-guest"><span class="gdot"></span>{html.escape(tx("Đang dùng với tư cách Khách – vẫn dùng được mọi công cụ tra cứu", "Browsing as Guest – all lookup tools still work"))}</div>',
-            unsafe_allow_html=True)
+        _auth_form()
 
 
 def home_ui():
@@ -5969,7 +6043,6 @@ def home_ui():
                     st.button("Mở", key=f"qkb_{i}", on_click=go, args=(target,))
 
         st.markdown('<div class="feat">' + '<i></i>'.join(f"<span>{e} {tx(t)}</span>" for e, t in FEATS) + '</div>', unsafe_allow_html=True)
-        guest_home_card()
 
     with right:
         with st.container(key="quick"):
@@ -6180,14 +6253,7 @@ def sidebar_account():
     """Thẻ tài khoản ở thanh bên: khách / học sinh / giáo viên."""
     au = cur_auth()
     if not au:
-        if st.session_state.get("nav", HOME) == HOME:
-            return   # trang chủ: thẻ Khách + nút đăng nhập đã nằm giữa trang
-        st.markdown(f'<div class="acct"><div class="acct-top"><div class="avt guest"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>'
-                    f'<div class="who"><b>{html.escape(tx("Khách", "Guest"))}</b><span>{html.escape(tx("Chưa đăng nhập", "Not logged in"))}</span></div></div></div>',
-                    unsafe_allow_html=True)
-        if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="sb_login", type="primary"):
-            auth_dialog()
-        return
+        return   # chưa đăng nhập: khung đăng nhập nằm giữa trang (login_gate)
     dot, label = conn_state()
     status = f'<div class="acct-st"><i class="{dot}"></i><span>{html.escape(label)}</span></div>'
     if cr.is_teacher(au):
@@ -6219,9 +6285,10 @@ with st.sidebar:
                 f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
     _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
-    with st.container(key="sidenav"):
+    if cur_auth():
+      with st.container(key="sidenav"):
         st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
-    with st.container(key="aibtn"):
+      with st.container(key="aibtn"):
         st.markdown(f'<div class="aicard"><img src="{_uri(AI_FACE)}"><div><b>{tx("Trợ lý AI")}</b><span>{tx("Hỏi bất cứ điều gì về")}<br>{tx("hóa học, mình luôn ở đây!")}</span></div>'
                     '<div class="go">›</div></div>', unsafe_allow_html=True)
         st.button("Mở trợ lý AI", key="aibtn_b", on_click=go, args=(ASSIST,))
@@ -6237,6 +6304,10 @@ s.textContent="document.addEventListener('click',function(e){if(window.innerWidt
 +"var b=document.querySelector('[data-testid=\\"stSidebarCollapseButton\\"] button');if(b)b.click();},350);}},true);";
 d.head.appendChild(s);})();
 </script>""", height=0)
+
+if not cur_auth():
+    login_gate()
+    st.stop()
 
 topbar()
 
