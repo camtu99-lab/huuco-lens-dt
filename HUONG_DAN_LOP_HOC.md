@@ -42,3 +42,7 @@
 - **Học sinh:** xem đề rồi làm phiếu ngay bên dưới: Phần I chọn 1 đáp án, Phần II chọn Đúng/Sai từng ý, Phần III nhập đáp án. Bấm Nộp bài để được chấm tự động, được nộp lại nhiều lần; hệ thống chỉ báo điểm và các câu cần xem lại, không lộ đáp án.
 - **Thang điểm (THPT 2025+):** phần I và III mỗi câu 0,25; phần II đúng 1/2/3/4 ý được 0,1/0,25/0,5/1,0. Đề chuẩn 18+4+6 câu = 10 điểm. Câu chưa có đáp án không tính điểm.
 - **Kết quả:** tab *Kết quả bài → 📝 Điểm phiếu trả lời*: điểm từng học sinh, người chưa nộp, các câu hay sai.
+
+## Làm bài trực tiếp trên đề
+Khi bài giao có đề .docx và phiếu trả lời, học sinh thấy **đề hiện đúng định dạng và các ô trả lời nằm ngay trong đề**: ô chọn A–D dưới mỗi câu phần I, ô Đúng/Sai ngay dưới từng ý a), b), c), d) ở phần II, ô nhập đáp án dưới mỗi câu phần III. Bấm **Nộp bài** ở cuối đề để được chấm.
+- App ghép ô vào đề dựa trên chữ "Phần I/II/III" và "Câu N." trong file Word. Nếu đề đánh số câu bằng danh sách tự động của Word (không có chữ "Câu N."), hoặc số câu trong phiếu không khớp đề, app tự dùng phiếu rời: học sinh xem đề ở trên và chọn đáp án ở phiếu bên dưới.

@@ -2304,8 +2304,11 @@ sub,sup{line-height:0}h1,h2,h3{margin:.6em 0 .3em}
 </style>"""
 
 
-def _docx_html(data):
-    """Word -> HTML giữ nguyên định dạng (đậm/nghiêng, chỉ số trên/dưới, bảng, hình). Hình EMF/WMF trình duyệt không vẽ được nên thay bằng khung chú thích."""
+_EMF_MARK = "emf-placeholder"
+
+
+def _docx_body(data):
+    """Word -> HTML thân bài (giữ đậm/nghiêng, chỉ số trên/dưới, bảng, hình PNG/JPG). Hình EMF/WMF trình duyệt không vẽ được nên thay bằng chú thích."""
     try:
         import mammoth
         from io import BytesIO
@@ -2316,9 +2319,7 @@ def _docx_html(data):
     def img(image):
         ct = image.content_type or ""
         if ct in ("image/x-emf", "image/x-wmf", "image/emf", "image/wmf"):
-            svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="260" height="60"><rect width="260" height="60" fill="#f3f4f6" stroke="#999"/>'
-                   '<text x="130" y="35" font-size="13" text-anchor="middle" fill="#555">[Hình] tải file Word để xem</text></svg>')
-            return {"src": "data:image/svg+xml;base64," + _b64.b64encode(svg.encode()).decode(), "alt": "hình"}
+            return {"src": _EMF_MARK}
         with image.open() as f:
             return {"src": f"data:{ct};base64," + _b64.b64encode(f.read()).decode("ascii")}
 
@@ -2328,7 +2329,89 @@ def _docx_html(data):
         return ""
     body = re.sub(r"(?is)<script.*?</script>", "", body)
     body = re.sub(r"(?i)<a\b[^>]*>", "<a>", body)          # bỏ liên kết trong tệp (tránh javascript:)
-    return _DOC_CSS + '<div class="doc">' + body + "</div>"
+    body = re.sub(r'(?i)<img[^>]*src="%s"[^>]*>' % _EMF_MARK, "<em>[Hình: tải file Word để xem]</em>", body)
+    return body
+
+
+def _docx_html(data):
+    body = _docx_body(data)
+    return _DOC_CSS + '<div class="doc">' + body + "</div>" if body else ""
+
+
+def _html_blocks(body):
+    """Cắt HTML thân bài thành các khối cấp cao nhất (đoạn, bảng, danh sách) để chèn ô trả lời giữa đề."""
+    out, depth, start = [], 0, 0
+    block = {"p", "table", "ol", "ul", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote"}
+    for m in re.finditer(r"<(/?)([a-zA-Z0-9]+)[^>]*?(/?)>", body):
+        tag = m.group(2).lower()
+        if tag not in block or m.group(3):
+            continue
+        if not m.group(1):
+            if depth == 0:
+                start = m.start()
+            depth += 1
+        else:
+            depth -= 1
+            if depth == 0:
+                out.append(body[start:m.end()])
+    return out
+
+
+def _plain(h):
+    return html.unescape(re.sub(r"<[^>]+>", "", h)).strip()
+
+
+def exam_plan(blocks, sh):
+    """Gắn ô trả lời vào đúng chỗ trong đề. Trả về [[html, [ô...]], ...] hoặc None nếu không khớp đủ số câu của phiếu."""
+    names = {"I": "mc", "II": "tf", "III": "sa"}
+    plan, section, cur, last, placed_items = [], None, None, None, set()
+    placed = set()
+
+    def flush():
+        nonlocal cur, last, placed_items
+        if cur is None or last is None:
+            return
+        part, i = cur
+        if part == "tf":
+            for j in range(len(sh["tf"][i])):
+                if (i, j) not in placed_items:
+                    plan[last][1].append(("tf", i, j))
+        else:
+            plan[last][1].append((part, i))
+        placed.add((part, i))
+        cur, last, placed_items = None, None, set()
+
+    for b in blocks:
+        t = _plain(b)
+        mp = re.match(r"(?i)PHẦN\s+(I{1,3})\b", t)
+        if mp:
+            flush()
+            section = names.get(mp.group(1).upper())
+            plan.append([b, []])
+            continue
+        if re.match(r"^[-–—\s]*HẾT\b", t, re.I):
+            flush()
+            plan.append([b, []])
+            continue
+        mq = re.match(r"Câu\s+(\d+)\s*[.:]", t)
+        if mq and section:
+            flush()
+            i = int(mq.group(1)) - 1
+            if 0 <= i < len(sh[section]):
+                cur = (section, i)
+        plan.append([b, []])
+        if cur is not None:
+            last = len(plan) - 1
+            if cur[0] == "tf":
+                mi = re.match(r"([a-hA-H])\s*[\).]", t)
+                if mi and (ord(mi.group(1).lower()) - 97) < len(sh["tf"][cur[1]]):
+                    j = ord(mi.group(1).lower()) - 97
+                    if (cur[1], j) not in placed_items:
+                        plan[-1][1].append(("tf", cur[1], j))
+                        placed_items.add((cur[1], j))
+    flush()
+    need = {(k, i) for k in ("mc", "tf", "sa") for i in range(len(sh[k]))}
+    return plan if need <= placed else None
 
 
 def _html_frame(page, height):
@@ -2466,8 +2549,37 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
     return {"mc": [("" if x in ("-", "?", "_") else x) for x in mc], "tf": tf, "sa": sa}
 
 
-def answer_sheet_ui(a):
-    """Phiếu trả lời của học sinh: chọn 1 đáp án / đúng-sai / trả lời ngắn, chấm tự động."""
+_EXAM_CSS = """<style>
+.exam{font-family:'Times New Roman',Times,serif;font-size:1.05rem;line-height:1.55}
+.exam p{margin:.3em 0}.exam table{border-collapse:collapse;margin:.5em 0;max-width:100%}
+.exam td,.exam th{border:1px solid #888;padding:4px 8px;vertical-align:top}.exam img{max-width:100%;height:auto}
+</style>"""
+
+
+def _show_html(h):
+    if hasattr(st, "html"):
+        st.html(f'<div class="exam">{h}</div>')
+    else:
+        st.markdown(f'<div class="exam">{h}</div>', unsafe_allow_html=True)
+
+
+def _exam_blocks(au, atts):
+    """Các khối HTML của đề (file .docx đầu tiên giáo viên đính kèm), đọc một lần rồi giữ trong phiên."""
+    for m in atts:
+        if cr.ext_of(m["name"]) != "docx":
+            continue
+        ck = f"_exam_blocks_{m['id']}"
+        if ck not in st.session_state:
+            try:
+                st.session_state[ck] = _html_blocks(_docx_body(cr.read_file(au, m["id"])[1]))
+            except (OSError, cr.Denied):
+                return None
+        return st.session_state[ck] or None
+    return None
+
+
+def answer_sheet_ui(a, atts=()):
+    """Học sinh làm bài: các ô chọn A–D, Đúng/Sai, nhập đáp án nằm ngay trong đề (nếu ghép được), không thì dùng phiếu rời. Chấm tự động."""
     au = cur_auth()
     try:
         sh = cr.get_sheet(au, a["id"], force=True)
@@ -2477,7 +2589,7 @@ def answer_sheet_ui(a):
         return
     if not sh:
         return
-    st.markdown("#### " + tx("📝 Phiếu trả lời", "📝 Answer sheet"))
+    st.markdown("#### " + tx("📝 Làm bài trực tiếp", "📝 Take the test"))
     if mine:
         last = mine[-1]
         det = last["detail"]
@@ -2491,32 +2603,59 @@ def answer_sheet_ui(a):
         if bad:
             st.caption(tx("Câu cần xem lại — ", "Review these — ") + " · ".join(bad))
     n = len(mine)
-    with st.form(f"sheet_{a['id']}_{n}"):
-        mc, tf, sa = [], [], []
-        if sh["mc"]:
-            st.markdown("**" + tx("Phần I. Chọn 1 đáp án", "Part I. Pick one answer") + "**")
-            cols = st.columns(3)
-            for i in range(len(sh["mc"])):
-                mc.append(cols[i % 3].radio(tx(f"Câu {i + 1}", f"Q{i + 1}"), list("ABCD"), index=None, horizontal=True, key=f"sm_{a['id']}_{n}_{i}"))
-        if sh["tf"]:
-            st.markdown("**" + tx("Phần II. Đúng / Sai từng ý", "Part II. True / False per statement") + "**")
-            for i, items in enumerate(sh["tf"]):
-                st.markdown(tx(f"Câu {i + 1}", f"Q{i + 1}"))
-                cols = st.columns(len(items))
-                row = []
-                for j in range(len(items)):
-                    v = cols[j].radio(f"{'abcdefgh'[j]})", [tx("Đúng", "True"), tx("Sai", "False")], index=None, horizontal=True, key=f"st_{a['id']}_{n}_{i}_{j}")
-                    row.append(None if v is None else v == tx("Đúng", "True"))
-                tf.append(row)
-        if sh["sa"]:
-            st.markdown("**" + tx("Phần III. Trả lời ngắn (nhập số hoặc đáp án)", "Part III. Short answer") + "**")
-            cols = st.columns(3)
-            for i in range(len(sh["sa"])):
-                sa.append(cols[i % 3].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), key=f"ss_{a['id']}_{n}_{i}", max_chars=60))
+    aid = a["id"]
+    mc, tf, sa = {}, {}, {}
+
+    def widget(w):
+        k = w[0]
+        if k == "mc":
+            mc[w[1]] = st.radio(tx(f"✅ Câu {w[1] + 1}: chọn đáp án", f"✅ Q{w[1] + 1}: choose"), list("ABCD"), index=None, horizontal=True, key=f"sm_{aid}_{n}_{w[1]}")
+        elif k == "tf":
+            v = st.radio(tx(f"✅ Câu {w[1] + 1} ý {'abcdefgh'[w[2]]})", f"✅ Q{w[1] + 1} {'abcdefgh'[w[2]]})"), [tx("Đúng", "True"), tx("Sai", "False")],
+                         index=None, horizontal=True, key=f"st_{aid}_{n}_{w[1]}_{w[2]}")
+            tf[(w[1], w[2])] = None if v is None else v == tx("Đúng", "True")
+        else:
+            sa[w[1]] = st.text_input(tx(f"✅ Câu {w[1] + 1}: đáp án", f"✅ Q{w[1] + 1}: answer"), key=f"ss_{aid}_{n}_{w[1]}", max_chars=60)
+
+    blocks = _exam_blocks(au, atts)
+    plan = exam_plan(blocks, sh) if blocks else None
+    with st.form(f"sheet_{aid}_{n}"):
+        if plan:
+            st.markdown(_EXAM_CSS, unsafe_allow_html=True)
+            for h, ws in plan:
+                _show_html(h)
+                for w in ws:
+                    widget(w)
+        else:
+            if atts:
+                st.caption(tx("Mở đề ở mục tài liệu phía trên (bấm 👁️ Xem) rồi chọn đáp án ở phiếu dưới đây.", "Open the exam above (👁️ View), then answer on this sheet."))
+            if sh["mc"]:
+                st.markdown("**" + tx("Phần I. Chọn 1 đáp án", "Part I. Pick one answer") + "**")
+                cols = st.columns(3)
+                for i in range(len(sh["mc"])):
+                    with cols[i % 3]:
+                        widget(("mc", i))
+            if sh["tf"]:
+                st.markdown("**" + tx("Phần II. Đúng / Sai từng ý", "Part II. True / False per statement") + "**")
+                for i, items in enumerate(sh["tf"]):
+                    st.markdown(tx(f"Câu {i + 1}", f"Q{i + 1}"))
+                    cols = st.columns(len(items))
+                    for j in range(len(items)):
+                        with cols[j]:
+                            widget(("tf", i, j))
+            if sh["sa"]:
+                st.markdown("**" + tx("Phần III. Trả lời ngắn", "Part III. Short answer") + "**")
+                cols = st.columns(3)
+                for i in range(len(sh["sa"])):
+                    with cols[i % 3]:
+                        widget(("sa", i))
         go = st.form_submit_button(tx("📨 Nộp bài", "📨 Submit"), type="primary")
     if go:
+        ans = {"mc": [mc.get(i) or "" for i in range(len(sh["mc"]))],
+               "tf": [[tf.get((i, j)) for j in range(len(items))] for i, items in enumerate(sh["tf"])],
+               "sa": [sa.get(i, "") for i in range(len(sh["sa"]))]}
         try:
-            g = cr.submit_sheet(au, a["id"], {"mc": [x or "" for x in mc], "tf": tf, "sa": sa}, _now().strftime("%Y-%m-%d %H:%M"))
+            g = cr.submit_sheet(au, aid, ans, _now().strftime("%Y-%m-%d %H:%M"))
             st.session_state["_toast"] = tx(f"Đã nộp: {g['score']:g}/{g['max']:g} điểm.", f"Submitted: {g['score']:g}/{g['max']:g}.")
             st.rerun()
         except (OSError, cr.Denied) as e:
@@ -2581,7 +2720,7 @@ def student_files_ui(a):
     if atts:
         st.markdown("#### " + tx("📎 Tài liệu của giáo viên", "📎 Teacher's files"))
         file_rows_ui(atts, f"sa_{a['id']}")
-    answer_sheet_ui(a)
+    answer_sheet_ui(a, atts)
     with st.expander(tx("📤 Nộp tệp bài làm", "📤 Submit a file"), expanded=bool(mine)):
         if mine:
             file_rows_ui(mine, f"sm_{a['id']}", can_delete=True)
