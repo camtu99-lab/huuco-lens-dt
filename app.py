@@ -1,11 +1,14 @@
 import base64
+import copy
 import csv
+import hashlib
 import html
 import io
 import json
 import math
 import random
 import re
+import threading
 import time
 import unicodedata
 from datetime import datetime
@@ -21,6 +24,7 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import Descriptors, Draw, rdMolDescriptors
 from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
 
+import classroom as cr
 import history_store as hs
 import i18n
 from i18n import tx
@@ -29,6 +33,7 @@ RDLogger.DisableLog("rdApp.*")
 
 MODEL = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash")
 MAX_PER_SESSION = int(st.secrets.get("MAX_PER_SESSION", 15))
+MAX_PER_DAY = int(st.secrets.get("MAX_PER_DAY", 0) or 0)   # 0 = không giới hạn; tính theo từng học sinh có tên
 BENCH_MAX = int(st.secrets.get("BENCH_MAX", 30))
 
 APP_NAME = st.secrets.get("APP_NAME", "MolSnap")
@@ -62,6 +67,20 @@ try:
 except Exception as _e:
     hs.last_error = f"{type(_e).__name__}: {str(_e)[:200]}"
 
+# Đăng nhập lớp: giữ đăng nhập khi tải lại trang bằng mã ký (?tk=...), không chứa PIN.
+_SECRET = str(st.secrets.get("APP_SECRET", "") or st.secrets.get("TEACHER_CODE", "") or st.secrets.get("GEMINI_API_KEY", ""))
+st.session_state.setdefault("acct", None)
+if st.session_state["acct"] is None and not st.session_state.get("_tk_tried"):
+    st.session_state["_tk_tried"] = True
+    try:
+        _tk = st.query_params.get("tk")
+        _v = cr.verify_token(_SECRET, _tk) if _tk else None
+    except Exception:
+        _v = None
+    if _v:
+        st.session_state["acct"] = {"cls": _v[0], "name": _v[1]}
+        st.session_state["student"] = cr.identity(_v[0], _v[1])
+
 RULES = """Bạn là giáo viên Hóa hữu cơ Việt Nam kiêm chuyên gia nhận dạng công thức. Quy ước trong SGK Việt Nam: công thức khai triển/thu gọn (CH3-CH2-OH, CH3COOH), công thức khung (mỗi đầu mút/đỉnh là C, H gắn vào C không vẽ), vòng benzen vẽ lục giác với 3 liên kết đôi xen kẽ hoặc có vòng tròn bên trong, C6H5- hoặc Ph là phenyl, nhóm chức như -OH, -CHO, -COOH, -COO-, -CO-, -NH2, -NO2, -C≡N, -X. Đếm cẩn thận số C, vị trí nhánh và nhóm thế trên vòng (o-, m-, p-). Danh pháp dùng cách đọc tiếng Việt theo SGK (metan, etanol, propan-2-ol, axit etanoic, etanal, benzen, phenol, anilin, toluen, etyl axetat...), kèm tên thường gọi nếu có."""
 
 FMT = """Chỉ trả về MỘT đối tượng JSON, không markdown, không lời dẫn, các khóa:
@@ -76,20 +95,64 @@ def get_client():
     return genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 
-def to_jpeg(file_bytes: bytes, max_side: int = 1600) -> bytes:
+def to_jpeg(file_bytes: bytes, max_side: int = 1400) -> bytes:
     img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
     img.thumbnail((max_side, max_side))
     buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=90)
+    img.save(buf, "JPEG", quality=85)
     return buf.getvalue()
 
 
-def ask_ai(contents, temperature=None, lang_note=True):
-    """Gọi Gemini, tự thử lại khi máy chủ quá tải (503) hoặc hết lượt tạm thời (429),
-    rồi chuyển sang mô hình dự phòng. lang_note: thêm chỉ thị song ngữ/tiếng Anh theo ngôn ngữ đang chọn."""
+AI_CACHE_MAX, AI_CACHE_TTL = 400, 24 * 3600
+
+
+@st.cache_resource
+def _ai_cache():
+    return {"d": {}, "lock": threading.Lock()}
+
+
+def _ai_key(contents, temperature):
+    h = hashlib.sha256(f"{MODEL}|{temperature}".encode())
+    for c in contents:
+        if isinstance(c, str):
+            h.update(c.encode("utf-8"))
+        else:
+            data = getattr(getattr(c, "inline_data", None), "data", None)
+            h.update(data if data else repr(c).encode("utf-8"))
+        h.update(b"\x00")
+    return h.hexdigest()
+
+
+def ask_ai(contents, temperature=None, lang_note=True, cache=True):
+    """Gọi Gemini có nhớ kết quả: cùng nội dung + cùng ngôn ngữ trong 24 giờ thì dùng lại, không tốn lượt gọi AI.
+    lang_note: thêm chỉ thị song ngữ/tiếng Anh theo ngôn ngữ đang chọn."""
+    contents = list(contents) if isinstance(contents, (list, tuple)) else [contents]
     note = i18n.ai_note() if lang_note else ""
     if note:
-        contents = list(contents) + [note] if isinstance(contents, (list, tuple)) else [contents, note]
+        contents.append(note)
+    key = None
+    if cache:
+        try:
+            key = _ai_key(contents, temperature)
+        except Exception:
+            key = None
+    box = _ai_cache()
+    if key:
+        with box["lock"]:
+            hit = box["d"].get(key)
+        if hit and time.time() - hit[0] < AI_CACHE_TTL:
+            return copy.deepcopy(hit[1])
+    out = _ask_ai_raw(contents, temperature)
+    if key:
+        with box["lock"]:
+            if len(box["d"]) >= AI_CACHE_MAX:
+                box["d"].pop(next(iter(box["d"])))
+            box["d"][key] = (time.time(), copy.deepcopy(out))
+    return out
+
+
+def _ask_ai_raw(contents, temperature=None):
+    """Gọi Gemini, tự thử lại khi máy chủ quá tải (503) hoặc hết lượt tạm thời (429), rồi chuyển sang mô hình dự phòng."""
     models = [MODEL]
     fb = st.secrets.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")
     if fb and fb != MODEL:
@@ -983,7 +1046,7 @@ def reaction_ui():
     else:
         txt = voice_text_input("rx_txt", "Phương trình", "Ví dụ: CH2=CH2 + Br2 -> CH2Br-CH2Br").strip()
     if st.button("Nhận dạng và phân loại phản ứng", type="primary", disabled=not (img or txt), key="rx_go"):
-        if st.session_state.n >= MAX_PER_SESSION:
+        if over_quota():
             show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
         else:
             with st.spinner("Đang phân tích…"):
@@ -1615,7 +1678,7 @@ def isomer_ui():
         if st.button("Đếm đồng phân", type="primary", disabled=not (q or img), key="iso_go"):
             direct = bool(img) or is_simple_formula(q) or smiles_like(q)
             ai_used = bool(img or want_names or not direct)
-            if ai_used and st.session_state.n >= MAX_PER_SESSION:
+            if ai_used and over_quota():
                 show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
             else:
                 with st.spinner("Đang tính…"):
@@ -1677,7 +1740,7 @@ def isomer_ui():
                 inp.append((f.getvalue() if f else None, t))
         ok = all(i or t for i, t in inp)
         if st.button("So sánh", type="primary", disabled=not ok, key="cmp_go"):
-            if st.session_state.n >= MAX_PER_SESSION:
+            if over_quota():
                 show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
             else:
                 with st.spinner("Đang phân tích…"):
@@ -1771,7 +1834,7 @@ def equipment_ui():
     else:
         txt = st.text_input("Tên dụng cụ", placeholder="Ví dụ: ống sinh hàn", key="eq_txt").strip()
     if st.button("Nhận biết dụng cụ", type="primary", disabled=not (img or txt), key="eq_go"):
-        if st.session_state.n >= MAX_PER_SESSION:
+        if over_quota():
             show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
         else:
             with st.spinner("Đang phân tích…"):
@@ -1985,111 +2048,208 @@ def analyze_image_strict(img):
 
 
 RANDOM_Q = "🎲 Ngẫu nhiên"
+BANK_BY_NAME = {b[0]: b for b in BANK}
+MAX_TRIES = 3          # số lần nộp tối đa cho một câu, hết lượt thì hiện đáp án
+PRACTICE_KINDS = {"draw": "✍️ Vẽ công thức cấu tạo", "name": "🏷️ Gọi tên chất"}
 
 
-def new_question(kind):
-    st.session_state.pq = {"kind": kind, "idx": random.randrange(len(BANK)), "result": None}
+def topic_of(m):
+    """Nhóm chất của một phân tử, dùng cho thống kê chỗ hay sai."""
+    g = groups_of(m)
+    if g:
+        return g[0]
+    if any(a.GetIsAromatic() for a in m.GetAtoms()):
+        return "hiđrocacbon thơm"
+    bt = {b.GetBondType() for b in m.GetBonds()}
+    return "ankin" if Chem.BondType.TRIPLE in bt else "anken" if Chem.BondType.DOUBLE in bt else "ankan"
+
+
+def hint_steps(m):
+    """Ba gợi ý tăng dần, đều do RDKit tính từ đáp án, không nói thẳng cấu tạo."""
+    g = groups_of(m)
+    n_c = sum(1 for a in m.GetAtoms() if a.GetSymbol() == "C")
+    rings = m.GetRingInfo().NumRings()
+    dbl = sum(1 for b in m.GetBonds() if b.GetBondType() == Chem.BondType.DOUBLE and not b.GetIsAromatic())
+    trp = sum(1 for b in m.GetBonds() if b.GetBondType() == Chem.BondType.TRIPLE)
+    parts = []
+    if rings:
+        parts.append(f"{rings} vòng")
+    if dbl:
+        parts.append(f"{dbl} liên kết đôi (không kể vòng benzen)")
+    if trp:
+        parts.append(f"{trp} liên kết ba")
+    branched = any(a.GetSymbol() == "C" and a.GetDegree() >= 3 and not a.IsInRing() for a in m.GetAtoms())
+    if not rings:
+        parts.append("mạch có nhánh" if branched else "mạch thẳng")
+    return [tx("Chất thuộc loại: ", "This compound is a: ") + (", ".join(g) if g else topic_of(m)) + ".",
+            tx(f"Công thức phân tử là {pretty(formula_of(m))} (có {n_c} nguyên tử C).", f"The molecular formula is {pretty(formula_of(m))} ({n_c} carbon atoms)."),
+            tx("Cấu tạo có: ", "The structure has: ") + ", ".join(parts) + "."]
+
+
+def new_qstate(spec, aid=None, prior=None):
+    p = prior or {}
+    return {"spec": spec, "aid": aid, "uid": random.randrange(10 ** 6), "tries": p.get("tries", 0), "hints": p.get("hints", 0),
+            "ok": p.get("ok", False), "res": None}
+
+
+def new_free(kind):
+    st.session_state.pq = new_qstate({"k": kind, "n": random.choice(BANK)[0]})
     st.session_state["pr_pick"] = RANDOM_Q
 
 
-def practice_ui():
-    st.session_state.setdefault("pq", None)
-    st.session_state.setdefault("ph", [])
-    top = st.container()  # kết quả chấm và lý do sai hiện ở đầu tab
-    c1, c2 = st.columns([3, 2])
-    with c1:
-        kind = st.radio("Dạng bài", ["✍️ Vẽ công thức cấu tạo", "🏷️ Gọi tên chất"], horizontal=True, key="pr_kind")
-    with c2:
-        who = st.text_input("Tên học sinh (không bắt buộc)", key="pr_name")
-    if st.session_state.pq is None or st.session_state.pq["kind"] != kind:
-        new_question(kind)
-    names = [b[0] for b in BANK]
-    pick = st.selectbox("Chọn đề cụ thể (hoặc để ngẫu nhiên)", [RANDOM_Q] + names, key="pr_pick")
-    if pick != RANDOM_Q and names.index(pick) != st.session_state.pq["idx"]:
-        st.session_state.pq = {"kind": kind, "idx": names.index(pick), "result": None}
-    q = st.session_state.pq
-    ten, smi, alias = BANK[q["idx"]]
+def _bump_hint(q):
+    q["hints"] = min(3, q["hints"] + 1)
+
+
+def _retry(q):
+    q["res"] = None
+
+
+def _go_next_asg(aid, idx, total):
+    st.session_state[f"asg_sel_{aid}"] = min(idx + 1, total - 1)
+
+
+def record_submission(q, ten, given, res, mt):
+    """Ghi bài nộp lên bảng chung nếu học sinh đã đăng nhập lớp."""
+    acct = st.session_state.get("acct")
+    if not acct:
+        return
+    try:
+        cr.add_submission(q["aid"], acct["cls"], student_name(), _now().strftime("%Y-%m-%d %H:%M:%S"), q["spec"], topic_of(mt),
+                          given, res["kq"], q["tries"], q["hints"])
+        st.session_state.pop("_sub_err", None)
+    except OSError:
+        st.session_state["_sub_err"] = hs.last_error
+
+
+def render_question(q, allow_hints=True, next_cb=None, next_args=()):
+    """Một câu hỏi: gợi ý từng bước, nộp bài, chấm bằng RDKit, thử lại, hiện đáp án khi xong."""
+    spec = q["spec"]
+    ten, smi, alias = BANK_BY_NAME[spec["n"]]
     mt = Chem.MolFromSmiles(smi)
+    is_draw = spec["k"] == "draw"
+    uid = q["uid"]
+    top = st.container()
+    finished = q["ok"] or q["tries"] >= MAX_TRIES
+    res = q["res"]
 
-    with st.container(border=True):
-        if kind.startswith("✍️"):
-            st.markdown(f"#### Viết công thức cấu tạo của: **{ten}**")
-            if st.checkbox("Gợi ý: hiện công thức phân tử", key=f"pr_hint_{q['idx']}"):
-                st.markdown(f"Công thức phân tử: **{pretty(formula_of(mt))}**")
-            how = st.radio("Nộp bài bằng", ["🖼️ Ảnh bài làm", "📷 Chụp ảnh", "⌨️ Nhập SMILES"], horizontal=True, key="pr_how")
-            img, ans = None, ""
-            if how.startswith("🖼️"):
-                f = st.file_uploader("Ảnh bài làm", type=["jpg", "jpeg", "png", "webp"], key="pr_up")
-                img = f.getvalue() if f else None
-            elif how.startswith("📷"):
-                f = st.camera_input("Chụp bài làm", key="pr_cam")
-                img = f.getvalue() if f else None
-            else:
-                ans = st.text_input("SMILES bài làm", key="pr_smi").strip()
-            go = st.button("Nộp bài", type="primary", disabled=not (img or ans), key="pr_go")
-        else:
-            st.markdown("#### Gọi tên chất sau")
-            st.image(Draw.MolToImage(mt, size=(360, 240)))
-            ans = st.text_input("Tên chất (theo SGK)", key="pr_name_ans").strip()
-            img = None
-            go = st.button("Nộp bài", type="primary", disabled=not ans, key="pr_go2")
-
-    if go and q["result"] is None:
-        if img and st.session_state.n >= MAX_PER_SESSION:
-            show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
-        else:
-            try:
-                note, given = "", ans
-                if kind.startswith("✍️"):
-                    if img:
-                        with st.spinner("Đang đọc bài làm…"):
-                            given, note = transcribe_student(img)
-                        st.session_state.n += 1
-                    res = grade_structure(given, smi)
-                else:
-                    ok = norm_name(ans) in {norm_name(x) for x in [ten] + alias}
-                    res = {"kq": "dung" if ok else "sai",
-                           "nx": ["Chính xác." if ok else "Chưa đúng. Hãy xác định mạch chính, nhóm chức và vị trí nhóm thế rồi gọi tên lại."],
-                           "goi_y": []}
-                res.update({"given": given, "note": note})
-                q["result"] = res
-                add_history(ten, 'Luyện tập')
-                st.session_state.ph.append({
-                    "Thời gian": datetime.now().strftime("%H:%M:%S"), "Học sinh": who, "Dạng bài": "vẽ CTCT" if kind.startswith("✍️") else "gọi tên",
-                    "Đề": ten, "Bài làm": given, "Kết quả": res["kq"]})
-            except Exception as e:
-                show_top_error(top, "Có lỗi khi chấm bài, hãy thử lại.", e)
-
-    with top:
-        res = q["result"]
-        if res:
-            head = {"dung": "Đúng rồi!", "dong_phan": "CHƯA ĐÚNG: đã vẽ một đồng phân khác", "sai_cong_thuc": "CHƯA ĐÚNG: sai công thức phân tử",
-                    "loi": "CHƯA ĐÚNG: công thức có lỗi", "sai": "CHƯA ĐÚNG"}[res["kq"]]
+    if res:
+        head = {"dung": "Đúng rồi!", "dong_phan": "CHƯA ĐÚNG: đã vẽ một đồng phân khác", "sai_cong_thuc": "CHƯA ĐÚNG: sai công thức phân tử",
+                "loi": "CHƯA ĐÚNG: công thức có lỗi", "sai": "CHƯA ĐÚNG"}[res["kq"]]
+        with top:
             if res["kq"] == "dung":
-                st.success("**" + head + "**")
+                st.success("**" + tx(head, "Correct!") + "**")
                 for t in res["nx"]:
                     st.markdown("- " + t)
             else:
                 st.markdown(errbanner(head, *res["nx"]), unsafe_allow_html=True)
-            st.markdown("**Đề:** " + (f"viết công thức cấu tạo của **{ten}**" if kind.startswith("✍️") else "gọi tên chất trong hình"))
             for t in res["goi_y"]:
                 st.markdown("- 💡 " + t)
             if res.get("note"):
                 st.caption("Ghi chú khi đọc ảnh: " + res["note"])
-            if kind.startswith("✍️") and res.get("given"):
+            if is_draw and res.get("given"):
                 im = draw_student(res["given"])
                 if im is not None:
                     st.markdown("**Hình em vẽ (máy đọc lại đúng như hình, giữ nguyên lỗi" + (", nguyên tử sai khoanh đỏ" if res["kq"] == "loi" else "") + "):**")
                     st.image(im)
-            with st.expander("Xem đáp án"):
+
+    with st.container(border=True):
+        if is_draw:
+            st.markdown(f"#### {tx('Viết công thức cấu tạo của', 'Draw the structural formula of')}: **{ten}**")
+        else:
+            st.markdown("#### " + tx("Gọi tên chất sau", "Name this compound"))
+            st.image(Draw.MolToImage(mt, size=(360, 240)))
+        if allow_hints and not finished:
+            steps = hint_steps(mt)
+            for i, t in enumerate(steps[:q["hints"]], 1):
+                st.markdown(f"💡 **{tx('Gợi ý', 'Hint')} {i}:** {t}")
+            if q["hints"] < len(steps):
+                st.button(tx(f"💡 Gợi ý tiếp ({q['hints']}/{len(steps)})", f"💡 Next hint ({q['hints']}/{len(steps)})"),
+                          key=f"pr_hint_{uid}_{q['hints']}", on_click=_bump_hint, args=(q,))
+        go, img, ans = False, None, ""
+        if not finished and q["res"] is None:
+            sfx = f"{uid}_{q['tries']}"
+            if is_draw:
+                how = st.radio("Nộp bài bằng", ["🖼️ Ảnh bài làm", "📷 Chụp ảnh", "⌨️ Nhập SMILES"], horizontal=True, key=f"pr_how_{uid}")
+                if how.startswith("🖼️"):
+                    f = st.file_uploader("Ảnh bài làm", type=["jpg", "jpeg", "png", "webp"], key=f"pr_up_{sfx}")
+                    img = f.getvalue() if f else None
+                elif how.startswith("📷"):
+                    f = st.camera_input("Chụp bài làm", key=f"pr_cam_{sfx}")
+                    img = f.getvalue() if f else None
+                else:
+                    ans = st.text_input("SMILES bài làm", key=f"pr_smi_{sfx}").strip()
+            else:
+                ans = st.text_input("Tên chất (theo SGK)", key=f"pr_ans_{sfx}").strip()
+            go = st.button("Nộp bài", type="primary", disabled=not (img or ans), key=f"pr_go_{sfx}")
+            st.caption(tx(f"Lần nộp thứ {q['tries'] + 1}/{MAX_TRIES}. Hết {MAX_TRIES} lần máy mới hiện đáp án.",
+                          f"Attempt {q['tries'] + 1}/{MAX_TRIES}. The answer is shown after {MAX_TRIES} attempts."))
+
+    if go:
+        if img and over_quota():
+            show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+        else:
+            graded = False
+            try:
+                note, given = "", ans
+                if is_draw:
+                    if img:
+                        with st.spinner("Đang đọc bài làm…"):
+                            given, note = transcribe_student(img)
+                        st.session_state.n += 1
+                    r = grade_structure(given, smi)
+                else:
+                    ok = norm_name(ans) in {norm_name(x) for x in [ten] + alias}
+                    r = {"kq": "dung" if ok else "sai",
+                         "nx": ["Chính xác." if ok else "Chưa đúng. Hãy xác định mạch chính, nhóm chức và vị trí nhóm thế rồi gọi tên lại."],
+                         "goi_y": []}
+                r.update({"given": given, "note": note})
+                q["tries"] += 1
+                q["res"] = r
+                q["ok"] = q["ok"] or r["kq"] == "dung"
+                add_history(ten, "Luyện tập")
+                record_submission(q, ten, given, r, mt)
+                st.session_state.setdefault("ph", []).append({
+                    "Thời gian": _now().strftime("%H:%M:%S"), "Học sinh": student_name(), "Dạng bài": "vẽ CTCT" if is_draw else "gọi tên",
+                    "Đề": ten, "Bài làm": given, "Kết quả": r["kq"]})
+                graded = True
+            except Exception as e:
+                show_top_error(top, "Có lỗi khi chấm bài, hãy thử lại.", e)
+            if graded:
+                st.rerun()
+
+    if q["res"] is not None or finished:
+        if q["ok"] or q["tries"] >= MAX_TRIES:
+            if q["tries"] and not q["ok"]:
+                st.warning(tx(f"Đã hết {MAX_TRIES} lần thử, đây là đáp án để em đối chiếu.", f"All {MAX_TRIES} attempts used; here is the answer to compare."))
+            with st.expander(tx("Xem đáp án", "Show the answer"), expanded=not q["ok"]):
                 st.image(Draw.MolToImage(mt, size=(300, 200)))
                 st.markdown(f"**{ten}** · {pretty(formula_of(mt))} · `{smi}`")
                 gl = groups_of(mt)
                 if gl:
                     st.markdown("Nhóm chức/đặc điểm: " + ", ".join(gl))
-            st.button("➡️ Câu tiếp theo", on_click=new_question, args=(kind,), key="pr_next")
+            if next_cb:
+                st.button(tx("➡️ Câu tiếp theo", "➡️ Next question"), on_click=next_cb, args=next_args, key=f"pr_next_{uid}")
+        else:
+            st.caption(tx(f"Còn {MAX_TRIES - q['tries']} lần thử. Dùng gợi ý rồi thử lại nhé.", f"{MAX_TRIES - q['tries']} attempts left. Use a hint and try again."))
+            st.button(tx("↻ Thử lại", "↻ Try again"), on_click=_retry, args=(q,), key=f"pr_retry_{uid}_{q['tries']}")
+    if st.session_state.get("_sub_err"):
+        st.caption("⚠️ " + tx("Chưa ghi được bài nộp lên bảng chung: ", "Could not save the submission: ") + st.session_state["_sub_err"])
 
-    hist = st.session_state.ph
+
+def practice_free_ui():
+    st.session_state.setdefault("pq", None)
+    kind_lab = st.radio("Dạng bài", list(PRACTICE_KINDS.values()), horizontal=True, key="pr_kind")
+    kind = "draw" if kind_lab.startswith("✍️") else "name"
+    q = st.session_state.pq
+    if q is None or q["aid"] is not None or q["spec"]["k"] != kind:
+        new_free(kind)
+    names = [b[0] for b in BANK]
+    pick = st.selectbox("Chọn đề cụ thể (hoặc để ngẫu nhiên)", [RANDOM_Q] + names, key="pr_pick")
+    if pick != RANDOM_Q and pick != st.session_state.pq["spec"]["n"]:
+        st.session_state.pq = new_qstate({"k": kind, "n": pick})
+    render_question(st.session_state.pq, allow_hints=True, next_cb=new_free, next_args=(kind,))
+    hist = st.session_state.get("ph", [])
     if hist:
         st.divider()
         n_ok = sum(1 for h in hist if h["Kết quả"] == "dung")
@@ -2104,6 +2264,61 @@ def practice_ui():
         w.writerows(hist)
         st.download_button("⬇️ Tải phiếu kết quả (CSV, nộp cho giáo viên)", buf.getvalue().encode("utf-8-sig"),
                            file_name="phieu_ket_qua.csv", mime="text/csv", key="pr_dl")
+
+
+def _q_label(i, qd, st_):
+    mark = "✅" if st_ and st_["ok"] else "❌" if st_ and st_["tries"] >= MAX_TRIES else "▶️" if st_ else "⬜"
+    return f'{mark} {i + 1}. {tx("Vẽ", "Draw") if qd["k"] == "draw" else tx("Gọi tên", "Name")}: {qd["n"] if qd["k"] == "draw" else "(hình)"}'
+
+
+def practice_assign_ui():
+    acct = st.session_state.get("acct")
+    if not acct:
+        st.info(tx("Đăng nhập lớp học ở thanh bên (mã lớp, tên, PIN) để làm bài giáo viên giao.",
+                   "Log in to your class in the sidebar (class code, name, PIN) to do the teacher's assignments."))
+        return
+    me = student_name()
+    try:
+        asgs = cr.assignments(acct["cls"])
+    except OSError:
+        st.error(tx("Không đọc được bài giao: ", "Cannot read assignments: ") + hs.last_error)
+        return
+    if not asgs:
+        st.info(tx(f"Lớp {acct['cls']} chưa có bài giao nào.", f"Class {acct['cls']} has no assignments yet."))
+        return
+    a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
+                     format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
+    try:
+        prog = cr.progress(a, cr.submissions(aid=a["id"], student=me)).get(me, {})
+    except OSError:
+        st.error(hs.last_error)
+        return
+    qs = a["questions"]
+    stat = [prog.get(cr.qkey(x)) for x in qs]
+    n_done = sum(1 for s_ in stat if s_ and (s_["ok"] or s_["tries"] >= MAX_TRIES))
+    n_ok = sum(1 for s_ in stat if s_ and s_["ok"])
+    st.progress(n_done / max(1, len(qs)), text=tx(f"Đã xong {n_done}/{len(qs)} câu · đúng {n_ok}", f"Done {n_done}/{len(qs)} · correct {n_ok}"))
+    key = f"asg_sel_{a['id']}"
+    if key not in st.session_state:
+        st.session_state[key] = next((i for i, s_ in enumerate(stat) if not (s_ and (s_["ok"] or s_["tries"] >= MAX_TRIES))), 0)
+    idx = st.selectbox(tx("Câu hỏi", "Question"), list(range(len(qs))), key=key, format_func=lambda i: _q_label(i, qs[i], stat[i]))
+    spec = qs[idx]
+    if spec["n"] not in BANK_BY_NAME:
+        st.warning(tx("Câu này không còn trong ngân hàng đề.", "This question is no longer in the question bank."))
+        return
+    cur = st.session_state.get("pq")
+    if not cur or cur["aid"] != a["id"] or cr.qkey(cur["spec"]) != cr.qkey(spec):
+        st.session_state.pq = new_qstate(spec, a["id"], stat[idx])
+    render_question(st.session_state.pq, allow_hints=a["hints"], next_cb=_go_next_asg, next_args=(a["id"], idx, len(qs)))
+
+
+def practice_ui():
+    mode = st.radio(tx("Chế độ", "Mode"), ["free", "asg"], horizontal=True, key="pr_mode",
+                    format_func=lambda m: tx("Tự luyện", "Self practice") if m == "free" else tx("Bài giáo viên giao", "Teacher's assignments"))
+    if mode == "free":
+        practice_free_ui()
+    else:
+        practice_assign_ui()
     st.caption("Phần chấm công thức do RDKit so sánh cấu tạo nên chính xác. Phần đọc ảnh bài làm do AI thực hiện nên có thể đọc sai nét viết khó.")
 
 
@@ -2655,7 +2870,7 @@ def _mm_photo_inputs(top):
     if img:
         st.image(img, caption="Sơ đồ bạn đã vẽ", width=380)
     if st.button("Số hóa sơ đồ này", type="primary", disabled=not img, key="mm_photo_go"):
-        if st.session_state.n >= MAX_PER_SESSION:
+        if over_quota():
             show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
             return
         with st.spinner("Đang đọc sơ đồ vẽ tay…"):
@@ -2684,7 +2899,7 @@ def _mm_topic_inputs(top):
     level = st.radio("Mức chi tiết", ["Gọn (4 nhánh, mỗi nhánh 2-3 ý)", "Đầy đủ (6 nhánh, mỗi nhánh 3-4 ý)"], horizontal=True, key="mm_level")
     topic = st.session_state.get("mm_topic", "").strip()
     if st.button("Tạo sơ đồ tư duy", type="primary", disabled=not topic, key="mm_go"):
-        if st.session_state.n >= MAX_PER_SESSION:
+        if over_quota():
             show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
         else:
             with st.spinner("Đang vẽ sơ đồ…"):
@@ -3142,7 +3357,7 @@ html{font-size:14.5px!important}
 """
 
 # Biểu tượng cho từng mục điều hướng (thứ tự = thứ tự trong thanh bên)
-NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "search"]
+NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "practice", "search"]
 _nav_css = "".join(
     f'.st-key-sidenav label[data-baseweb="radio"]:nth-of-type({i + 1}){{--ic:{_mask(n)}}}.st-key-sidenav [role="radiogroup"]>div:nth-of-type({i + 1}) [data-testid="stRadioOption"]{{--ic:{_mask(n)}}}' for i, n in enumerate(NAV_ICON_ORDER)
 )
@@ -3154,6 +3369,9 @@ st.markdown(CSS, unsafe_allow_html=True)
 _UP_BTN = {"en": "Upload image", "bi": "Tải ảnh lên · Upload image"}
 _UP_HINT = {"en": "Drag and drop an image or choose a file  |  JPG, PNG, WEBP (max 200MB)",
             "bi": "Kéo thả ảnh hoặc chọn file · Drag and drop or choose a file  |  JPG, PNG, WEBP (200MB)"}
+st.markdown("<style>@media(max-width:640px){.block-container{padding-left:.7rem!important;padding-right:.7rem!important}"
+            "[data-testid='stDataFrame']{max-width:100%;overflow-x:auto}.stTabs [data-baseweb='tab-list']{overflow-x:auto}"
+            "[data-testid='stFileUploaderDropzone']{padding:1rem!important}}</style>", unsafe_allow_html=True)
 if i18n.lang() != "vi":   # nút/dòng chú thích của khung tải ảnh được viết bằng CSS nên phải đổi ở đây
     st.markdown('<style>[data-testid="stFileUploaderDropzone"]>span>button::after{content:"%s"}'
                 '[data-testid="stFileUploaderDropzoneInstructions"]::before{content:"%s"}</style>'
@@ -3276,6 +3494,48 @@ def on_student():
     sync_student()
 
 
+def do_login():
+    ss = st.session_state
+    if ss.get("lg_fail", 0) >= 5:
+        ss["lg_msg"] = ("err", tx("Nhập sai quá nhiều lần. Hãy tải lại trang hoặc nhờ giáo viên đặt lại PIN.", "Too many wrong attempts. Reload the page or ask your teacher to reset the PIN."))
+        return
+    try:
+        stt, nm = cr.login(ss.get("lg_code", ""), ss.get("lg_name", ""), ss.get("lg_pin", ""), _now().strftime("%Y-%m-%d %H:%M"))
+    except OSError:
+        ss["lg_msg"] = ("err", tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error)
+        return
+    if stt in ("ok", "new"):
+        code = cr.norm_code(ss.get("lg_code", ""))
+        ss["acct"] = {"cls": code, "name": nm}
+        ss["student"] = cr.identity(code, nm)
+        ss["lg_fail"] = 0
+        ss["lg_pin"] = ""
+        ss["lg_msg"] = ("ok", tx("Đã tạo tài khoản mới với PIN này. Hãy nhớ PIN nhé!", "Account created with this PIN. Remember it!") if stt == "new"
+                        else tx("Đăng nhập thành công.", "Logged in."))
+        try:
+            st.query_params["tk"] = cr.make_token(_SECRET, code, nm)
+        except Exception:
+            pass
+        on_student()
+    else:
+        ss["lg_fail"] = ss.get("lg_fail", 0) + 1
+        ss["lg_msg"] = ("err", {"no_class": tx("Mã lớp không tồn tại.", "Unknown class code."), "bad_name": tx("Hãy nhập tên.", "Please enter your name."),
+                                "bad_pin": tx("PIN phải từ 4 đến 12 ký tự.", "The PIN must be 4-12 characters."),
+                                "wrong": tx("Sai PIN.", "Wrong PIN.")}.get(stt, stt))
+
+
+def do_logout():
+    ss = st.session_state
+    ss["acct"] = None
+    ss["student"] = ""
+    ss["lg_msg"] = None
+    try:
+        st.query_params.pop("tk", None)
+    except Exception:
+        pass
+    on_student()
+
+
 def on_lang():
     try:
         st.query_params["lang"] = st.session_state.get("lang", "vi")
@@ -3284,6 +3544,16 @@ def on_lang():
 
 
 sync_student()
+
+
+def used_today():
+    today = _now().strftime("%Y-%m-%d")
+    return sum(1 for h in st.session_state.hist if h.get("d") == today and h.get("k") != "Luyện tập")
+
+
+def over_quota():
+    """Hết lượt gọi AI: quá số lượt của phiên, hoặc (nếu đặt MAX_PER_DAY) quá số lượt trong ngày của học sinh có tên."""
+    return st.session_state.n >= MAX_PER_SESSION or (MAX_PER_DAY > 0 and bool(student_name()) and used_today() >= MAX_PER_DAY)
 
 
 # ---------------- Công thức cấu tạo viết tay ----------------
@@ -3297,7 +3567,7 @@ def _log_result():
 
 
 def _run_structure(top, img_bytes=None, smi=None):
-    if st.session_state.n >= MAX_PER_SESSION:
+    if over_quota():
         show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
         return
     with st.spinner("Đang phân tích…"):
@@ -3360,7 +3630,7 @@ def structure_ui():
         st.divider()
         fix = st.text_input("Nhận dạng sai? Sửa SMILES rồi phân tích lại", value=r.get("smiles", ""), key="st_fix").strip()
         if st.button("Phân tích lại từ SMILES đã sửa", key="st_fix_go") and fix:
-            if st.session_state.n >= MAX_PER_SESSION:
+            if over_quota():
                 show_top_error(top, "Đã hết số lượt của phiên này.")
             else:
                 with st.spinner("Đang phân tích…"):
@@ -3379,6 +3649,11 @@ ASSIST_RULES = ("Bạn là trợ lý học Hóa học thân thiện cho học si
                 "Nếu không chắc chắn thì nói rõ và khuyên đối chiếu SGK. Nếu câu hỏi không liên quan đến hóa học, nhẹ nhàng đưa cuộc trò chuyện về hóa học.")
 
 
+SOCRATIC_NOTE = (" CHẾ ĐỘ GỢI Ý TỪNG BƯỚC: khi học sinh nhờ giải bài tập hoặc đề bài, KHÔNG đưa đáp án cuối cùng ngay. Hãy hỏi lại một câu "
+                 "dẫn dắt hoặc nêu một bước nhỏ để học sinh tự làm, rồi chờ em trả lời. Chỉ đưa lời giải đầy đủ khi học sinh đã thử và nhờ kiểm tra, "
+                 "hoặc nhắc lại yêu cầu xem lời giải. Câu hỏi lý thuyết, khái niệm, danh pháp thì vẫn trả lời bình thường.")
+
+
 def chat_ai(history):
     contents = [types.Content(role="user" if m["role"] == "user" else "model", parts=[types.Part.from_text(text=m["text"])]) for m in history]
     models = [MODEL]
@@ -3390,7 +3665,7 @@ def chat_ai(history):
         for i in range(2):
             try:
                 resp = get_client().models.generate_content(
-                    model=m, contents=contents, config=types.GenerateContentConfig(system_instruction=ASSIST_RULES + i18n.chat_note()))
+                    model=m, contents=contents, config=types.GenerateContentConfig(system_instruction=ASSIST_RULES + i18n.chat_note() + (SOCRATIC_NOTE if st.session_state.get('socratic', True) else '')))
                 return (resp.text or "").strip() or "Mình chưa có câu trả lời, bạn hỏi lại giúp mình nhé."
             except errors.ServerError as e:
                 last = e
@@ -3406,6 +3681,7 @@ def chat_ai(history):
 
 def assistant_ui():
     chat = st.session_state.chat
+    st.toggle("Chế độ gợi ý từng bước (không đưa đáp án ngay)", value=True, key="socratic")
     box = st.container()  # tin nhắn nằm trên, ô nhập nằm dưới
     voice_input("chat", chat=True)
     q = st.session_state.pop("pending_chat", None) or st.chat_input("Hỏi bất cứ điều gì về hóa học…", key="chat_in")
@@ -3420,7 +3696,7 @@ def assistant_ui():
                 st.markdown(m["text"])
         if q:
             with st.chat_message("assistant"):
-                if st.session_state.n >= MAX_PER_SESSION:
+                if over_quota():
                     ans = "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục."
                     st.markdown(errbanner(ans), unsafe_allow_html=True)
                 else:
@@ -4620,7 +4896,7 @@ def _sim_finish(sc):
         del st.session_state[k]
     st.session_state.pop("voice_note", None)
     st.session_state.sim_custom = None
-    if st.session_state.n < MAX_PER_SESSION:   # giọng AI tự nhiên luôn bật; lỗi hoặc quá hạn thì trình duyệt đọc thay
+    if not over_quota():   # giọng AI tự nhiên luôn bật; lỗi hoặc quá hạn thì trình duyệt đọc thay
         with st.spinner("Đang thu giọng đọc tự nhiên…"):
             sc2, ok = sim_attach_audio(sc)
         need = sum(1 for x in sc["buoc"] if x.get("mo_ta")) + 1
@@ -4633,7 +4909,7 @@ def _sim_finish(sc):
         if ok >= need:   # chỉ dùng giọng AI khi thu đủ mọi đoạn; thiếu đoạn nào thì cả phim dùng giọng trình duyệt cho đồng nhất (đoạn đã thu vẫn được lưu, lần tạo lại sau chỉ gọi nốt phần thiếu)
             sc = sc2
             st.session_state.n += 1
-    if st.session_state.n >= MAX_PER_SESSION and "voice_note" not in st.session_state:
+    if over_quota() and "voice_note" not in st.session_state:
         st.session_state.voice_note = "trình duyệt (hết số lượt của phiên này)"
     st.session_state.sim = sc
     add_history(sc["ten"][:60], "Mô phỏng")
@@ -4644,7 +4920,7 @@ def _sim_make(top, q):
     if key:
         _sim_finish({k: v for k, v in SIM_BUILTINS[key].items() if k != "kw"})
         return
-    if st.session_state.n >= MAX_PER_SESSION:
+    if over_quota():
         show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
         return
     with st.spinner("Đang lập kịch bản và dựng phim…"):
@@ -4711,6 +4987,7 @@ def _sim_ui(top):
 # ---------------- Điều hướng ----------------
 HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
+PRACTICE_TAB = "Luyện tập"
 HISTORY_TAB = "Lịch sử tra cứu"
 TEACHER_ON = bool(st.secrets.get("TEACHER_CODE", ""))
 SECTIONS = [
@@ -4721,7 +4998,7 @@ SECTIONS = [
     ("Sơ đồ tư duy", "Sơ đồ tư duy", "Nhập chủ đề hoặc tên chất, máy vẽ sơ đồ để ôn tập, sửa được và tải về PowerPoint, draw.io.", mindmap_ui, "mind"),
 ]
 LABELS = [x[0] for x in SECTIONS]
-NAV_OPTS = [HOME] + LABELS + [HISTORY_TAB]
+NAV_OPTS = [HOME] + LABELS + [PRACTICE_TAB, HISTORY_TAB]
 STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4]
 
 st.session_state.setdefault("nav", HOME)
@@ -4777,6 +5054,8 @@ SEARCH_KEYS = {
     EQUIP: "dung cu hoa hoc thi nghiem ong nghiem binh cau equipment lab experiment simulation",
     MIND: "so do tu duy mindmap on tap mind map review",
     ASSIST: "tro ly ai hoi dap chat assistant ai help question",
+    PRACTICE_TAB: "luyen tap bai tap cham diem giao bai practice exercise quiz homework",
+    HISTORY_TAB: "lich su tra cuu history lookups",
 }
 
 
@@ -4801,7 +5080,7 @@ def on_home_upload():
 
 
 # ---------------- Lịch sử theo từng tab ----------------
-KIND_TAB = {"Công thức": STRUCT, "Luyện tập": STRUCT, "Phản ứng": REACT, "Đồng phân": ISO,
+KIND_TAB = {"Công thức": STRUCT, "Luyện tập": PRACTICE_TAB, "Phản ứng": REACT, "Đồng phân": ISO,
             "Dụng cụ": EQUIP, "Mô phỏng": EQUIP, "Sơ đồ": MIND, "Hỏi đáp": ASSIST}
 HIST_SHOW = 30   # số lượt hiện trong mỗi tab
 
@@ -4885,7 +5164,8 @@ def my_history_ui():
     who = student_name()
     items = st.session_state.hist
     if who:
-        st.caption(tx(f"Lịch sử của: {who}", f"History of: {who}"))
+        st.caption(tx(f"Lịch sử của: {who}. Đổi tên ở thanh bên là chuyển sang hồ sơ khác, hồ sơ tên cũ vẫn được giữ và giáo viên xem ở mục \"Tất cả học sinh\".",
+                      f"History of: {who}. Changing the name in the sidebar switches to another profile; the old profile is kept and teachers see it under \"All students\"."))
     else:
         st.info(tx("Nhập tên học sinh ở thanh bên để lịch sử được lưu lại cho lần sau.",
                    "Enter the student name in the sidebar so your history is kept for next time."))
@@ -4912,15 +5192,221 @@ def my_history_ui():
     b.button(tx("🗑️ Xóa toàn bộ lịch sử của tôi", "🗑️ Clear all my history"), key="mh_clear", on_click=clear_all_hist)
 
 
+def _t_class_pick(key):
+    """Chọn lớp (mã lớp). Trả về mã hoặc None nếu chưa có lớp."""
+    try:
+        cl = cr.classes()
+    except OSError:
+        st.error(tx("Không đọc được danh sách lớp: ", "Cannot read the class list: ") + hs.last_error)
+        return None
+    if not cl:
+        st.info(tx("Chưa có lớp nào. Tạo lớp ở mục \"Lớp & tài khoản\".", "No classes yet. Create one under \"Classes\"."))
+        return None
+    names = dict(cl)
+    return st.selectbox(tx("Lớp", "Class"), list(names), format_func=lambda c: f"{c} · {names[c]}", key=key)
+
+
+def teacher_classes_ui():
+    st.markdown("#### " + tx("Tạo lớp", "Create a class"))
+    a, b, c = st.columns([2, 3, 1.5], vertical_alignment="bottom")
+    code = a.text_input(tx("Mã lớp (VD 10A1)", "Class code (e.g. 10A1)"), key="tc_code", max_chars=20)
+    name = b.text_input(tx("Tên lớp", "Class name"), key="tc_name", max_chars=60)
+    if c.button(tx("Tạo lớp", "Create"), key="tc_make"):
+        try:
+            if cr.create_class(code, name, _now().strftime("%Y-%m-%d %H:%M")):
+                st.success(tx(f"Đã tạo lớp {cr.norm_code(code)}. Học sinh đăng nhập bằng mã lớp này.", f"Class {cr.norm_code(code)} created."))
+            else:
+                st.error(tx("Mã lớp không hợp lệ (2-20 ký tự chữ, số, - hoặc _) hoặc đã tồn tại.", "Invalid or duplicate class code."))
+        except OSError:
+            st.error(hs.last_error)
+    cls = _t_class_pick("tc_pick")
+    if not cls:
+        return
+    try:
+        stu = cr.students(cls)
+    except OSError:
+        st.error(hs.last_error)
+        return
+    st.markdown("#### " + tx(f"Học sinh lớp {cls} ({len(stu)})", f"Students of {cls} ({len(stu)})"))
+    st.caption(tx("Học sinh tự tạo tài khoản lần đầu đăng nhập (mã lớp + tên + PIN tự đặt). Quên PIN thì đặt lại ở đây.",
+                  "Students create their own account at first login (class code + name + PIN). Reset a forgotten PIN here."))
+    if stu:
+        who = st.selectbox(tx("Học sinh", "Student"), stu, key="tc_stu")
+        if st.button(tx("Đặt lại PIN (xóa tài khoản, giữ lịch sử và bài nộp)", "Reset PIN (delete account, keep history and submissions)"), key="tc_reset"):
+            try:
+                st.success(tx(f"Đã đặt lại {who}. Em đăng nhập lại và đặt PIN mới.", f"{who} reset. They can log in and choose a new PIN.")
+                          if cr.reset_pin(cls, who) else tx("Không tìm thấy.", "Not found."))
+            except OSError:
+                st.error(hs.last_error)
+    with st.expander(tx("Xóa cả lớp", "Delete the whole class")):
+        if st.checkbox(tx(f"Tôi chắc chắn muốn xóa lớp {cls} cùng tài khoản, bài giao và bài nộp", f"I am sure I want to delete class {cls} with accounts, assignments and submissions"), key="tc_sure"):
+            if st.button(tx("Xóa lớp", "Delete class"), key="tc_del"):
+                try:
+                    cr.delete_class(cls)
+                    st.session_state["tc_sure"] = False
+                    st.rerun()
+                except OSError:
+                    st.error(hs.last_error)
+
+
+def teacher_assign_ui():
+    cls = _t_class_pick("ta_cls")
+    if not cls:
+        return
+    st.markdown("#### " + tx("Giao bài mới", "New assignment"))
+    title = st.text_input(tx("Tên bài", "Title"), key="ta_title", max_chars=100, placeholder=tx("VD: Ôn danh pháp ancol", "e.g. Naming alcohols"))
+    kinds = st.radio(tx("Dạng bài", "Type"), ["draw", "name", "both"], horizontal=True, key="ta_kind",
+                     format_func=lambda k: {"draw": tx("Vẽ công thức", "Draw formula"), "name": tx("Gọi tên", "Name it"), "both": tx("Cả hai", "Both")}[k])
+    how = st.radio(tx("Cách chọn chất", "How to pick"), ["pick", "random"], horizontal=True, key="ta_how",
+                   format_func=lambda k: tx("Chọn từng chất", "Pick compounds") if k == "pick" else tx("Ngẫu nhiên", "Random"))
+    names = [b[0] for b in BANK]
+    if how == "pick":
+        chosen = st.multiselect(tx("Chất", "Compounds"), names, key="ta_sel")
+    else:
+        n = st.number_input(tx("Số chất", "How many"), 1, len(names), 5, key="ta_n")
+        chosen = None
+    d1, d2 = st.columns(2)
+    due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
+    due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
+    hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
+    if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
+        pool = chosen if how == "pick" else random.sample(names, int(n))
+        ks = ["draw", "name"] if kinds == "both" else [kinds]
+        qs = [{"k": k, "n": nm} for nm in pool for k in ks]
+        if not title.strip() or not qs:
+            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất.", "Enter a title and pick at least one compound."))
+        else:
+            try:
+                cr.create_assignment(cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
+                st.success(tx(f"Đã giao {len(qs)} câu cho lớp {cls}.", f"Assigned {len(qs)} questions to {cls}."))
+            except OSError:
+                st.error(hs.last_error)
+    st.markdown("#### " + tx("Bài đã giao", "Assignments"))
+    try:
+        asgs = cr.assignments(cls)
+    except OSError:
+        st.error(hs.last_error)
+        return
+    for a in asgs:
+        c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
+        c1.markdown(f"**{html.escape(a['title'])}** · {len(a['questions'])} {tx('câu', 'questions')} · {a['created']}"
+                    + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
+        if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
+            try:
+                cr.delete_assignment(a["id"])
+                st.rerun()
+            except OSError:
+                st.error(hs.last_error)
+
+
+def teacher_results_ui():
+    cls = _t_class_pick("tr_cls")
+    if not cls:
+        return
+    try:
+        asgs = cr.assignments(cls)
+        stu = [cr.identity(cls, n) for n in cr.students(cls)]
+    except OSError:
+        st.error(hs.last_error)
+        return
+    if not asgs:
+        st.info(tx("Lớp này chưa có bài giao.", "This class has no assignments yet."))
+        return
+    a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{x['title']} ({x['created']})", key="tr_asg")
+    if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key="tr_refresh"):
+        cr.submissions(aid=a["id"], force=True)
+    prog = cr.progress(a, cr.submissions(aid=a["id"]))
+    qs = a["questions"]
+    rows, total_ok = [], 0
+    for sname in sorted(set(stu) | set(prog), key=str.lower):
+        row = {tx("Học sinh", "Student"): sname.rsplit(" [", 1)[0]}
+        ok = 0
+        for i, qd in enumerate(qs):
+            d = prog.get(sname, {}).get(cr.qkey(qd))
+            row[f'{i + 1}. {qd["n"]} ({"vẽ" if qd["k"] == "draw" else "tên"})'] = ("–" if not d else "✓" if d["first"] else f'✓({d["tries"]})' if d["ok"] else f'✗({d["tries"]})')
+            ok += 1 if d and d["ok"] else 0
+        row[tx("Điểm", "Score")] = f"{ok}/{len(qs)}"
+        total_ok += ok
+        rows.append(row)
+    st.caption(tx("✓ đúng lần đầu · ✓(n) đúng sau n lần · ✗(n) sai n lần · – chưa làm", "✓ first try · ✓(n) correct after n tries · ✗(n) wrong n times · – not started"))
+    st.dataframe(rows, hide_index=True, width="stretch")
+    if rows:
+        st.metric(tx("Tỉ lệ đúng trung bình", "Average correct"), f"{round(100 * total_ok / (len(rows) * max(1, len(qs))))}%")
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+        st.download_button(tx("⬇️ Tải bảng điểm (CSV)", "⬇️ Download scores (CSV)"), buf.getvalue().encode("utf-8-sig"),
+                           file_name=f"diem_{cls}_{a['id']}.csv", mime="text/csv", key="tr_dl")
+
+
+def teacher_weak_ui():
+    cls = _t_class_pick("tw_cls")
+    if not cls:
+        return
+    try:
+        subs = cr.submissions(code=cls)
+        summ = [r for r in hs.summary() if r["name"].endswith(f"[{cls}]")]
+    except OSError:
+        st.error(hs.last_error)
+        return
+    st.markdown("#### " + tx("Chỗ cả lớp hay sai (từ bài làm)", "Where the class struggles (from submissions)"))
+    if not subs:
+        st.info(tx("Chưa có bài nộp nào của lớp này.", "No submissions from this class yet."))
+    else:
+        w = cr.weak_spots(subs)
+        cols = {tx("Chủ đề", "Topic"): "topic", tx("Dạng bài", "Type"): "kind", tx("Từng câu", "Question"): "question"}
+        for label, k in cols.items():
+            st.markdown(f"**{label}**")
+            data = [{tx("Mục", "Item"): r["key"], tx("Lượt nộp", "Attempts"): r["n"], tx("Lượt sai", "Wrong"): r["wrong"],
+                     tx("Số HS sai", "Students wrong"): r["students"], tx("Tỉ lệ sai %", "Wrong %"): r["pct"]} for r in w[k][:12]]
+            st.dataframe(data, hide_index=True, width="stretch")
+        top = w["topic"][:8]
+        if top:
+            st.bar_chart({tx("Tỉ lệ sai %", "Wrong %"): {r["key"]: r["pct"] for r in top}})
+        st.caption(tx("Chủ đề có tỉ lệ sai cao là chỗ nên ôn lại cho cả lớp.", "Topics with a high wrong rate are worth reviewing with the whole class."))
+    st.markdown("#### " + tx("Cả lớp tra cứu nhiều ở đâu", "What the class looks up most"))
+    by = {}
+    for r in summ:
+        for k, v in r["by_kind"].items():
+            by[KIND_TAB.get(k, k)] = by.get(KIND_TAB.get(k, k), 0) + v
+    if by:
+        st.dataframe([{"Tab": tx(t), tx("Lượt tra cứu", "Lookups"): v} for t, v in sorted(by.items(), key=lambda x: -x[1])], hide_index=True, width="stretch")
+        quiet = [r["name"] for r in summ if r["total"] == 0 or r["last"][:10] < (_now().strftime("%Y-%m-%d"))]
+        st.caption(tx(f"{len(summ)} học sinh của lớp đã có lịch sử; {len(quiet)} em chưa hoạt động hôm nay.",
+                      f"{len(summ)} students of this class have history; {len(quiet)} were not active today."))
+    else:
+        st.info(tx("Chưa có lịch sử tra cứu của học sinh lớp này (học sinh cần đăng nhập lớp).", "No lookup history from this class yet (students must log in to the class)."))
+
+
 def teacher_ui():
     """Tab giáo viên: ai đã truy cập, khi nào, tra cứu gì ở tab nào. Dữ liệu đọc từ các tệp đã lưu nên vẫn còn sau khi tắt app."""
     code = st.secrets.get("TEACHER_CODE", "")
+    if not code:
+        st.warning(tx('Chưa đặt TEACHER_CODE trong Secrets nên chưa xem được danh sách cả lớp. Thêm dòng TEACHER_CODE = "mã-của-bạn" vào Secrets rồi khởi động lại app.',
+                      'TEACHER_CODE is not set in Secrets, so the class list is unavailable. Add TEACHER_CODE = "your-code" to Secrets and restart the app.'))
+        return
     if st.session_state.get("_th_ok") != code:
         if st.text_input("Mã giáo viên", type="password", key="th_code") == code:
             st.session_state["_th_ok"] = code
             st.rerun()
         st.info("Tab này dành cho giáo viên hoặc nhóm nghiên cứu. Nhập mã giáo viên để dùng.")
         return
+    t1, t2, t3, t4, t5 = st.tabs([tx("Học sinh", "Students"), tx("Lớp & tài khoản", "Classes"), tx("Giao bài", "Assign"),
+                                  tx("Kết quả bài", "Results"), tx("Chỗ hay sai", "Weak spots")])
+    with t1:
+        teacher_students_ui()
+    with t2:
+        teacher_classes_ui()
+    with t3:
+        teacher_assign_ui()
+    with t4:
+        teacher_results_ui()
+    with t5:
+        teacher_weak_ui()
+
+
+def teacher_students_ui():
     st.caption(tx("Nơi lưu: ", "Storage: ") + (tx("Google Sheets (bền, không mất khi khởi động lại)", "Google Sheets (durable, survives restarts)")
                                                if hs.backend_name() == "Google Sheets"
                                                else tx("tệp trên máy chủ (MẤT khi app khởi động lại, hãy cấu hình Google Sheets hoặc tải CSV)",
@@ -5453,8 +5939,22 @@ with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
                 f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
-    st.text_input("👤 Tên học sinh · Student name", key="student", max_chars=40, on_change=on_student,
+    _acct = st.session_state.get("acct")
+    st.text_input("👤 Tên học sinh · Student name", key="student", max_chars=60, on_change=on_student, disabled=bool(_acct),
                   placeholder=tx("Nhập tên để lưu lịch sử", "Enter name to save history"))
+    if _acct:
+        st.caption(tx(f"✅ Đã đăng nhập lớp {_acct['cls']}", f"✅ Logged in to class {_acct['cls']}"))
+        st.button(tx("Đăng xuất", "Log out"), key="lg_out", on_click=do_logout)
+    else:
+        st.caption(tx("Đổi tên = chuyển hồ sơ, hồ sơ cũ vẫn được giữ.", "Changing the name switches profile; the old one is kept."))
+        with st.expander(tx("🔐 Đăng nhập lớp học (có PIN)", "🔐 Class login (with PIN)")):
+            st.text_input(tx("Mã lớp", "Class code"), key="lg_code", max_chars=20)
+            st.text_input(tx("Tên của em", "Your name"), key="lg_name", max_chars=40)
+            st.text_input("PIN", key="lg_pin", type="password", max_chars=12, help=tx("Lần đầu: tự đặt PIN 4-12 ký tự. Lần sau nhập lại đúng PIN đó.", "First time: choose a 4-12 character PIN. Next time enter the same PIN."))
+            st.button(tx("Đăng nhập / tạo tài khoản", "Log in / create account"), key="lg_go", on_click=do_login)
+            _m = st.session_state.get("lg_msg")
+            if _m:
+                (st.success if _m[0] == "ok" else st.error)(_m[1])
     with st.container(key="sidenav"):
         st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
     with st.container(key="aibtn"):
@@ -5477,17 +5977,19 @@ d.head.appendChild(s);})();
 topbar()
 
 nav = st.session_state.nav
-if nav == HISTORY_TAB:
+if nav == PRACTICE_TAB:
+    page_banner("practice", PRACTICE_TAB, "Làm bài, máy chấm ngay và gợi ý từng bước; giáo viên có thể giao bài cho cả lớp.")
+    with st.container(key="panel"):
+        practice_ui()
+        tab_history_ui(nav)
+elif nav == HISTORY_TAB:
     page_banner("search", HISTORY_TAB, "Xem lại những gì bạn đã tra cứu ở từng tab; giáo viên xem được cả lớp.")
     with st.container(key="panel"):
-        if TEACHER_ON:
-            t_me, t_gv = st.tabs([tx("Của tôi", "Mine"), tx("Giáo viên", "Teacher")])
-            with t_me:
-                my_history_ui()
-            with t_gv:
-                teacher_ui()
-        else:
+        t_me, t_gv = st.tabs([tx("Của tôi", "Mine"), tx("Tất cả học sinh (giáo viên)", "All students (teacher)")])
+        with t_me:
             my_history_ui()
+        with t_gv:
+            teacher_ui()
 elif nav == HOME or (nav not in LABELS and nav != ASSIST):
     hero()
     home_ui()

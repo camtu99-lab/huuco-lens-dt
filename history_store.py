@@ -36,6 +36,8 @@ def slug(name):
 # Nơi lưu 1: Google Sheets
 # =====================================================================
 _CFG = None              # (sheet_id, thông tin service account)
+_BOOK = None             # bảng tính đang mở
+_TBL = {}                # tên bảng chung -> {"ws":..., "rows":..., "t":...}
 _WS = None               # (bảng "lookups", bảng "visits")
 _CACHE = {"t": 0.0, "look": None, "vis": None}
 _TTL = 20                # giây giữ bản đọc trong bộ nhớ để không gọi API mỗi lần chạy lại trang
@@ -45,10 +47,12 @@ VIS_HEAD = ["hoc_sinh", "thoi_diem"]
 
 def configure_sheets(sheet_id, creds):
     """Chỉ ghi nhớ cấu hình, chưa kết nối mạng (kết nối khi dùng lần đầu)."""
-    global _CFG, _WS
-    cfg = (str(sheet_id).strip(), dict(creds))
+    global _CFG, _WS, _BOOK
+    m = re.search(r"/d/([A-Za-z0-9_-]+)", str(sheet_id))      # cho phép dán cả đường dẫn, chỉ lấy phần ID
+    cfg = (m.group(1) if m else str(sheet_id).strip().strip("\"'"), dict(creds))
     if _CFG != cfg:
-        _CFG, _WS = cfg, None
+        _CFG, _WS, _BOOK = cfg, None, None
+        _TBL.clear()
         _CACHE.update(t=0.0, look=None, vis=None)
 
 
@@ -56,22 +60,47 @@ def backend_name():
     return "Google Sheets" if _CFG else "local"
 
 
+def _book():
+    """Mở bảng tính Google (một lần). Tách riêng để kiểm thử thay thế được."""
+    global _BOOK
+    if _BOOK is None:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        creds = Credentials.from_service_account_info(
+            _CFG[1], scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+        _BOOK = gspread.authorize(creds).open_by_key(_CFG[0])
+    return _BOOK
+
+
+def _get_ws(title, head):
+    sh = _book()
+    try:
+        return sh.worksheet(title)
+    except Exception as e:
+        if type(e).__name__ != "WorksheetNotFound":
+            raise
+        ws = sh.add_worksheet(title=title, rows=1000, cols=max(len(head), 6))
+        ws.append_row(head)
+        return ws
+
+
 def _connect():
-    """Mở bảng tính và tạo hai trang tính nếu chưa có. Tách riêng để kiểm thử thay thế được."""
-    import gspread
-    from google.oauth2.service_account import Credentials
-    creds = Credentials.from_service_account_info(
-        _CFG[1], scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-    sh = gspread.authorize(creds).open_by_key(_CFG[0])
-    out = []
-    for title, head in (("lookups", LOOK_HEAD), ("visits", VIS_HEAD)):
-        try:
-            ws = sh.worksheet(title)
-        except gspread.WorksheetNotFound:
-            ws = sh.add_worksheet(title=title, rows=1000, cols=len(head))
-            ws.append_row(head)
-        out.append(ws)
-    return tuple(out)
+    """Hai trang tính lịch sử (lookups, visits); tạo nếu chưa có."""
+    return _get_ws("lookups", LOOK_HEAD), _get_ws("visits", VIS_HEAD)
+
+
+def _explain(e):
+    """Câu báo lỗi dễ hiểu kèm cách khắc phục cho các lỗi hay gặp khi nối Google Sheets."""
+    name, mail = type(e).__name__, (_CFG[1].get("client_email", "?") if _CFG else "?")
+    if name == "SpreadsheetNotFound":
+        return (f'SpreadsheetNotFound (404): không mở được bảng tính ID "{_CFG[0] if _CFG else "?"}". Kiểm tra: (1) đã bấm Chia sẻ bảng tính '
+                f'cho {mail} với quyền Người chỉnh sửa chưa; (2) ID đúng là đoạn giữa /d/ và /edit trong địa chỉ; '
+                f'(3) đây phải là Google Sheets thật (không phải file .xlsx tải lên Drive).')
+    if name == "APIError" and "has not been used" in str(e):
+        return "Chưa bật Google Sheets API hoặc Google Drive API trong dự án Google Cloud (bước 2 của hướng dẫn)."
+    if name == "APIError" and "403" in str(e):
+        return f"403: {mail} chưa có quyền chỉnh sửa bảng tính, hoặc chưa bật Sheets/Drive API."
+    return f"{name}: {str(e)[:200]}"
 
 
 def _sheets():
@@ -82,7 +111,7 @@ def _sheets():
         return _WS
     except Exception as e:      # mạng, quyền chưa chia sẻ, sai khóa...
         _WS = None
-        last_error = f"{type(e).__name__}: {str(e)[:200]}"
+        last_error = _explain(e)
         raise OSError(last_error)
 
 
@@ -97,7 +126,7 @@ def _s_rows(force=False):
             look = wl.get_all_values()[1:]
             vis = wv.get_all_values()[1:]
         except Exception as e:
-            last_error = f"{type(e).__name__}: {str(e)[:200]}"
+            last_error = _explain(e)
             raise OSError(last_error)
         _CACHE.update(t=time.time(), look=look, vis=vis)
         last_error = ""
@@ -111,7 +140,7 @@ def _s_call(fn):
     except OSError:
         raise
     except Exception as e:
-        last_error = f"{type(e).__name__}: {str(e)[:200]}"
+        last_error = _explain(e)
         raise OSError(last_error)
 
 
@@ -363,3 +392,104 @@ def to_csv(rows, tab_of=None):
     for who, h in rows:
         w.writerow([who, h.get("d", ""), h.get("t", ""), (tab_of(h.get("k")) if tab_of else ""), h.get("k", ""), h.get("q", "")])
     return buf.getvalue().encode("utf-8-sig")
+
+
+# =====================================================================
+# Bảng dùng chung cho lớp học (classes, accounts, assignments, submissions)
+# Mỗi bảng là danh sách dòng (list các chuỗi), có dòng tiêu đề `head` trên Google Sheets.
+# =====================================================================
+def _tbl_local_path(name):
+    return os.path.join(os.path.dirname(BASE), "tables", name + ".json")
+
+
+def _tbl_ws(name, head):
+    c = _TBL.setdefault(name, {"ws": None, "rows": None, "t": 0.0})
+    if c["ws"] is None:
+        c["ws"] = _get_ws(name, head)
+    return c
+
+
+def tbl_read(name, head, force=False):
+    """Các dòng của bảng (không gồm tiêu đề). Google Sheets có bộ nhớ đệm ngắn hạn."""
+    if _CFG:
+        with _LOCK:
+            c = _TBL.get(name)
+            if c and c["rows"] is not None and not force and time.time() - c["t"] < _TTL:
+                return [list(r) for r in c["rows"]]
+            try:
+                c = _tbl_ws(name, head)
+                vals = _s_call(c["ws"].get_all_values)
+            except OSError:
+                raise
+            except Exception as e:
+                raise OSError(_set_err(e))
+            c["rows"], c["t"] = [list(r) for r in vals[1:]], time.time()
+            return [list(r) for r in c["rows"]]
+    with _LOCK:
+        try:
+            with open(_tbl_local_path(name), encoding="utf-8") as f:
+                d = json.load(f)
+            return d if isinstance(d, list) else []
+        except (OSError, ValueError):
+            return []
+
+
+def _set_err(e):
+    global last_error
+    last_error = _explain(e)
+    return last_error
+
+
+def tbl_append(name, head, row):
+    row = [str(x) for x in row]
+    if _CFG:
+        with _LOCK:
+            try:
+                c = _tbl_ws(name, head)
+                _s_call(lambda: c["ws"].append_row(row, value_input_option="RAW"))
+            except OSError:
+                raise
+            except Exception as e:
+                raise OSError(_set_err(e))
+            if c["rows"] is not None:
+                c["rows"].append(row)
+        return
+    with _LOCK:
+        rows = tbl_read(name, head)
+        rows.append(row)
+        _tbl_save_local(name, rows)
+
+
+def tbl_write(name, head, rows):
+    """Thay toàn bộ nội dung bảng (dùng khi xóa/sửa, hiếm)."""
+    rows = [[str(x) for x in r] for r in rows]
+    if _CFG:
+        with _LOCK:
+            try:
+                c = _tbl_ws(name, head)
+
+                def go():
+                    c["ws"].clear()
+                    c["ws"].update(values=[head] + rows, range_name="A1")
+                _s_call(go)
+            except OSError:
+                raise
+            except Exception as e:
+                raise OSError(_set_err(e))
+            c["rows"], c["t"] = rows, time.time()
+        return
+    with _LOCK:
+        _tbl_save_local(name, rows)
+
+
+def _tbl_save_local(name, rows):
+    p = _tbl_local_path(name)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(rows, f, ensure_ascii=False)
+        os.replace(tmp, p)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
