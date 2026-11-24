@@ -5968,8 +5968,6 @@ with st.sidebar:
     if _acct:
         st.caption(tx(f"✅ Đã đăng nhập lớp {_acct['cls']}", f"✅ Logged in to class {_acct['cls']}"))
         st.button(tx("Đăng xuất", "Log out"), key="lg_out", on_click=do_logout)
-    else:
-        st.caption(tx("Đổi tên = chuyển hồ sơ, hồ sơ cũ vẫn được giữ.", "Changing the name switches profile; the old one is kept."))
     with st.container(key="sidenav"):
         st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
     with st.container(key="aibtn"):
