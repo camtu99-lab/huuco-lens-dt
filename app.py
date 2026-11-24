@@ -3375,6 +3375,9 @@ st.markdown(CSS, unsafe_allow_html=True)
 _UP_BTN = {"en": "Upload image", "bi": "Tải ảnh lên · Upload image"}
 _UP_HINT = {"en": "Drag and drop an image or choose a file  |  JPG, PNG, WEBP (max 200MB)",
             "bi": "Kéo thả ảnh hoặc chọn file · Drag and drop or choose a file  |  JPG, PNG, WEBP (200MB)"}
+st.markdown("<style>.st-key-logincard{background:linear-gradient(135deg,#eef0ff,#f6f0ff);border:1px solid #dcdfff;border-radius:22px;padding:1.3rem 1.5rem}"
+            ".lg-h{display:flex;gap:1rem;align-items:center;margin-bottom:.8rem}.lg-h h3{margin:0;font-size:1.35rem;color:#1d2a8a}.lg-h p{margin:.15rem 0 0;color:#4b5280;font-size:.95rem}"
+            ".lg-ic{display:inline-flex;align-items:center;justify-content:center;min-width:58px;height:58px;border-radius:16px;background:linear-gradient(135deg,#4f46e5,#7c3aed)}</style>", unsafe_allow_html=True)
 st.markdown("<style>@media(max-width:640px){.block-container{padding-left:.7rem!important;padding-right:.7rem!important}"
             "[data-testid='stDataFrame']{max-width:100%;overflow-x:auto}.stTabs [data-baseweb='tab-list']{overflow-x:auto}"
             "[data-testid='stFileUploaderDropzone']{padding:1rem!important}}</style>", unsafe_allow_html=True)
@@ -5872,26 +5875,40 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
          "Sơ đồ": ("mind", "c3"), "Mô phỏng": ("equipment", "c2"), "Luyện tập": ("practice", "c0"), "Hỏi đáp": ("chat", "c1")}
 
 
+def login_card():
+    """Khung đăng nhập lớp học ở trang chủ (rộng rãi hơn thanh bên)."""
+    acct = st.session_state.get("acct")
+    if acct:
+        cls = acct["cls"]
+        hello = f'{tx("Xin chào", "Hello")}, {acct["name"]}!'
+        sub = tx(f"Bạn đã đăng nhập lớp {cls}. Lịch sử và bài làm được lưu theo tài khoản này.",
+                 f"You are logged in to class {cls}. Your history and work are saved to this account.")
+        st.markdown(f'<div class="lg-h"><span class="lg-ic">{icon_svg("pen", "#fff", 30, 2)}</span><div><h3>{html.escape(hello)}</h3>'
+                    f'<p>{html.escape(sub)}</p></div></div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        c1.button(tx("📝 Vào Luyện tập", "📝 Go to Practice"), key="lc_prac", on_click=go, args=(PRACTICE_TAB,), type="primary")
+        c2.button(tx("Đăng xuất", "Log out"), key="lc_out", on_click=do_logout)
+        return
+    st.markdown(f'<div class="lg-h"><span class="lg-ic">{icon_svg("pen", "#fff", 30, 2)}</span><div><h3>{html.escape(tx("Đăng nhập lớp học", "Class login"))}</h3>'
+                f'<p>{html.escape(tx("Nhập mã lớp do giáo viên đưa, tên của em và PIN. Lần đầu em tự đặt PIN 4-12 ký tự, lần sau nhập lại đúng PIN đó.", "Enter the class code from your teacher, your name and a PIN. First time you choose a 4-12 character PIN; next time enter the same one."))}</p></div></div>',
+                unsafe_allow_html=True)
+    a, b, c = st.columns([1, 1.4, 1])
+    a.text_input(tx("Mã lớp", "Class code"), key="lg_code", max_chars=20, placeholder="12A1")
+    b.text_input(tx("Tên của em", "Your name"), key="lg_name", max_chars=40, placeholder=tx("Nguyễn Văn A", "Your full name"))
+    c.text_input("PIN", key="lg_pin", type="password", max_chars=12)
+    st.button(tx("Đăng nhập / tạo tài khoản", "Log in / create account"), key="lg_go", on_click=do_login, type="primary")
+    m = st.session_state.get("lg_msg")
+    if m:
+        (st.success if m[0] == "ok" else st.error)(m[1])
+    st.caption(tx("Chưa có mã lớp? Hỏi giáo viên. Không đăng nhập vẫn dùng được các công cụ, chỉ không làm được bài giáo viên giao.",
+                  "No class code? Ask your teacher. You can still use the tools without logging in, just not the assigned work."))
+
+
 def home_ui():
     left, right = st.columns([2.15, 1], gap="large")
     with left:
-        with st.container(key="upcard"):
-            st.markdown(
-                f'<div class="uphead"><div class="hex">{icon_svg("pen", "#fff", 34, 2)}</div><div><h3>{html.escape(tx("Công thức cấu tạo viết tay"))}</h3>'
-                f'<p>{html.escape(tx("Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", sep=" | "))}</p></div>'
-                f'<div class="hw">{tx("Chụp nhanh")}<br>{tx("Nhận kết quả ngay!")}</div></div>', unsafe_allow_html=True)
-            cu, cd = st.columns([1, 1.5], gap="medium", vertical_alignment="center")
-            with cu:
-                st.file_uploader("Tải ảnh công thức", type=["jpg", "jpeg", "png", "webp"], key="home_up",
-                                 label_visibility="collapsed", on_change=on_home_upload)
-            with cd:
-                st.markdown(
-                    f'<div class="demo"><img class="paper" src="{_uri(PAPER_SVG)}"><span class="arrow">{icon_svg("arrow", "#6d4df0", 28, 2)}</span>'
-                    f'<div class="res"><span class="badge">✦ {tx("Kết quả ngay lập tức", "Instant results")}</span><h4>C₇H₆O₂<i>●</i></h4><b>{tx("Axit benzoic", "Benzoic acid", sep=" / ")}</b>'
-                    f'<div>SMILES: O=C(O)c1ccccc1</div><div>{tx("Khối lượng mol", "Molar mass")}: 122.12 g/mol</div>'
-                    f'<div>{tx("Tính chất: Axit yếu, thể rắn", "Properties: weak acid, solid")}</div>'
-                    f'<div>{tx("Tính tan: Ít tan trong nước lạnh, tan nhiều trong nước nóng và etanol", "Solubility: sparingly soluble in cold water; very soluble in hot water and ethanol")}</div>'
-                    f'<small>{tx("Ví dụ minh họa", "Illustrative example")}</small></div></div>', unsafe_allow_html=True)
+        with st.container(key="logincard"):
+            login_card()
 
         st.markdown(f'<div class="sec-title">{icon_svg("home", "currentColor", 22)}{tx("Khám phá nhanh")}</div>', unsafe_allow_html=True)
         with st.container(key="tilesrow"):
@@ -5953,14 +5970,7 @@ with st.sidebar:
         st.button(tx("Đăng xuất", "Log out"), key="lg_out", on_click=do_logout)
     else:
         st.caption(tx("Đổi tên = chuyển hồ sơ, hồ sơ cũ vẫn được giữ.", "Changing the name switches profile; the old one is kept."))
-        with st.expander(tx("🔐 Đăng nhập lớp học (có PIN)", "🔐 Class login (with PIN)")):
-            st.text_input(tx("Mã lớp", "Class code"), key="lg_code", max_chars=20)
-            st.text_input(tx("Tên của em", "Your name"), key="lg_name", max_chars=40)
-            st.text_input("PIN", key="lg_pin", type="password", max_chars=12, help=tx("Lần đầu: tự đặt PIN 4-12 ký tự. Lần sau nhập lại đúng PIN đó.", "First time: choose a 4-12 character PIN. Next time enter the same PIN."))
-            st.button(tx("Đăng nhập / tạo tài khoản", "Log in / create account"), key="lg_go", on_click=do_login)
-            _m = st.session_state.get("lg_msg")
-            if _m:
-                (st.success if _m[0] == "ok" else st.error)(_m[1])
+        st.button(tx("🔐 Đăng nhập lớp học (ở Trang chủ)", "🔐 Class login (on Home)"), key="lg_side", on_click=go, args=(HOME,))
     with st.container(key="sidenav"):
         st.radio("Điều hướng", NAV_OPTS, index=None, key="nav_side", on_change=on_side, label_visibility="collapsed")
     with st.container(key="aibtn"):
