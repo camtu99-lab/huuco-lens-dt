@@ -2282,28 +2282,81 @@ def _fmt_size(n):
     return f"{n / 1000:.0f} KB" if n < 1_000_000 else f"{n / 1_000_000:.1f} MB"
 
 
+def _docx_text(data):
+    """Lấy chữ từ .docx (không cần thư viện ngoài) để xem nhanh yêu cầu."""
+    import zipfile
+    from io import BytesIO
+    try:
+        xml = zipfile.ZipFile(BytesIO(data)).read("word/document.xml").decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    xml = re.sub(r"</w:p>", "\n", xml)
+    xml = re.sub(r"<w:tab/>", "\t", xml)
+    return html.unescape(re.sub(r"<[^>]+>", "", xml)).strip()
+
+
+def preview_ui(m, data):
+    """Xem nội dung tệp ngay trên trang: ảnh, PDF, văn bản, Word. Excel/PowerPoint thì tải về."""
+    ext = cr.ext_of(m["name"])
+    if ext in ("png", "jpg", "jpeg", "gif"):
+        st.image(data, caption=m["name"], use_container_width=True)
+    elif ext == "pdf":
+        import base64 as _b64
+        b = _b64.b64encode(data).decode("ascii")
+        components.html(
+            f"""<iframe id="f" style="width:100%;height:640px;border:1px solid #ccc;border-radius:8px"></iframe>
+<script>
+const bin=atob("{b}"),u=new Uint8Array(bin.length);
+for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+document.getElementById("f").src=URL.createObjectURL(new Blob([u],{{type:"application/pdf"}}));
+</script>""", height=660)
+    elif ext in ("txt", "csv"):
+        st.text(data.decode("utf-8", "replace")[:20000])
+    elif ext == "docx":
+        t = _docx_text(data)
+        st.text(t[:20000]) if t else st.info(tx("Không xem trước được, hãy tải về.", "No preview available, please download."))
+    else:
+        st.info(tx("Loại tệp này không xem trước được trên web, hãy bấm Tải về.", "This file type can't be previewed here, please download it."))
+
+
 def file_rows_ui(files, prefix, can_delete=False, show_student=False):
-    """Danh sách tệp: mỗi dòng có nút Tải về (chỉ đọc dữ liệu khi bấm để đỡ chậm) và nút Xóa nếu được phép."""
+    """Danh sách tệp: Xem ngay / Tải về (chỉ đọc dữ liệu khi bấm để đỡ chậm) / Xóa nếu được phép."""
     for m in files:
-        c1, c2, c3 = st.columns([5, 1.6, 1.1], vertical_alignment="center")
+        c1, cv, c2, c3 = st.columns([4.5, 1.2, 1.7, 1.0], vertical_alignment="center")
         who = f" · {html.escape(m['student'].rsplit(' [', 1)[0])}" if show_student and m["student"] else ""
         c1.markdown(f"📎 **{html.escape(m['name'])}** · {_fmt_size(m['size'])}{who} · {m['ts']}", unsafe_allow_html=True)
-        ck = f"_dl_{m['id']}"
-        if ck in st.session_state:
-            c2.download_button(tx("⬇️ Lưu về máy", "⬇️ Save"), st.session_state[ck], file_name=m["name"], mime=m["mime"], key=f"{prefix}_sv_{m['id']}")
-        elif c2.button(tx("⬇️ Tải về", "⬇️ Download"), key=f"{prefix}_dl_{m['id']}"):
+        ck, pk = f"_dl_{m['id']}", f"_pv_{m['id']}"
+
+        def _load():
             try:
                 st.session_state[ck] = cr.read_file(cur_auth(), m["id"])[1]
-                st.rerun()
+                return True
             except (OSError, cr.Denied) as e:
                 st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+                return False
+
+        opened = st.session_state.get(pk, False)
+        if cv.button(tx("🙈 Ẩn", "🙈 Hide") if opened else tx("👁️ Xem", "👁️ View"), key=f"{prefix}_pv_{m['id']}"):
+            if opened:
+                st.session_state[pk] = False
+                st.rerun()
+            elif ck in st.session_state or _load():
+                st.session_state[pk] = True
+                st.rerun()
+        if ck in st.session_state:
+            c2.download_button(tx("⬇️ Lưu về máy", "⬇️ Save"), st.session_state[ck], file_name=m["name"], mime=m["mime"], key=f"{prefix}_sv_{m['id']}")
+        elif c2.button(tx("⬇️ Tải về", "⬇️ Download"), key=f"{prefix}_dl_{m['id']}") and _load():
+            st.rerun()
         if can_delete and c3.button(tx("Xóa", "Delete"), key=f"{prefix}_rm_{m['id']}"):
             try:
                 cr.delete_file(cur_auth(), m["id"])
                 st.session_state.pop(ck, None)
+                st.session_state.pop(pk, None)
                 st.rerun()
             except (OSError, cr.Denied) as e:
                 st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        if opened and ck in st.session_state:
+            preview_ui(m, st.session_state[ck])
 
 
 def upload_ui(aid, kind, key, label, multiple):

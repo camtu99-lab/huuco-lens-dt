@@ -30,7 +30,7 @@
 
 ## Giao bài kèm tệp (tải lên / tải về)
 - **Giáo viên:** tab *Lịch sử tra cứu → Giao bài*, mục "📎 Đính kèm tệp" khi giao bài (tối đa 5 tệp, mỗi tệp 1 MB). Có thể giao bài **chỉ gồm tệp**, không cần chọn chất. Bài đã giao có thể thêm/xóa tệp trong mục "📎 Tệp đính kèm".
-- **Học sinh:** tab *Luyện tập → Bài giáo viên giao*: tải tài liệu của giáo viên và nộp tệp bài làm (ảnh, PDF, Word…).
+- **Học sinh:** tab *Luyện tập → Bài giáo viên giao*: bấm **👁️ Xem** để đọc yêu cầu ngay trên trang (ảnh, PDF, txt, Word) hoặc **⬇️ Tải về**; Excel/PowerPoint chỉ tải về. Học sinh cũng có thể tải tài liệu của giáo viên và nộp tệp bài làm (ảnh, PDF, Word…).
 - **Giáo viên xem bài nộp:** tab *Kết quả bài → 📥 Tệp học sinh nộp*, bấm Tải về từng tệp.
 - Định dạng nhận: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv, png, jpg, jpeg, gif, zip.
 - Ảnh png/jpg tới 20 MB được tự nén xuống dưới 1 MB (đổi thành .jpg); các định dạng khác vẫn giới hạn 1 MB.
