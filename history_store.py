@@ -468,30 +468,6 @@ def tbl_append(name, head, row):
         _tbl_save_local(name, rows)
 
 
-def tbl_append_many(name, head, new_rows):
-    """Thêm nhiều dòng một lần (Google Sheets: một lệnh gọi duy nhất)."""
-    new_rows = [[str(x) for x in r] for r in new_rows]
-    if not new_rows:
-        return
-    if _CFG:
-        with _LOCK:
-            try:
-                c = _tbl_ws(name, head)
-                _s_call(lambda: c["ws"].append_rows(new_rows, value_input_option="RAW"))
-            except OSError:
-                raise
-            except Exception as e:
-                raise OSError(_set_err(e))
-            if c["rows"] is not None:
-                c["rows"].extend(new_rows)
-            _ok()
-        return
-    with _LOCK:
-        rows = tbl_read(name, head)
-        rows.extend(new_rows)
-        _tbl_save_local(name, rows)
-
-
 def tbl_write(name, head, rows):
     """Thay toàn bộ nội dung bảng (dùng khi xóa/sửa, hiếm)."""
     rows = [[str(x) for x in r] for r in rows]
