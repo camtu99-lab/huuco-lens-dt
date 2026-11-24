@@ -2333,7 +2333,6 @@ def practice_ui():
         practice_free_ui()
     else:
         practice_assign_ui()
-    st.caption("Phần chấm công thức do RDKit so sánh cấu tạo nên chính xác. Phần đọc ảnh bài làm do AI thực hiện nên có thể đọc sai nét viết khó.")
 
 
 # ---------------- Đánh giá độ chính xác (giáo viên / nhóm nghiên cứu) ----------------
