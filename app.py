@@ -3103,7 +3103,7 @@ def practice_assign_ui():
         st.info(tx(f"Lớp {acct['cls']} chưa có bài giao nào.", f"Class {acct['cls']} has no assignments yet."))
         return
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
-                     format_func=lambda x: x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
+                     format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     student_files_ui(a)
     if not a["questions"]:
         st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
@@ -6178,6 +6178,8 @@ def teacher_assign_ui():
         return
     st.markdown("#### " + tx("Giao bài mới", "New assignment"))
     title = st.text_input(tx("Tên bài", "Title"), key="ta_title", max_chars=100, placeholder=tx("VD: Kiểm tra 15 phút - Hóa 12", "e.g. 15-minute quiz"))
+    kind = st.text_input(tx("Dạng bài (tự nhập)", "Type (type it yourself)"), key="ta_kind_txt", max_chars=40,
+                         placeholder=tx("VD: Trắc nghiệm, Kiểm tra 15 phút, Ôn tập, Bài tập về nhà", "e.g. Multiple choice, 15-minute quiz, Homework"))
     d1, d2 = st.columns(2)
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
@@ -6222,7 +6224,7 @@ def teacher_assign_ui():
                 st.error(tx("Tệp quá lớn: ", "File too large: ") + ", ".join(bad))
             else:
                 try:
-                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
+                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind)
                     up = 0
                     for f in files or []:
                         info = infos.get(f.name)
@@ -6255,7 +6257,7 @@ def teacher_assign_ui():
         return
     for a in asgs:
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
-        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
+        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
         if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
             try:

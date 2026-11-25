@@ -341,11 +341,11 @@ def verify_token(key, token, now=None):
 
 
 # ---------------- Bài giao ----------------
-def create_assignment(auth, code, title, questions, due, hints, now):
+def create_assignment(auth, code, title, questions, due, hints, now, kind=""):
     _need_teacher(auth)
     aid = secrets.token_hex(4)
     hs.tbl_append("assignments", ASG_H, [aid, norm_code(code), title.strip()[:100], now, due or "",
-                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0"])
+                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0", clean_name(kind)[:40] if kind else ""])
     return aid
 
 
@@ -360,7 +360,7 @@ def assignments(auth, code):
                 qs = json.loads(r[5])
             except ValueError:
                 qs = []
-            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1"})
+            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1", "kind": r[7] if len(r) > 7 else ""})
     return sorted(out, key=lambda a: a["created"], reverse=True)
 
 
