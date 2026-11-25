@@ -2984,6 +2984,8 @@ def answer_sheet_ui(a, atts=()):
             st.rerun()
         return
     mins, t0, expired = int(a.get("mins") or 0), None, False
+    if not mins:
+        st.caption(tx("⏱️ Bài này chưa đặt giờ làm bài (giáo viên đặt trong Quản lý lớp > Giờ làm bài).", "⏱️ No time limit has been set for this one."))
     if mins:
         try:
             t0 = cr.get_start(au, aid)
@@ -6284,6 +6286,11 @@ def teacher_assign_ui():
         sheet_cfg = sheet_editor_ui("ta_sh", detected=struct, existing=prefill)
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
         qs = []
+        guessed = 0
+        if not int(minutes):
+            guessed = cr.guess_minutes(title)
+            if guessed:
+                minutes = guessed
         if not title.strip() or (not files and not use_sheet):
             st.error(tx("Cần nhập tên bài và đính kèm tệp đề hoặc tạo phiếu trả lời.", "Enter a title and attach a file or add an answer sheet."))
         elif len(files or []) > cr.MAX_ATT:
@@ -6315,7 +6322,8 @@ def teacher_assign_ui():
                         except cr.Denied as e:
                             st.error(tx("Đã giao bài nhưng chưa lưu được phiếu: ", "Assigned, but the sheet was not saved: ") + str(e))
                     st.session_state["_ta_n"] = st.session_state.get("_ta_n", 0) + 1
-                    st.session_state["_toast"] = tx(f"Đã giao bài \"{title.strip()}\" ({up} tệp) cho lớp {cls}.", f"Assigned \"{title.strip()}\" ({up} file(s)) to {cls}.")
+                    st.session_state["_toast"] = tx(f"Đã giao bài \"{title.strip()}\" ({up} tệp) cho lớp {cls}." + (f" Tự đặt giờ làm bài {guessed} phút theo tên bài." if guessed else ""),
+                                                   f"Assigned \"{title.strip()}\" ({up} file(s)) to {cls}." + (f" Time limit set to {guessed} min from the title." if guessed else ""))
                     st.rerun()
                 except OSError:
                     st.error(hs.last_error)
@@ -6327,7 +6335,7 @@ def teacher_assign_ui():
         return
     def _row(a):
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
-        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · ⏱️ {a['mins']} {tx('phút', 'min')}" if a["mins"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
+        c1.markdown(f"{_cat_label(a['cat'])} · **{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · ⏱️ {a['mins']} {tx('phút', 'min')}" if a["mins"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
         if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
             try:
@@ -6338,7 +6346,7 @@ def teacher_assign_ui():
         with st.expander(tx(f"⏱️ Giờ làm bài ({a['mins']} phút)" if a["mins"] else "⏱️ Giờ làm bài (không giới hạn)",
                             f"⏱️ Time limit ({a['mins']} min)" if a["mins"] else "⏱️ Time limit (none)")):
             m1, m2 = st.columns([2, 1], vertical_alignment="bottom")
-            nm = m1.number_input(tx("Số phút (0 = không giới hạn)", "Minutes (0 = none)"), 0, 300, int(a["mins"]), step=5, key=f"tmin_{a['id']}")
+            nm = m1.number_input(tx("Số phút (0 = không giới hạn)", "Minutes (0 = none)"), 0, 300, int(a["mins"] or cr.guess_minutes(a["title"])), step=5, key=f"tmin_{a['id']}")
             if m2.button(tx("💾 Lưu giờ", "💾 Save time"), key=f"tmin_save_{a['id']}", type="primary"):
                 try:
                     cr.set_assignment_minutes(cur_auth(), a["id"], int(nm))
@@ -6369,15 +6377,15 @@ def teacher_assign_ui():
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
 
-    t_prac, t_test = st.tabs([f"{_cat_label(cr.PRACTICE)} ({sum(1 for x in asgs if x['cat'] != cr.TEST)})",
-                              f"{_cat_label(cr.TEST)} ({sum(1 for x in asgs if x['cat'] == cr.TEST)})"])
-    for tab, cat_ in ((t_prac, cr.PRACTICE), (t_test, cr.TEST)):
-        with tab:
-            sub = [x for x in asgs if x["cat"] == cat_]
-            if not sub:
-                st.caption(tx("Chưa có bài nào.", "Nothing here yet."))
-            for a in sub:
-                _row(a)
+    n_t = sum(1 for x in asgs if x["cat"] == cr.TEST)
+    show = st.radio(tx("Hiện", "Show"), ["all", cr.PRACTICE, cr.TEST], horizontal=True, key="ta_show", label_visibility="collapsed",
+                    format_func=lambda c: tx(f"Tất cả ({len(asgs)})", f"All ({len(asgs)})") if c == "all"
+                    else f"{_cat_label(c)} ({len(asgs) - n_t if c == cr.PRACTICE else n_t})")
+    sub = asgs if show == "all" else [x for x in asgs if x["cat"] == show]
+    if not sub:
+        st.caption(tx("Chưa có bài nào.", "Nothing here yet."))
+    for a in sub:                                   # cũ và mới cùng một danh sách, mới nhất trước
+        _row(a)
 
 
 def teacher_results_ui():

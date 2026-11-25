@@ -369,6 +369,13 @@ def assignments(auth, code):
     return sorted(out, key=lambda a: a["created"], reverse=True)
 
 
+def guess_minutes(title):
+    """Đoán số phút từ tên bài, ví dụ 'kt 15p', 'Kiểm tra 45 phút' -> 15, 45. Không thấy thì 0."""
+    m = re.search(r"(?<!\d)(\d{1,3})\s*(?:phút|phut|min|ph|p)(?![A-Za-zÀ-ỹ])", str(title or ""), re.I)
+    v = int(m.group(1)) if m else 0
+    return v if 1 <= v <= 300 else 0
+
+
 def set_assignment_minutes(auth, aid, minutes):
     """Giáo viên đặt/sửa thời gian làm bài (phút) của bài đã giao; 0 = không giới hạn."""
     _need_teacher(auth)
