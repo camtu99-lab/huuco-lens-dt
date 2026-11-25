@@ -3084,7 +3084,8 @@ def _cat_label(c):
     return tx("📝 Kiểm tra", "📝 Test") if c == cr.TEST else tx("📘 Luyện tập", "📘 Practice")
 
 
-def practice_assign_ui():
+def practice_assign_ui(cat=None):
+    cat = cat or cr.PRACTICE
     au = cur_auth()
     if not cr.is_student(au):
         if cr.is_teacher(au):
@@ -3103,15 +3104,10 @@ def practice_assign_ui():
     except OSError:
         st.error(tx("Không đọc được bài giao: ", "Cannot read assignments: ") + hs.last_error)
         return
-    if not asgs:
-        st.info(tx(f"Lớp {acct['cls']} chưa có bài giao nào.", f"Class {acct['cls']} has no assignments yet."))
-        return
-    n_t = sum(1 for x in asgs if x["cat"] == cr.TEST)
-    cat = st.radio(tx("Loại bài", "Kind"), [cr.PRACTICE, cr.TEST], horizontal=True, key="asg_cat",
-                   format_func=lambda c: f"{_cat_label(c)} ({len(asgs) - n_t if c == cr.PRACTICE else n_t})")
     asgs = [x for x in asgs if x["cat"] == cat]
     if not asgs:
-        st.info(tx(f"Chưa có bài {'kiểm tra' if cat == cr.TEST else 'luyện tập'} nào.", f"No {'tests' if cat == cr.TEST else 'practice sets'} yet."))
+        st.info(tx(f"Lớp {acct['cls']} chưa có bài kiểm tra nào.", f"Class {acct['cls']} has no tests yet.") if cat == cr.TEST
+                else tx(f"Lớp {acct['cls']} chưa có bài luyện tập nào.", f"Class {acct['cls']} has no practice sets yet."))
         return
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key=f"asg_pick_{cat}",
                      format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
@@ -3149,7 +3145,7 @@ def practice_ui():
     if mode == "free":
         practice_free_ui()
     else:
-        practice_assign_ui()
+        practice_assign_ui(cr.PRACTICE)
 
 
 # ---------------- Đánh giá độ chính xác (giáo viên / nhóm nghiên cứu) ----------------
@@ -3841,6 +3837,7 @@ ICON_PATHS = {
     "equipment": "<path d='M7 3h10v3H7zM6 6h12v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1z'/><path d='M9 12h6M9 16h6'/>",
     "mind": "<circle cx='18' cy='5' r='3'/><circle cx='6' cy='12' r='3'/><circle cx='18' cy='19' r='3'/><path d='M8.6 13.5l6.8 4M15.4 6.5l-6.8 4'/>",
     "practice": "<rect x='5' y='4' width='14' height='17' rx='2'/><path d='M9 4h6v3H9zM9 14l2 2 4-4'/>",
+    "test": "<rect x='5' y='4' width='14' height='17' rx='2'/><path d='M9 4h6v3H9zM9 12h6M9 16h4'/>",
     "stats": "<path d='M5 21V11M12 21V4M19 21v-7'/>",
     "chat": "<path d='M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.3A8 8 0 1 1 21 12z'/>",
     "pen": "<path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z'/>",
@@ -4187,7 +4184,7 @@ html{font-size:14.5px!important}
 """
 
 # Biểu tượng cho từng mục điều hướng (thứ tự = thứ tự trong thanh bên)
-NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "practice", "search"]
+NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "practice", "test", "search"]
 _nav_css = "".join(
     f'.st-key-sidenav label[data-baseweb="radio"]:nth-of-type({i + 1}){{--ic:{_mask(n)}}}.st-key-sidenav [role="radiogroup"]>div:nth-of-type({i + 1}) [data-testid="stRadioOption"]{{--ic:{_mask(n)}}}' for i, n in enumerate(NAV_ICON_ORDER)
 )
@@ -5917,6 +5914,7 @@ def _sim_ui(top):
 HOME = "Trang chủ"
 ASSIST = "Trợ lý AI"
 PRACTICE_TAB = "Luyện tập"
+TEST_TAB = "Kiểm tra"
 HISTORY_TAB = "Lịch sử tra cứu"
 SECTIONS = [
     ("Công thức cấu tạo", "Công thức cấu tạo viết tay", "Chụp ảnh công thức vẽ tay kiểu SGK → mã SMILES, tên gọi, khối lượng mol, tính chất.", structure_ui, "structure"),
@@ -5926,7 +5924,7 @@ SECTIONS = [
     ("Sơ đồ tư duy", "Sơ đồ tư duy", "Nhập chủ đề hoặc tên chất, máy vẽ sơ đồ để ôn tập, sửa được và tải về PowerPoint, draw.io.", mindmap_ui, "mind"),
 ]
 LABELS = [x[0] for x in SECTIONS]
-NAV_OPTS = [HOME] + LABELS + [PRACTICE_TAB, HISTORY_TAB]
+NAV_OPTS = [HOME] + LABELS + [PRACTICE_TAB, TEST_TAB, HISTORY_TAB]
 STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4]
 
 st.session_state.setdefault("nav", HOME)
@@ -5987,6 +5985,7 @@ SEARCH_KEYS = {
     MIND: "so do tu duy mindmap on tap mind map review",
     ASSIST: "tro ly ai hoi dap chat assistant ai help question",
     PRACTICE_TAB: "luyen tap bai tap cham diem giao bai practice exercise quiz homework",
+    TEST_TAB: "kiem tra bai kiem tra thi test exam quiz",
     HISTORY_TAB: "lich su tra cuu history lookups",
 }
 
@@ -7215,6 +7214,10 @@ elif nav == PRACTICE_TAB:
     with st.container(key="panel"):
         practice_ui()
         tab_history_ui(nav)
+elif nav == TEST_TAB:
+    page_banner("test", TEST_TAB, "Làm bài kiểm tra giáo viên giao và xem điểm.")
+    with st.container(key="panel"):
+        practice_assign_ui(cr.TEST)
 elif nav == HISTORY_TAB:
     page_banner("search", HISTORY_TAB, "Theo dõi học sinh, giao bài và xem kết quả cả lớp." if cr.is_teacher(cur_auth())
                 else "Xem lại những gì bạn đã tra cứu ở từng tab.")
