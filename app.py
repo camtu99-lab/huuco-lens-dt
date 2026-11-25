@@ -2438,19 +2438,51 @@ def _split_marks(inner, letters, need):
     return [_balance(inner[pos[i]:pos[i + 1]].strip()) for i in range(len(found))], found[0][0]
 
 
+def _img_size(raw):
+    """Kích thước ảnh (rộng, cao); đọc bằng PIL, không có PIL thì tự đọc phần đầu tệp PNG/JPEG/GIF."""
+    try:
+        from io import BytesIO
+        from PIL import Image
+        return Image.open(BytesIO(raw)).size
+    except Exception:
+        pass
+    import struct
+    try:
+        if raw[:8] == b"\x89PNG\r\n\x1a\n":
+            return struct.unpack(">II", raw[16:24])
+        if raw[:6] in (b"GIF87a", b"GIF89a"):
+            return struct.unpack("<HH", raw[6:10])
+        if raw[:2] == b"\xff\xd8":
+            i = 2
+            while i < len(raw) - 9:
+                if raw[i] != 0xFF:
+                    i += 1
+                    continue
+                mk = raw[i + 1]
+                if 0xC0 <= mk <= 0xCF and mk not in (0xC4, 0xC8, 0xCC):
+                    h, w = struct.unpack(">HH", raw[i + 5:i + 9])
+                    return w, h
+                i += 2 + struct.unpack(">H", raw[i + 2:i + 4])[0]
+    except Exception:
+        pass
+    return None
+
+
 def _big_img(tag):
-    """Hình minh họa (sơ đồ, dụng cụ…) thì tách ra giữa dòng; hình nhỏ (công thức chèn trong câu) thì để nguyên."""
+    """Hình minh họa (sơ đồ, dụng cụ…) thì tách ra giữa dòng; hình nhỏ (công thức chèn trong câu) thì để nguyên.
+    Không đọc được kích thước thì coi là hình minh họa (công thức hiếm khi không đọc được)."""
     m = re.search(r'src="data:[^;]+;base64,([^"]+)"', tag)
     if not m:
         return False
     try:
         import base64 as _b64
-        from io import BytesIO
-        from PIL import Image
-        w, h = Image.open(BytesIO(_b64.b64decode(m.group(1)))).size
-        return (w >= 200 and h >= 80) or (w >= 90 and h >= 90)
+        sz = _img_size(_b64.b64decode(m.group(1)))
     except Exception:
-        return False
+        sz = None
+    if not sz:
+        return True
+    w, h = sz
+    return (w >= 200 and h >= 80) or (w >= 90 and h >= 90)
 
 
 def _split_fig(b):
