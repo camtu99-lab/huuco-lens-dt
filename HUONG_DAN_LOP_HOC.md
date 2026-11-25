@@ -56,3 +56,6 @@ Khi bài giao có đề .docx và phiếu trả lời, học sinh thấy **đề
 
 ## Điền đáp án nhanh bằng file
 Ở phiếu trả lời (khi giao bài hoặc sửa bài đã giao) có ô **📄 Tải file đáp án để điền tự động**. Chọn file Word (.docx), PDF có chữ, hoặc .txt (file đề có đáp án hoặc file đáp án riêng), app điền sẵn đáp án cả ba phần; kiểm tra lại rồi giao bài hoặc bấm Lưu phiếu. PDF là ảnh quét thì không đọc được. Đọc PDF cần thư viện `pypdf` (đã thêm vào requirements.txt).
+
+## Đề hiện đầy đủ theo từng phần khi làm bài
+Học sinh luôn thấy **nguyên đề** (Phần I, II, III, từng câu hỏi) ngay trong trang làm bài, ô trả lời nằm dưới từng câu. Nếu phiếu có nhiều câu hơn đề (ví dụ nhập nhầm số câu), các câu thừa được xếp riêng ở cuối đề, không làm mất chế độ làm trên đề. Nếu thấy mục "Các câu còn lại trong phiếu", hãy vào "📝 Phiếu trả lời" của bài đó, chỉnh lại số câu từng phần cho khớp với đề rồi bấm Lưu phiếu.

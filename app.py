@@ -2361,9 +2361,26 @@ def _plain(h):
     return html.unescape(re.sub(r"<[^>]+>", "", h)).strip()
 
 
+_LEFT = "__LEFTOVER__"
+
+
+def _split_br(blocks):
+    """Đoạn có xuống dòng mềm (<br>) chứa nhiều câu/ý: tách ra để gắn ô trả lời đúng chỗ."""
+    out = []
+    for b in blocks:
+        if b.startswith("<p") and re.search(r"<br\s*/?>", b):
+            inner = re.sub(r"^<p[^>]*>|</p>$", "", b)
+            segs = [x for x in re.split(r"<br\s*/?>", inner) if _plain(x)]
+            if any(re.match(r"(?:Câu\s+\d+|[a-hA-H]\s*[\).]|PHẦN\s+)", _plain(x), re.I) for x in segs):
+                out += [f"<p>{x}</p>" for x in segs]
+                continue
+        out.append(b)
+    return out
+
+
 def exam_plan(blocks, sh):
-    """Gắn ô trả lời vào đúng chỗ trong đề. Trả về [[html, [ô...]], ...] hoặc None nếu không khớp đủ số câu của phiếu."""
-    names = {"I": "mc", "II": "tf", "III": "sa"}
+    """Gắn ô trả lời vào đúng chỗ trong đề. Trả về [[html, [ô...]], ...]; câu của phiếu không gắn được xếp ở cuối (html = _LEFT). None nếu không gắn được câu nào."""
+    names = {"I": "mc", "II": "tf", "III": "sa", "1": "mc", "2": "tf", "3": "sa"}
     plan, section, cur, last, placed_items = [], None, None, None, set()
     placed = set()
     counter = {"mc": 0, "tf": 0, "sa": 0}
@@ -2382,9 +2399,9 @@ def exam_plan(blocks, sh):
         placed.add((part, i))
         cur, last, placed_items = None, None, set()
 
-    for b in blocks:
+    for b in _split_br(blocks):
         t = _plain(b)
-        mp = re.match(r"(?i)PHẦN\s+(I{1,3})\b", t)
+        mp = re.match(r"(?i)PHẦN\s+(I{1,3}|[123])\b", t)
         if mp:
             flush()
             section = names.get(mp.group(1).upper())
@@ -2394,7 +2411,7 @@ def exam_plan(blocks, sh):
             flush()
             plan.append([b, []])
             continue
-        mq = re.match(r"Câu\s+(\d+)\s*[.:]", t)
+        mq = re.match(r"Câu\s+(\d+)\s*[.:)]?(?=\s|$)", t)
         if mq and section:
             flush()
             i = counter[section]                       # theo thứ tự trong phần (đề có thể đánh số nối tiếp 19, 20, …)
@@ -2412,8 +2429,20 @@ def exam_plan(blocks, sh):
                         plan[-1][1].append(("tf", cur[1], j))
                         placed_items.add((cur[1], j))
     flush()
-    need = {(k, i) for k in ("mc", "tf", "sa") for i in range(len(sh[k]))}
-    return plan if need <= placed else None
+    if not placed:
+        return None
+    miss = []
+    for k in ("mc", "tf", "sa"):
+        for i in range(len(sh[k])):
+            if (k, i) in placed:
+                continue
+            if k == "tf":
+                miss += [("tf", i, j) for j in range(len(sh["tf"][i]))]
+            else:
+                miss.append((k, i))
+    if miss:
+        plan.append([_LEFT, miss])
+    return plan
 
 
 def _html_frame(page, height):
@@ -2499,7 +2528,8 @@ def upload_ui(aid, kind, key, label, multiple):
     """Chọn tệp và bấm nút để lưu. Trả về số tệp đã lưu (0 nếu chưa có)."""
     exts = sorted(cr.ALLOWED_EXT)
     ups = st.file_uploader(label, type=exts, accept_multiple_files=True, key=f"{key}_{st.session_state.get('_up_n', 0)}",
-                           help=tx(f"Tối đa {cr.MAX_FILE // 1000} KB mỗi tệp (ảnh png/jpg tới {cr.MAX_IMG_RAW // 1_000_000} MB sẽ tự nén). Định dạng: " + ", ".join(exts), f"Up to {cr.MAX_FILE // 1000} KB per file (png/jpg photos up to {cr.MAX_IMG_RAW // 1_000_000} MB are auto-compressed). Formats: " + ", ".join(exts)))
+                           help=tx(f"Tối đa {cr.MAX_FILE // 1000} KB mỗi tệp (ảnh png/jpg tới {cr.MAX_IMG_RAW // 1_000_000} MB sẽ tự nén). Định dạng: " + ", ".join(exts),
+                                   f"Up to {cr.MAX_FILE // 1000} KB per file (png/jpg photos up to {cr.MAX_IMG_RAW // 1_000_000} MB are auto-compressed). Formats: " + ", ".join(exts)))
     if not ups:
         return 0
     if st.button(tx("📤 Tải lên", "📤 Upload"), key=f"{key}_go", type="primary"):
@@ -2573,7 +2603,6 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
                               f"✅ Key filled from the file: {got['mc']}/{tot['mc']}, {got['tf']}/{tot['tf']}, {got['sa']}/{tot['sa']}. Check, then save."))
             else:
                 st.warning(tx("Không tìm thấy đáp án trong file này (PDF ảnh quét không đọc được). Thử file khác hoặc nhập tay bên dưới.", "No answer key found in this file (scanned PDFs can't be read)."))
-    if kf is not None:
         with st.expander(tx("🔎 Xem app đọc phần đáp án của file này thế nào", "🔎 See how the app read this file's key section")):
             st.code(cr.key_debug(kf.name, kf.getvalue()), language=None)
     prefix = f"{prefix}_{abs(hash(json.dumps(ex, sort_keys=True, ensure_ascii=False))) % 10**8}"
@@ -2596,7 +2625,7 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
         st.markdown("**" + tx("Phần II: nhập Đ/S cho từng ý a, b, c, d (vd. ĐSĐS)", "Part II: T/F per statement (e.g. TFTF)") + "**")
         cols = st.columns(4)
         for i in range(n_tf):
-            tf.append(cols[i % 4].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), value=(ex.get("tf") or [""] * n_tf)[i] if i < len(ex.get("tf", [])) else "",
+            tf.append(cols[i % 4].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), value=ex["tf"][i] if i < len(ex.get("tf", [])) else "",
                                              key=f"{prefix}_tf{i}", max_chars=8, placeholder="ĐSĐS"))
     if n_sa:
         st.markdown("**" + tx("Phần III: đáp án trả lời ngắn (nhiều đáp án chấp nhận cách nhau dấu ;)", "Part III: short answers (separate accepted variants with ;)") + "**")
@@ -2687,7 +2716,8 @@ def _review_ui(a, sh, plan, last, key):
     if plan:
         st.markdown(_EXAM_CSS, unsafe_allow_html=True)
         for h, ws in plan:
-            _show_html(h)
+            if h != _LEFT:
+                _show_html(h)
             for w in ws:
                 slot(w)
         return
@@ -2753,12 +2783,18 @@ def answer_sheet_ui(a, atts=()):
         if plan:
             st.markdown(_EXAM_CSS, unsafe_allow_html=True)
             for h, ws in plan:
-                _show_html(h)
+                if h == _LEFT:
+                    st.markdown("**" + tx("Các câu còn lại trong phiếu (chưa gắn được vào đề)", "Other questions on the sheet (not matched to the exam)") + "**")
+                else:
+                    _show_html(h)
                 for w in ws:
                     widget(w)
         else:
-            if atts:
-                st.caption(tx("Mở đề ở mục tài liệu phía trên (bấm 👁️ Xem) rồi chọn đáp án ở phiếu dưới đây.", "Open the exam above (👁️ View), then answer on this sheet."))
+            if blocks:
+                st.markdown(_EXAM_CSS, unsafe_allow_html=True)
+                for h in blocks:
+                    _show_html(h)
+                st.caption(tx("Chọn đáp án ở phiếu dưới đây.", "Answer on the sheet below."))
             if sh["mc"]:
                 st.markdown("**" + tx("Phần I. Chọn 1 đáp án", "Part I. Pick one answer") + "**")
                 cols = st.columns(3)
