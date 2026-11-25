@@ -2303,6 +2303,7 @@ _FMT_RULES = """.opts{display:grid;gap:.1em 1.4em;margin:.25em 0 .6em 1.4em}
 .sec{text-align:center;font-weight:700;margin:1em 0 .5em}
 .exam,.exam p,.exam div,.exam td,.exam th{font-family:'Times New Roman',Times,serif!important;font-size:1.05rem!important;line-height:1.55!important}
 .exam p{margin:.3em 0!important}
+.exam{overflow-wrap:anywhere}
 @media(max-width:560px){.opts.c4{grid-template-columns:repeat(2,1fr)}.opts.c2{grid-template-columns:1fr}}"""
 
 
@@ -2447,7 +2448,7 @@ def _big_img(tag):
         from io import BytesIO
         from PIL import Image
         w, h = Image.open(BytesIO(_b64.b64decode(m.group(1)))).size
-        return w >= 200 and h >= 80
+        return (w >= 200 and h >= 80) or (w >= 90 and h >= 90)
     except Exception:
         return False
 
@@ -2469,18 +2470,32 @@ def tidy_exam(blocks, student=False):
     đáp án A–D dính một dòng hoặc rời từng đoạn được gom thành lưới 4/2/1 cột thẳng hàng, ý a) b) c) d) tách từng dòng."""
     items = []                                         # ("opt", html) | ("b", html)
     for b in _split_br(blocks):
+        figs = []
+        if b.startswith("<p") and "<img" in b:
+            inner0 = re.sub(r"^<p[^>]*>|</p>$", "", b)
+            imgs = re.findall(r"<img\b[^>]*>", inner0)
+            if imgs and all(_big_img(i) for i in imgs):          # hình minh họa nằm lẫn trong đoạn: tách ra giữa dòng
+                figs = [f'<p class="fig">{i}</p>' for i in imgs]
+                b = "<p>" + re.sub(r"<img\b[^>]*>", "", inner0) + "</p>"
         if b.startswith("<p"):
             inner = re.sub(r"^<p[^>]*>|</p>$", "", b)
             r = _split_marks(inner, "ABCD", 1)
             if r:
+                if figs:                                          # hình thuộc cả câu: đặt trước cụm đáp án
+                    j = len(items)
+                    while j > 0 and items[j - 1][0] == "opt":
+                        j -= 1
+                    items[j:j] = [("b", f) for f in figs]
                 items += [("opt", x) for x in r[0]]
                 continue
             r = _split_marks(inner, "abcdefgh", 2)
             if r:
-                items += [("b", f"<p>{x}</p>") for x in r[0]]
+                items += [("b", f"<p>{x}</p>") for x in r[0]] + [("b", f) for f in figs]
                 continue
-        for x in _split_fig(b):
-            items.append(("b", x))
+        if figs:
+            items += ([("b", b)] if _plain(b) else []) + [("b", f) for f in figs]
+        else:
+            items.append(("b", b))
     if student:
         flat = [x if k == "b" else f"<p>{x}</p>" for k, x in items]
         flat = _student_blocks(flat)
