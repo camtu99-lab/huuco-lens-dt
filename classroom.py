@@ -824,7 +824,20 @@ def _parse_key_region(region, struct_hint=None):
             lines.append(e[1])
     cur = None
     tfd = {}
-    for ln in lines:
+    keep, skip = [], False                                     # hai dòng liền nhau: hàng số câu rồi hàng đáp án
+    for i, ln in enumerate(lines):
+        if skip:
+            skip = False
+            continue
+        a = re.fullmatch(r"(?:Câu\s*)?((?:\d{1,2}\s*){3,})", ln.strip(), re.I)
+        b = re.fullmatch(r"(?:Đáp\s*án\s*)?((?:[A-D]\s*){3,})", lines[i + 1].strip(), re.I) if i + 1 < len(lines) else None
+        if a and b and len(a.group(1).split()) == len(b.group(1).split()):
+            for n, L in zip(a.group(1).split(), b.group(1).split()):
+                mc[int(n)] = L.upper()
+            skip = True
+            continue
+        keep.append(ln)
+    for ln in keep:
         ln = re.sub(r"\s*\|\s*", " ", ln).strip()
         ln = re.sub(r"(?i)^PHẦN\s+I{1,3}\s*[:.\-–]?\s*", "", ln)
         if not ln:
@@ -922,14 +935,16 @@ def _parse_format(els):
     return mc
 
 
-def extract_key(data):
-    """Tìm đáp án trong file Word. Trả về {'mc':{n:'B'}, 'tf':{n:'ĐSĐS'}, 'sa':{n:'12,5'}, 'marker': chỉ số|None, 'src': [...]}."""
-    els, _, _ = docx_elements(data)
+def extract_key_els(els):
+    """Tìm đáp án trong danh sách phần tử (Word hoặc văn bản từ PDF)."""
     km = _key_marker(els)
+    has_q = any(e[0] == "p" and re.match(r"Câu\s+\d+\s*[.:]", e[1]) for e in els)
     res = {"mc": {}, "tf": {}, "sa": {}, "marker": km, "src": []}
     layers = []
     if km is not None:
         layers.append(("bảng/danh sách đáp án cuối đề", _parse_key_region(els[km + 1:])))
+    elif not has_q:                                          # file chỉ có đáp án, không có tiêu đề
+        layers.append(("file đáp án", _parse_key_region(els)))
     layers.append(("dòng đáp án dưới từng câu", _parse_inline(els[:km] if km is not None else els)))
     layers.append(("đáp án đánh dấu trong đề", (_parse_format(els[:km] if km is not None else els), {}, {})))
     for name, (mc, tf, sa) in layers:
@@ -942,6 +957,62 @@ def extract_key(data):
         if got:
             res["src"].append(name)
     return res
+
+
+def extract_key(data):
+    """Tìm đáp án trong file Word. Trả về {'mc':{n:'B'}, 'tf':{n:'ĐSĐS'}, 'sa':{n:'12,5'}, 'marker': chỉ số|None, 'src': [...]}."""
+    els, _, _ = docx_elements(data)
+    return extract_key_els(els)
+
+
+def text_elements(text):
+    return [("p", ln.strip(), []) for ln in text.splitlines() if ln.strip()]
+
+
+def pdf_text(data):
+    """Chữ trong PDF (PDF có lớp chữ; ảnh quét không đọc được). Cần thư viện pypdf."""
+    from io import BytesIO
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        raise Denied("Máy chủ chưa cài pypdf nên chưa đọc được PDF (thêm pypdf vào requirements.txt).")
+    try:
+        return "\n".join((pg.extract_text() or "") for pg in PdfReader(BytesIO(data)).pages)
+    except Exception:
+        raise Denied("Không đọc được file PDF này.")
+
+
+def analyze_key_file(name, data):
+    """Đọc đáp án từ file .docx / .pdf / .txt: {'struct', 'key', 'src'}."""
+    ext = ext_of(name)
+    if ext == "docx":
+        a = analyze_docx(data)
+        return {"struct": a["struct"], "key": a["key"], "src": a["src"]}
+    if ext == "pdf":
+        text = pdf_text(data)
+    elif ext == "txt":
+        text = data.decode("utf-8", "ignore")
+    else:
+        raise Denied("Chỉ đọc file .docx, .pdf hoặc .txt.")
+    els = text_elements(text)
+    r = extract_key_els(els)
+    if not r["mc"]:                                            # PDF làm phẳng bảng: mỗi ô một dòng
+        flat = " ".join(e[1] for e in els) + " "
+        km = _key_marker(els)
+        if km is not None:
+            flat = " ".join(e[1] for e in els[km + 1:]) + " "
+        m = re.search(r"Câu\s+((?:\d{1,2}\s+){3,})Đáp\s*án\s+((?:[A-D]\s+){3,})", flat)
+        if m:
+            ns, ls = m.group(1).split(), m.group(2).split()
+            if len(ns) == len(ls):
+                r["mc"] = {int(n): L for n, L in zip(ns, ls)}
+                r["src"].append("bảng đáp án trong PDF")
+        if not r["mc"]:
+            pairs = re.findall(r"(?<![%s])(\d{1,2})\s*[.:\-–)]?\s+([ABCD])(?![%s])" % (_ALPHA, _ALPHA), flat)
+            if len(pairs) >= 3:
+                r["mc"] = {int(n): L for n, L in pairs}
+                r["src"].append("danh sách đáp án trong PDF")
+    return {"struct": detect_structure(text), "key": {k: r[k] for k in ("mc", "tf", "sa")}, "src": r["src"]}
 
 
 def key_only(data):

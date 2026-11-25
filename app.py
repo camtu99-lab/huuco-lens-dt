@@ -2522,6 +2522,14 @@ def _analyze_docx(data):
     return cr.analyze_docx(data)
 
 
+@st.cache_data(show_spinner=False, max_entries=20)
+def _analyze_key_file(name, data):
+    try:
+        return cr.analyze_key_file(name, data)
+    except cr.Denied as e:
+        return {"error": str(e)}
+
+
 def merge_analyses(infos):
     """Gộp kết quả phân tích nhiều file Word (đề + file đáp án nếu có): số câu từng phần và đáp án đọc được."""
     struct, key = {"mc": 0, "tf": 0, "sa": 0}, {"mc": {}, "tf": {}, "sa": {}}
@@ -2543,6 +2551,27 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
     """Nhập cấu trúc và đáp án phiếu trả lời: phần I chọn 1 đáp án, phần II đúng/sai, phần III trả lời ngắn. Trả về cấu hình (dict)."""
     ex = existing or {}
     d = detected or {}
+    kf = st.file_uploader(tx("📄 Tải file đáp án để điền tự động (Word .docx, PDF hoặc .txt). Có thể là file đề có đáp án hoặc file đáp án riêng.",
+                             "📄 Upload an answer-key file to fill this in automatically (.docx, .pdf or .txt)"),
+                          type=["docx", "pdf", "txt"], key=f"{prefix}_kfile")
+    if kf is not None:
+        info = _analyze_key_file(kf.name, kf.getvalue())
+        if info.get("error"):
+            st.error(info["error"])
+        else:
+            struct = {k: max(len(ex.get(k, [])), info["struct"][k], d.get(k, 0) if not ex else 0) for k in ("mc", "tf", "sa")}
+            new = cr.cfg_from_key(info["key"], struct)
+            if any(new["mc"] + new["tf"] + new["sa"]):
+                merged = {k: [(new[k][i] if i < len(new[k]) and new[k][i] else (ex.get(k, [])[i] if i < len(ex.get(k, [])) else ""))
+                              for i in range(max(len(new[k]), len(ex.get(k, []))))] for k in ("mc", "tf", "sa")}
+                merged["show_key"] = ex.get("show_key", True)
+                ex = merged
+                got, tot = key_summary(merged)
+                st.success(tx(f"✅ Đã điền đáp án từ file: phần I {got['mc']}/{tot['mc']}, phần II {got['tf']}/{tot['tf']}, phần III {got['sa']}/{tot['sa']} câu. Kiểm tra lại rồi lưu.",
+                              f"✅ Key filled from the file: {got['mc']}/{tot['mc']}, {got['tf']}/{tot['tf']}, {got['sa']}/{tot['sa']}. Check, then save."))
+            else:
+                st.warning(tx("Không tìm thấy đáp án trong file này (PDF ảnh quét không đọc được). Thử file khác hoặc nhập tay bên dưới.", "No answer key found in this file (scanned PDFs can't be read)."))
+    prefix = f"{prefix}_{abs(hash(json.dumps(ex, sort_keys=True, ensure_ascii=False))) % 10**8}"
     c1, c2, c3 = st.columns(3)
     n_mc = int(c1.number_input(tx("Phần I: số câu (chọn 1 đáp án)", "Part I: questions (single choice)"), 0, 60, len(ex["mc"]) if ex else d.get("mc") or 18, key=f"{prefix}_nmc"))
     n_tf = int(c2.number_input(tx("Phần II: số câu (đúng/sai)", "Part II: questions (true/false)"), 0, 20, len(ex["tf"]) if ex else d.get("tf") or 4, key=f"{prefix}_ntf"))
@@ -5929,7 +5958,7 @@ def teacher_assign_ui():
                     st.warning(tx("Đáp án đang được đánh dấu (gạch chân/màu) trong đề nên học sinh có thể thấy khi tải file. Khi làm bài trực tuyến, app đã ẩn dấu này.", "The key is marked (underline/colour) inside the exam; students could see it in the downloaded file."))
             else:
                 st.info(tx("Chưa tìm thấy đáp án trong file, hãy nhập tay bên dưới (hoặc tải thêm file đáp án .docx).", "No answer key found in the file; enter it below or upload a separate key file (.docx)."))
-        sheet_cfg = sheet_editor_ui(f"ta_sh{abs(hash(json.dumps(prefill, sort_keys=True, ensure_ascii=False))) % 10**8}", detected=struct, existing=prefill)
+        sheet_cfg = sheet_editor_ui("ta_sh", detected=struct, existing=prefill)
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
         pool = (chosen if how == "pick" else random.sample(names, int(n))) or []
         ks = ["draw", "name"] if kinds == "both" else [kinds]
@@ -5999,29 +6028,6 @@ def teacher_assign_ui():
             ex_sheet = None
         with st.expander(tx("📝 Phiếu trả lời" + (" (đã có)" if ex_sheet else " (chưa có)"), "📝 Answer sheet" + (" (set)" if ex_sheet else " (none)"))):
             cfg = sheet_editor_ui(f"tsh_{a['id']}", existing=ex_sheet)
-            kf = st.file_uploader(tx("📄 Có file đáp án (.docx)? Tải lên để app tự đọc đáp án", "📄 Have an answer-key file (.docx)? Upload it to read the key automatically"),
-                                  type=["docx"], key=f"tsh_kf_{a['id']}_{st.session_state.get('_up_n', 0)}")
-            if kf is not None and st.button(tx("📥 Đọc đáp án từ file", "📥 Read key from file"), key=f"tsh_rd_{a['id']}"):
-                info = _analyze_docx(kf.getvalue())
-                base = ex_sheet or {"mc": [], "tf": [], "sa": []}
-                struct = {k: max(len(base[k]), info["struct"][k]) for k in ("mc", "tf", "sa")}
-                new = cr.cfg_from_key(info["key"], struct)
-                if not any(new["mc"] + new["tf"] + new["sa"]):
-                    st.warning(tx("Không tìm thấy đáp án trong file này.", "No answer key found in this file."))
-                else:
-                    merged = {k: [(new[k][i] if i < len(new[k]) and new[k][i] else (base[k][i] if i < len(base[k]) else "")) for i in range(max(len(new[k]), len(base[k])))]
-                              for k in ("mc", "tf", "sa")}
-                    merged["show_key"] = base.get("show_key", True)
-                    try:
-                        cr.set_sheet(cur_auth(), a["id"], merged)
-                        got, tot = key_summary(merged)
-                        for k in list(st.session_state):
-                            if str(k).startswith(f"tsh_{a['id']}_"):
-                                del st.session_state[k]
-                        st.session_state["_toast"] = tx(f"Đã đọc đáp án: phần I {got['mc']}/{tot['mc']}, II {got['tf']}/{tot['tf']}, III {got['sa']}/{tot['sa']}.", "Answer key imported.")
-                        st.rerun()
-                    except (OSError, cr.Denied) as e:
-                        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
             if st.button(tx("💾 Lưu phiếu", "💾 Save sheet"), key=f"tsh_save_{a['id']}", type="primary"):
                 try:
                     cr.set_sheet(cur_auth(), a["id"], cfg)

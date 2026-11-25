@@ -53,3 +53,6 @@ Khi bài giao có đề .docx và phiếu trả lời, học sinh thấy **đề
 - **Bản học sinh không lộ đáp án:** phần đáp án ở cuối file được tự cắt khỏi bản học sinh xem/tải; dòng "Đáp án: …", chữ (Đúng)/(Sai) và dấu in đậm ở đáp án A–D được ẩn khi làm bài trực tuyến. Nếu không cắt được, app cảnh báo; khi đó nên dùng đề sạch và đáp án file riêng.
 - **Học sinh:** làm ngay trên đề rồi bấm Nộp bài; app chấm ngay, hiện ✅/❌ từng câu kèm lựa chọn của em và (nếu giáo viên bật "Cho học sinh xem đáp án đúng sau khi nộp") đáp án đúng. Bấm "🔁 Làm lại bài" để làm lại.
 - Chỉ đọc được file Word .docx (chưa đọc PDF hay .doc cũ).
+
+## Điền đáp án nhanh bằng file
+Ở phiếu trả lời (khi giao bài hoặc sửa bài đã giao) có ô **📄 Tải file đáp án để điền tự động**. Chọn file Word (.docx), PDF có chữ, hoặc .txt (file đề có đáp án hoặc file đáp án riêng), app điền sẵn đáp án cả ba phần; kiểm tra lại rồi giao bài hoặc bấm Lưu phiếu. PDF là ảnh quét thì không đọc được. Đọc PDF cần thư viện `pypdf` (đã thêm vào requirements.txt).
