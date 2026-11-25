@@ -2366,6 +2366,7 @@ def exam_plan(blocks, sh):
     names = {"I": "mc", "II": "tf", "III": "sa"}
     plan, section, cur, last, placed_items = [], None, None, None, set()
     placed = set()
+    counter = {"mc": 0, "tf": 0, "sa": 0}
 
     def flush():
         nonlocal cur, last, placed_items
@@ -2396,8 +2397,9 @@ def exam_plan(blocks, sh):
         mq = re.match(r"Câu\s+(\d+)\s*[.:]", t)
         if mq and section:
             flush()
-            i = int(mq.group(1)) - 1
-            if 0 <= i < len(sh[section]):
+            i = counter[section]                       # theo thứ tự trong phần (đề có thể đánh số nối tiếp 19, 20, …)
+            counter[section] += 1
+            if i < len(sh[section]):
                 cur = (section, i)
         plan.append([b, []])
         if cur is not None:
@@ -2559,7 +2561,7 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
         if info.get("error"):
             st.error(info["error"])
         else:
-            struct = {k: max(len(ex.get(k, [])), info["struct"][k], d.get(k, 0) if not ex else 0) for k in ("mc", "tf", "sa")}
+            struct = {k: (len(ex.get(k, [])) or info["struct"][k] or (d.get(k, 0) if not ex else 0)) for k in ("mc", "tf", "sa")}
             new = cr.cfg_from_key(info["key"], struct)
             if any(new["mc"] + new["tf"] + new["sa"]):
                 merged = {k: [(new[k][i] if i < len(new[k]) and new[k][i] else (ex.get(k, [])[i] if i < len(ex.get(k, [])) else ""))
@@ -2571,6 +2573,9 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
                               f"✅ Key filled from the file: {got['mc']}/{tot['mc']}, {got['tf']}/{tot['tf']}, {got['sa']}/{tot['sa']}. Check, then save."))
             else:
                 st.warning(tx("Không tìm thấy đáp án trong file này (PDF ảnh quét không đọc được). Thử file khác hoặc nhập tay bên dưới.", "No answer key found in this file (scanned PDFs can't be read)."))
+    if kf is not None:
+        with st.expander(tx("🔎 Xem app đọc phần đáp án của file này thế nào", "🔎 See how the app read this file's key section")):
+            st.code(cr.key_debug(kf.name, kf.getvalue()), language=None)
     prefix = f"{prefix}_{abs(hash(json.dumps(ex, sort_keys=True, ensure_ascii=False))) % 10**8}"
     c1, c2, c3 = st.columns(3)
     n_mc = int(c1.number_input(tx("Phần I: số câu (chọn 1 đáp án)", "Part I: questions (single choice)"), 0, 60, len(ex["mc"]) if ex else d.get("mc") or 18, key=f"{prefix}_nmc"))

@@ -490,7 +490,7 @@ def detect_structure(text):
         k = names.get(parts[i].upper())
         if k:
             nums = {int(n) for n in re.findall(r"(?m)^\s*Câu\s+(\d+)\s*[.:]", parts[i + 1])}
-            out[k] = max(out[k], max(nums) if nums else 0)
+            out[k] = max(out[k], len(nums))
     return out
 
 
@@ -796,6 +796,57 @@ def _norm_tf_val(v):
     return v.upper() in ("Đ", "ĐÚNG", "T", "D")
 
 
+_TF_COMPACT = re.compile(r"[ĐS](?:[\s,;\-–]*[ĐS]){1,7}")
+
+
+def _parse_table_groups(rows):
+    """Bảng đáp án dạng cột: tiêu đề có 'Câu', mỗi nhóm cột = số câu + (lệnh hỏi) + đáp án; hỗ trợ ô gộp dọc và nhiều nhóm cạnh nhau."""
+    mc, tf, sa, tfd = {}, {}, {}, {}
+    hi = next((i for i, r in enumerate(rows) if any(re.fullmatch(r"(?:số\s+)?câu(?:\s+hỏi)?", c.strip(), re.I) for c in r)), None)
+    if hi is None:
+        return mc, tf, sa
+    cols = [j for j, c in enumerate(rows[hi]) if re.fullmatch(r"(?:số\s+)?câu(?:\s+hỏi)?", c.strip(), re.I)]
+    last = [None] * len(cols)
+    for r in rows[hi + 1:]:
+        for gi, c in enumerate(cols):
+            end = cols[gi + 1] if gi + 1 < len(cols) else len(r)
+            cell = r[c].strip() if c < len(r) else ""
+            if re.fullmatch(r"(?:Câu\s*)?\d{1,2}", cell, re.I):
+                last[gi] = int(re.sub(r"\D", "", cell))
+            elif cell:
+                continue
+            num = last[gi]
+            fields = [r[j].strip() for j in range(c + 1, min(end, len(r))) if r[j].strip()]
+            if num is None or not fields:
+                continue
+            item = None
+            multi = next((re.findall(r"([a-d])\s*[).:\-–]?\s*(Đúng|Sai|Đ|S)(?![A-Za-zÀ-ỹ])", f) for f in fields
+                          if len(re.findall(r"([a-d])\s*[).:\-–]?\s*(Đúng|Sai|Đ|S)(?![A-Za-zÀ-ỹ])", f)) >= 2), None)
+            if multi:                                              # một ô chứa cả bốn ý: "a) Đ b) S c) Đ d) S"
+                tf[num] = "".join("Đ" if _norm_tf_val(v) else "S" for _, v in multi)
+                continue
+            for k, f in enumerate(fields):
+                mm = re.fullmatch(r"([a-d])\s*[).:\-–]?\s*(Đúng|Sai|Đ|S)", f, re.I)
+                if mm:
+                    item = (mm.group(1).lower(), mm.group(2))
+                    break
+                if re.fullmatch(r"([a-d])\s*[).:]?", f) and k + 1 < len(fields) and re.fullmatch(r"(Đúng|Sai|Đ|S)", fields[k + 1], re.I):
+                    item = (f[0], fields[k + 1])
+                    break
+            if item:
+                tfd.setdefault(num, {})[item[0]] = _norm_tf_val(item[1])
+            elif any(_TF_COMPACT.fullmatch(f) for f in fields):
+                tf[num] = re.sub(r"[^ĐS]", "", next(f for f in fields if _TF_COMPACT.fullmatch(f)))
+            elif any(re.fullmatch(r"[A-D]", f) for f in fields):
+                mc[num] = next(f for f in fields if re.fullmatch(r"[A-D]", f))
+            else:
+                sa[num] = fields[-1][:40]
+    for n, d in tfd.items():
+        if len(d) >= 2:
+            tf[n] = "".join("Đ" if d[L] else "S" for L in sorted(d))
+    return mc, tf, sa
+
+
 def _parse_key_region(region, struct_hint=None):
     """Đọc đáp án từ phần đáp án (bảng và dòng chữ)."""
     mc, tf, sa = {}, {}, {}
@@ -807,10 +858,23 @@ def _parse_key_region(region, struct_hint=None):
             for a, b in zip(rows, rows[1:]):                      # hàng số câu + hàng đáp án (bảng ngang)
                 na = [c for c in a[1:] if c]
                 nb = [c for c in b[1:] if c]
-                if len(na) >= 3 and len(na) == len(nb) and all(re.fullmatch(r"\d{1,2}", re.sub(r"\D", "", c) or "x") and re.search(r"\d", c) for c in na) \
-                        and all(re.fullmatch(r"[A-D]", c.strip().upper()) for c in nb):
-                    for x, y in zip(na, nb):
-                        mc[int(re.sub(r"\D", "", x))] = y.strip().upper()
+                if len(na) >= 2 and len(na) == len(nb) and all(re.fullmatch(r"\d{1,2}", re.sub(r"\D", "", c) or "x") and re.search(r"\d", c) for c in na):
+                    nums = [int(re.sub(r"\D", "", x)) for x in na]
+                    if all(re.fullmatch(r"[A-D]", c.strip().upper()) for c in nb):
+                        mc.update({n: y.strip().upper() for n, y in zip(nums, nb)})
+                        used = True
+                    elif all(_TF_COMPACT.fullmatch(c.strip()) for c in nb):
+                        tf.update({n: re.sub(r"[^ĐS]", "", y) for n, y in zip(nums, nb)})
+                        used = True
+                    elif len(na) >= 3 and all(re.fullmatch(r"-?\d[\d.,]*\s*\S{0,6}", c.strip()) for c in nb) and not all(re.fullmatch(r"\d{1,2}", c) for c in nb):
+                        sa.update({n: y.strip()[:40] for n, y in zip(nums, nb)})
+                        used = True
+            if not used:
+                g_mc, g_tf, g_sa = _parse_table_groups(rows)
+                if g_mc or g_tf or g_sa:
+                    mc.update(g_mc)
+                    tf.update(g_tf)
+                    sa.update(g_sa)
                     used = True
             for r in rows:                                         # (Câu, Đáp án) lặp theo hàng
                 for k in range(len(r) - 1):
@@ -1047,18 +1111,51 @@ def strip_key_docx(data):
 
 
 def cfg_from_key(key, struct):
-    """Ghép đáp án đọc được với số câu của đề thành cấu hình phiếu."""
+    """Ghép đáp án đọc được với số câu của đề thành cấu hình phiếu. Số câu nối tiếp (19-22, 23-28) được dịch về 1…; đáp án vượt số câu của đề bị bỏ."""
     def shift(d):
         if d and 1 not in d:
             off = min(d) - 1
             return {n - off: v for n, v in d.items()}
         return d
     mc, tf, sa = dict(key["mc"]), shift(dict(key["tf"])), shift(dict(key["sa"]))
-    n_mc = max(struct.get("mc", 0), max(mc, default=0))
-    n_tf = max(struct.get("tf", 0), max(tf, default=0))
-    n_sa = max(struct.get("sa", 0), max(sa, default=0))
-    return {"mc": [mc.get(i, "") for i in range(1, n_mc + 1)], "tf": [tf.get(i, "") for i in range(1, n_tf + 1)],
-            "sa": [sa.get(i, "") for i in range(1, n_sa + 1)]}
+    out = {}
+    for k, d in (("mc", mc), ("tf", tf), ("sa", sa)):
+        n = struct.get(k, 0)
+        if n:
+            d = {i: v for i, v in d.items() if i <= n}
+        else:
+            n = max(d, default=0)
+        out[k] = [d.get(i, "") for i in range(1, n + 1)]
+    return out
+
+
+def key_debug(name, data, limit=70):
+    """Văn bản cho giáo viên xem app đã nhìn thấy gì trong phần đáp án của file (để đối chiếu khi đọc sai)."""
+    ext = ext_of(name)
+    if ext == "docx":
+        els, _, _ = docx_elements(data)
+        km = _key_marker(els)
+        has_q = any(e[0] == "p" and re.match(r"Câu\s+\d+\s*[.:]", e[1]) for e in els)
+        region = els[km + 1:] if km is not None else (els if not has_q else [])
+        lines = []
+        for e in region:
+            if e[0] == "t":
+                lines += [" | ".join(r) for r in e[1] if any(c.strip() for c in r)]
+            elif e[1]:
+                lines.append(e[1])
+    else:
+        try:
+            text = pdf_text(data) if ext == "pdf" else data.decode("utf-8", "ignore")
+        except Denied:
+            text = ""
+        lines = [x for x in text.splitlines() if x.strip()]
+        els = text_elements(text)
+        km = _key_marker(els)
+        if km is not None:
+            lines = [e[1] for e in els[km + 1:]]
+    if not lines:
+        return "(Không thấy phần đáp án trong file: không có tiêu đề ĐÁP ÁN / HƯỚNG DẪN CHẤM.)"
+    return "\n".join(lines[:limit]) + ("\n…" if len(lines) > limit else "")
 
 
 def analyze_docx(data):
