@@ -6388,28 +6388,69 @@ def teacher_assign_ui():
         _row(a)
 
 
-def teacher_results_ui():
-    cls = _t_class_pick("tr_cls")
+def _tests_overview(cls, tests, cat):
+    """Bảng tổng hợp: mỗi học sinh một dòng, mỗi bài một cột (điểm lần nộp gần nhất), cuối bảng có số bài đã nộp."""
+    try:
+        names = cr.students(cur_auth(), cls)
+        data, cols = {}, []
+        for i, t in enumerate(tests):
+            if not cr.get_sheet(cur_auth(), t["id"]):
+                continue
+            last = {}
+            for r in cr.sheet_results(cur_auth(), t["id"], force=(i == 0)):
+                last[hs.slug(r["student"])] = r
+            data[t["id"]] = last
+            cols.append(t)
+    except OSError:
+        st.error(hs.last_error)
+        return
+    if not cols:
+        st.caption(tx("Chưa có bài nào làm trên phiếu trả lời nên chưa có bảng điểm tổng hợp.", "No answer-sheet work yet, so no overview table."))
+        return
+    rows = []
+    for n in sorted(names, key=str.lower):
+        sl = hs.slug(cr.identity(cls, n))
+        row, done = {tx("Học sinh", "Student"): n}, 0
+        for t in cols:
+            r = data[t["id"]].get(sl)
+            label = t["title"]
+            while label in row:
+                label += " "
+            row[label] = f"{r['score']:g}/{r['max']:g}" if r else "–"
+            done += 1 if r else 0
+        row[tx("Đã nộp", "Submitted")] = f"{done}/{len(cols)}"
+        rows.append(row)
+    st.markdown("#### " + (tx("Bảng điểm kiểm tra của cả lớp", "Class test scores") if cat == cr.TEST else tx("Bảng điểm luyện tập của cả lớp", "Class practice scores")))
+    st.caption(tx("Mỗi dòng là một học sinh, mỗi cột là một bài (điểm lần nộp gần nhất). – là chưa nộp.", "One row per student, one column per assignment (latest attempt). – means not submitted."))
+    st.dataframe(rows, hide_index=True, width="stretch")
+    if rows:
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        w.writeheader()
+        w.writerows(rows)
+        st.download_button(tx("⬇️ Tải bảng điểm cả lớp (CSV)", "⬇️ Download class scores (CSV)"), buf.getvalue().encode("utf-8-sig"),
+                           file_name=f"bang_diem_{cat}_{cls}.csv", mime="text/csv", key=f"tr_{cat}_dlall")
+
+
+def teacher_results_ui(cat=cr.TEST):
+    """Kết quả học sinh theo loại bài: cat = kiểm tra hoặc luyện tập."""
+    ttl = tx("kiểm tra", "tests") if cat == cr.TEST else tx("luyện tập", "practice")
+    cls = _t_class_pick(f"tr_{cat}_cls")
     if not cls:
         return
     try:
-        asgs = cr.assignments(cur_auth(), cls)
+        asgs = [x for x in cr.assignments(cur_auth(), cls) if x["cat"] == cat]
         stu = [cr.identity(cls, n) for n in cr.students(cur_auth(), cls)]
     except OSError:
         st.error(hs.last_error)
         return
     if not asgs:
-        st.info(tx("Lớp này chưa có bài giao.", "This class has no assignments yet."))
+        st.info(tx(f"Lớp này chưa có bài {ttl} nào. Giao bài ở tab \"Giao bài\" và chọn đúng phân loại.", f"This class has no {ttl} yet. Assign one under the \"Assign\" tab and pick the right category."))
         return
-    fcat = st.radio(tx("Loại bài", "Kind"), ["all", cr.PRACTICE, cr.TEST], horizontal=True, key="tr_cat",
-                    format_func=lambda c: tx("Tất cả", "All") if c == "all" else _cat_label(c))
-    if fcat != "all":
-        asgs = [x for x in asgs if x["cat"] == fcat]
-        if not asgs:
-            st.info(tx("Chưa có bài nào thuộc loại này.", "No assignments of this kind."))
-            return
-    a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{_cat_label(x['cat'])} · {x['title']} ({x['created']})", key=f"tr_asg_{fcat}")
-    if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key="tr_refresh"):
+    _tests_overview(cls, asgs, cat)
+    st.markdown("#### " + tx("Xem chi tiết từng bài", "Details per assignment"))
+    a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{x['title']} ({x['created']})", key=f"tr_{cat}_asg")
+    if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key=f"tr_{cat}_refresh"):
         cr.submissions(cur_auth(), aid=a["id"], force=True)
     try:
         subf = cr.list_files(cur_auth(), a["id"], kind=cr.SUBF, force=True)
@@ -6445,7 +6486,7 @@ def teacher_results_ui():
         w.writeheader()
         w.writerows(rows)
         st.download_button(tx("⬇️ Tải bảng điểm (CSV)", "⬇️ Download scores (CSV)"), buf.getvalue().encode("utf-8-sig"),
-                           file_name=f"diem_{cls}_{a['id']}.csv", mime="text/csv", key="tr_dl")
+                           file_name=f"diem_{cls}_{a['id']}.csv", mime="text/csv", key=f"tr_{cat}_dl")
 
 
 def teacher_weak_ui():
@@ -6491,8 +6532,8 @@ def teacher_ui():
     """Tab giáo viên: ai đã truy cập, khi nào, tra cứu gì ở tab nào. Dữ liệu đọc từ các tệp đã lưu nên vẫn còn sau khi tắt app."""
     if not cr.is_teacher(cur_auth()):
         return
-    t1, t2, t3, t4, t5 = st.tabs([tx("Học sinh", "Students"), tx("Lớp & tài khoản", "Classes"), tx("Giao bài", "Assign"),
-                                  tx("Kết quả bài", "Results"), tx("Chỗ hay sai", "Weak spots")])
+    t1, t2, t3, t4, t6, t5 = st.tabs([tx("Học sinh", "Students"), tx("Lớp & tài khoản", "Classes"), tx("Giao bài", "Assign"),
+                                      tx("📝 Kết quả kiểm tra", "📝 Test results"), tx("📘 Kết quả luyện tập", "📘 Practice results"), tx("Chỗ hay sai", "Weak spots")])
     with t1:
         teacher_students_ui()
     with t2:
@@ -6500,7 +6541,9 @@ def teacher_ui():
     with t3:
         teacher_assign_ui()
     with t4:
-        teacher_results_ui()
+        teacher_results_ui(cr.TEST)
+    with t6:
+        teacher_results_ui(cr.PRACTICE)
     with t5:
         teacher_weak_ui()
 
@@ -7290,9 +7333,13 @@ elif nav == PRACTICE_TAB:
         practice_ui()
         tab_history_ui(nav)
 elif nav == TEST_TAB:
-    page_banner("test", TEST_TAB, "Làm bài kiểm tra giáo viên giao và xem điểm.")
+    page_banner("test", TEST_TAB, "Xem điểm và bài làm kiểm tra của học sinh." if cr.is_teacher(cur_auth()) else "Làm bài kiểm tra giáo viên giao và xem điểm.")
     with st.container(key="panel"):
-        practice_assign_ui(cr.TEST)
+        if cr.is_teacher(cur_auth()):
+            st.markdown("#### " + tx("📝 Kết quả kiểm tra của học sinh", "📝 Students' test results"))
+            teacher_results_ui(cr.TEST)
+        else:
+            practice_assign_ui(cr.TEST)
 elif nav == HISTORY_TAB:
     page_banner("search", HISTORY_TAB, "Theo dõi học sinh, giao bài và xem kết quả cả lớp." if cr.is_teacher(cur_auth())
                 else "Xem lại những gì bạn đã tra cứu ở từng tab.")

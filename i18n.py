@@ -100,6 +100,7 @@ EN = {
     "Mô phỏng": "Simulation",
     "Luyện tập": "Practice",
     "Kiểm tra": "Tests",
+    "Xem điểm và bài làm kiểm tra của học sinh.": "See students' test scores and work.",
     "Làm bài kiểm tra giáo viên giao và xem điểm.": "Take the tests your teacher assigned and see your scores.",
     "Hỏi đáp": "Q&A",
     # --- công cụ chung ---
