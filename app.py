@@ -2295,13 +2295,23 @@ def _docx_text(data):
     return html.unescape(re.sub(r"<[^>]+>", "", xml)).strip()
 
 
+_FMT_RULES = """.opts{display:grid;gap:.1em 1.4em;margin:.25em 0 .6em 1.4em}
+.opts>div{min-width:0;overflow-wrap:anywhere}.opts.c4{grid-template-columns:repeat(4,1fr)}
+.opts.c2{grid-template-columns:repeat(2,1fr)}.opts.c1{grid-template-columns:1fr}
+.opts img{max-width:100%;height:auto}
+.fig{text-align:center;margin:.6em 0}.fig img{max-width:min(100%,440px);height:auto}
+.sec{text-align:center;font-weight:700;margin:1em 0 .5em}
+@media(max-width:560px){.opts.c4{grid-template-columns:repeat(2,1fr)}.opts.c2{grid-template-columns:1fr}}"""
+
+
 _DOC_CSS = """<style>
 body{margin:0;background:#fff;color:#111;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1.55}
 .doc{max-width:820px;margin:0 auto;padding:24px 32px}
 p{margin:.35em 0}table{border-collapse:collapse;margin:.6em 0;max-width:100%}
 td,th{border:1px solid #444;padding:4px 8px;vertical-align:top}img{max-width:100%;height:auto;vertical-align:middle}
 sub,sup{line-height:0}h1,h2,h3{margin:.6em 0 .3em}
-</style>"""
+"""
+_DOC_CSS = _DOC_CSS + _FMT_RULES + "</style>"
 
 
 _EMF_MARK = "emf-placeholder"
@@ -2335,7 +2345,15 @@ def _docx_body(data):
 
 def _docx_html(data):
     body = _docx_body(data)
-    return _DOC_CSS + '<div class="doc">' + body + "</div>" if body else ""
+    if not body:
+        return ""
+    blocks = _html_blocks(body)
+    if blocks:
+        try:
+            body = "\n".join(tidy_exam(blocks))
+        except Exception:
+            pass
+    return _DOC_CSS + '<div class="doc">' + body + "</div>"
 
 
 def _html_blocks(body):
@@ -2375,6 +2393,123 @@ def _split_br(blocks):
                 out += [f"<p>{x}</p>" for x in segs]
                 continue
         out.append(b)
+    return out
+
+
+
+_FMT_TAGS = ("strong", "em", "u", "sub", "sup", "b", "i")
+_OPT_MARK = re.compile(r"(?:<(?:strong|em|u|b|i)>\s*)*([A-Za-z])\s*[.)]\s*(?:</(?:strong|em|u|b|i)>\s*)*(?=\S)")
+
+
+def _balance(h):
+    """Sau khi cắt đoạn, cân lại các thẻ định dạng (đậm, nghiêng, chỉ số) để HTML không bị lệch."""
+    for t in _FMT_TAGS:
+        o = len(re.findall(rf"<{t}>", h))
+        c = len(re.findall(rf"</{t}>", h))
+        if c > o:
+            h = f"<{t}>" * (c - o) + h
+        elif o > c:
+            h += f"</{t}>" * (o - c)
+    return h
+
+
+def _split_marks(inner, letters, need):
+    """Cắt đoạn 'A. … B. … C. … D. …' (hoặc a) … b) …) dính một dòng thành từng ý theo đúng thứ tự chữ cái. None nếu không phải."""
+    inner = inner.strip()
+    found = []
+    for m in _OPT_MARK.finditer(inner):
+        ch = m.group(1)
+        if ch not in letters:
+            continue
+        if not found:
+            if m.start() != 0:
+                return None
+        else:
+            nxt = letters.index(found[-1][0]) + 1
+            if nxt >= len(letters) or ch != letters[nxt] or inner[m.start() - 1] not in " \t\n\xa0>.;,)":
+                continue
+        found.append((ch, m.start()))
+    if len(found) < need:
+        return None
+    pos = [p for _, p in found] + [len(inner)]
+    return [_balance(inner[pos[i]:pos[i + 1]].strip()) for i in range(len(found))], found[0][0]
+
+
+def _big_img(tag):
+    """Hình minh họa (sơ đồ, dụng cụ…) thì tách ra giữa dòng; hình nhỏ (công thức chèn trong câu) thì để nguyên."""
+    m = re.search(r'src="data:[^;]+;base64,([^"]+)"', tag)
+    if not m:
+        return False
+    try:
+        import base64 as _b64
+        from io import BytesIO
+        from PIL import Image
+        w, h = Image.open(BytesIO(_b64.b64decode(m.group(1)))).size
+        return w >= 200 and h >= 80
+    except Exception:
+        return False
+
+
+def _split_fig(b):
+    if not b.startswith("<p") or "<img" not in b:
+        return [b]
+    inner = re.sub(r"^<p[^>]*>|</p>$", "", b)
+    imgs = re.findall(r"<img\b[^>]*>", inner)
+    if not imgs or not all(_big_img(i) for i in imgs):
+        return [b]
+    text = re.sub(r"<img\b[^>]*>", "", inner)
+    out = [f"<p>{text}</p>"] if _plain(text) else []
+    return out + [f'<p class="fig">{i}</p>' for i in imgs]
+
+
+def tidy_exam(blocks, student=False):
+    """Trình bày đề gọn đẹp: mỗi câu một khối, 'Câu N.' đậm, tiêu đề PHẦN căn giữa, hình đưa xuống giữa dưới đề,
+    đáp án A–D dính một dòng hoặc rời từng đoạn được gom thành lưới 4/2/1 cột thẳng hàng, ý a) b) c) d) tách từng dòng."""
+    items = []                                         # ("opt", html) | ("b", html)
+    for b in _split_br(blocks):
+        if b.startswith("<p"):
+            inner = re.sub(r"^<p[^>]*>|</p>$", "", b)
+            r = _split_marks(inner, "ABCD", 1)
+            if r:
+                items += [("opt", x) for x in r[0]]
+                continue
+            r = _split_marks(inner, "abcdefgh", 2)
+            if r:
+                items += [("b", f"<p>{x}</p>") for x in r[0]]
+                continue
+        for x in _split_fig(b):
+            items.append(("b", x))
+    if student:
+        flat = [x if k == "b" else f"<p>{x}</p>" for k, x in items]
+        flat = _student_blocks(flat)
+        items = [("opt", re.sub(r"^<p>|</p>$", "", x)) if re.match(r"<p>[A-D]\s*[.)]", x) else ("b", x) for x in flat]
+    out, run = [], []
+
+    def flush():
+        nonlocal run
+        if not run:
+            return
+        n = max(len(_plain(x)) for x in run)
+        cols = "c1" if n > 46 or len(run) > 4 else "c2" if n > 20 or any("<img" in x for x in run) else "c4"
+        if len(run) < 3 and cols == "c4":
+            cols = "c2"
+        out.append(f'<div class="opts {cols}">' + "".join(f"<div>{x}</div>" for x in run) + "</div>")
+        run = []
+
+    for k, x in items:
+        if k == "opt":
+            if run and re.match(r"A\s*[.)]", _plain(x)):
+                flush()
+            run.append(x)
+            continue
+        flush()
+        t = _plain(x)
+        if x.startswith("<p") and (re.match(r"(?i)PHẦN\s+(I{1,3}|[123])\b", t) or re.match(r"^[-–—\s]*HẾT\b", t, re.I)):
+            x = re.sub(r"^<p\b[^>]*>", '<p class="sec">', x, 1)
+        elif x.startswith("<p>") and re.match(r"Câu\s+\d+\s*[.:]", t):
+            x = re.sub(r"^<p>(Câu\s+\d+\s*[.:]?)", r"<p><strong>\1</strong>", x, 1)
+        out.append(x)
+    flush()
     return out
 
 
@@ -2640,7 +2775,8 @@ _EXAM_CSS = """<style>
 .exam{font-family:'Times New Roman',Times,serif;font-size:1.05rem;line-height:1.55}
 .exam p{margin:.3em 0}.exam table{border-collapse:collapse;margin:.5em 0;max-width:100%}
 .exam td,.exam th{border:1px solid #888;padding:4px 8px;vertical-align:top}.exam img{max-width:100%;height:auto}
-</style>"""
+"""
+_EXAM_CSS += _FMT_RULES + "</style>"
 
 
 def _show_html(h):
@@ -2677,7 +2813,7 @@ def _exam_blocks(au, atts):
         ck = f"_exam_blocks2_{m['id']}"
         if ck not in st.session_state:
             try:
-                st.session_state[ck] = _student_blocks(_html_blocks(_docx_body(cr.read_file(au, m["id"])[1])))
+                st.session_state[ck] = tidy_exam(_html_blocks(_docx_body(cr.read_file(au, m["id"])[1])), student=True)
             except (OSError, cr.Denied):
                 return None
         return st.session_state[ck] or None
