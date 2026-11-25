@@ -60,3 +60,8 @@ Khi bài giao có đề .docx và phiếu trả lời, học sinh thấy **đề
 
 ## Đề hiện đầy đủ theo từng phần khi làm bài
 Học sinh luôn thấy **nguyên đề** (Phần I, II, III, từng câu hỏi) ngay trong trang làm bài, ô trả lời nằm dưới từng câu. Nếu phiếu có nhiều câu hơn đề (ví dụ nhập nhầm số câu), các câu thừa được xếp riêng ở cuối đề, không làm mất chế độ làm trên đề. Nếu thấy mục "Các câu còn lại trong phiếu", hãy vào "📝 Phiếu trả lời" của bài đó, chỉnh lại số câu từng phần cho khớp với đề rồi bấm Lưu phiếu.
+
+## Thời gian làm bài và bắt buộc làm đủ ô
+- **Giáo viên:** khi giao bài (cả Luyện tập và Kiểm tra) đặt **Thời gian làm bài (phút)**; 0 là không giới hạn.
+- **Học sinh:** bài có giờ sẽ hiện nút **Bắt đầu làm bài**. Đồng hồ đếm ngược dính ở đầu trang, giờ bắt đầu lưu ở máy chủ nên tải lại trang không làm lại đồng hồ. Hết giờ bài tự nộp (nộp muộn quá 2 phút bị từ chối).
+- **Phải làm đủ mọi ô** (phần I, II, III) mới nộp được; thiếu ô nào app báo rõ câu nào. Khi đã hết giờ thì được nộp dù còn thiếu. Việc kiểm tra làm ở cả máy chủ nên không lách được.

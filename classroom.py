@@ -22,9 +22,11 @@ import history_store as hs
 
 CLASSES_H = ["ma_lop", "ten_lop", "tao_luc"]
 ACC_H = ["ma_lop", "hoc_sinh", "salt", "pin_hash", "tao_luc"]
-ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y"]
+ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y", "dang_bai", "phan_loai", "phut"]
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
 SHEET_H = ["id_bai", "ma_lop", "cau_hinh_json"]
+STARTS_H = ["id_bai", "ma_lop", "hoc_sinh", "bat_dau"]
+GRACE = 120                   # giây cho phép nộp muộn sau khi hết giờ (đồng hồ trình duyệt tự nộp có thể trễ)
 TCH_H = ["ten", "salt", "ma_hash", "tao_luc"]
 SSUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "tra_loi_json", "diem", "chi_tiet_json"]
 TF_POINTS = {0: 0.0, 1: 0.1, 2: 0.25, 3: 0.5, 4: 1.0}   # thang điểm đúng/sai THPT: số ý đúng -> điểm
@@ -199,7 +201,7 @@ def delete_class(auth, code):
     c = norm_code(code)
     _purge_files(lambda r: r[2] == c)
     for name, head, col in (("classes", CLASSES_H, 0), ("accounts", ACC_H, 0), ("assignments", ASG_H, 1), ("submissions", SUB_H, 1),
-                            ("sheets", SHEET_H, 1), ("sheetsubs", SSUB_H, 1)):
+                            ("sheets", SHEET_H, 1), ("sheetsubs", SSUB_H, 1), ("starts", STARTS_H, 1)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""] * 3)[col] != c]
         if len(keep) != len(rows):
@@ -343,11 +345,11 @@ def verify_token(key, token, now=None):
 
 
 # ---------------- Bài giao ----------------
-def create_assignment(auth, code, title, questions, due, hints, now, kind="", cat=PRACTICE):
+def create_assignment(auth, code, title, questions, due, hints, now, kind="", cat=PRACTICE, minutes=0):
     _need_teacher(auth)
     aid = secrets.token_hex(4)
     hs.tbl_append("assignments", ASG_H, [aid, norm_code(code), title.strip()[:100], now, due or "",
-                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0", clean_name(kind)[:40] if kind else "", TEST if cat == TEST else PRACTICE])
+                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0", clean_name(kind)[:40] if kind else "", TEST if cat == TEST else PRACTICE, str(max(0, min(int(minutes or 0), 300)))])
     return aid
 
 
@@ -362,14 +364,15 @@ def assignments(auth, code):
                 qs = json.loads(r[5])
             except ValueError:
                 qs = []
-            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1", "kind": r[7] if len(r) > 7 else "", "cat": TEST if len(r) > 8 and r[8] == TEST else PRACTICE})
+            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1", "kind": r[7] if len(r) > 7 else "", "cat": TEST if len(r) > 8 and r[8] == TEST else PRACTICE,
+                    "mins": int(r[9]) if len(r) > 9 and str(r[9]).isdigit() else 0})
     return sorted(out, key=lambda a: a["created"], reverse=True)
 
 
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
@@ -692,8 +695,72 @@ def sheet_review(auth, aid):
     return {"mc": cfg["mc"], "tf": cfg["tf"], "sa": cfg["sa"]}
 
 
+def asg_minutes(aid):
+    """Số phút làm bài của một bài giao (0 = không giới hạn)."""
+    for r in hs.tbl_read("assignments", ASG_H):
+        if r and r[0] == aid:
+            return int(r[9]) if len(r) > 9 and str(r[9]).isdigit() else 0
+    return 0
+
+
+def get_start(auth, aid):
+    """Thời điểm (giây epoch) học sinh bấm Bắt đầu làm bài này, hoặc None."""
+    if not is_student(auth):
+        return None
+    for r in hs.tbl_read("starts", STARTS_H, force=True):
+        if len(r) >= 4 and r[0] == aid and r[2] == auth["key"]:
+            try:
+                return float(r[3])
+            except ValueError:
+                return None
+    return None
+
+
+def begin_attempt(auth, aid, ts):
+    """Ghi giờ bắt đầu (lưu ở máy chủ nên tải lại trang không làm lại đồng hồ). Đã bắt đầu thì giữ giờ cũ."""
+    old = get_start(auth, aid)
+    if old is not None:
+        return old
+    hs.tbl_append("starts", STARTS_H, [aid, auth["cls"], auth["key"], f"{ts:.0f}"])
+    return ts
+
+
+def clear_start(auth, aid):
+    rows = hs.tbl_read("starts", STARTS_H, force=True)
+    keep = [r for r in rows if not (len(r) >= 3 and r[0] == aid and r[2] == auth["key"])]
+    if len(keep) != len(rows):
+        hs.tbl_write("starts", STARTS_H, keep)
+
+
+def missing_parts(cfg, ans):
+    """Các ô chưa làm: {'mc': [số câu], 'tf': [(số câu, [ý])], 'sa': [số câu]} (số câu tính từ 1)."""
+    mcs, sas = ans.get("mc") or [], ans.get("sa") or []
+    mc = [i + 1 for i in range(len(cfg["mc"])) if i >= len(mcs) or not mcs[i]]
+    tf = []
+    for i, items in enumerate(cfg["tf"]):
+        row = (ans.get("tf") or [])[i] if i < len(ans.get("tf") or []) else []
+        miss = [j for j in range(len(items)) if j >= len(row) or row[j] is None]
+        if miss:
+            tf.append((i + 1, miss))
+    sa = [i + 1 for i in range(len(cfg["sa"])) if i >= len(sas) or not str(sas[i]).strip()]
+    return {"mc": mc, "tf": tf, "sa": sa}
+
+
+def missing_text(parts, lang="vi"):
+    vi = lang == "vi"
+    out = []
+    if parts["mc"]:
+        out.append(("Phần I câu " if vi else "Part I Q") + ", ".join(map(str, parts["mc"])))
+    if parts["tf"]:
+        out.append(("Phần II " if vi else "Part II ") + "; ".join((f"câu {q} ý " if vi else f"Q{q} ") + ", ".join("abcdefgh"[j] for j in js) for q, js in parts["tf"]))
+    if parts["sa"]:
+        out.append(("Phần III câu " if vi else "Part III Q") + ", ".join(map(str, parts["sa"])))
+    return " · ".join(out)
+
+
 def submit_sheet(auth, aid, ans, now):
-    """Học sinh nộp phiếu; chấm ở máy chủ rồi lưu. Trả về kết quả chấm (không lộ đáp án đúng)."""
+    """Học sinh nộp phiếu; chấm ở máy chủ rồi lưu. Phải làm đủ mọi ô mới được nộp (trừ khi đã hết giờ);
+    bài có giới hạn thời gian phải bấm Bắt đầu trước và nộp trong hạn. Trả về kết quả chấm (không lộ đáp án đúng)."""
     if not is_student(auth):
         raise Denied("Cần đăng nhập học sinh để nộp phiếu.")
     got = _sheet_row(aid, True)
@@ -703,9 +770,23 @@ def submit_sheet(auth, aid, ans, now):
     clean = {"mc": [str(x or "")[:1].upper() for x in (ans.get("mc") or [])][:len(cfg["mc"])],
              "tf": [[(None if b is None else bool(b)) for b in row][:8] for row in (ans.get("tf") or [])][:len(cfg["tf"])],
              "sa": [str(x or "").strip()[:60] for x in (ans.get("sa") or [])][:len(cfg["sa"])]}
+    mins, expired = asg_minutes(aid), False
+    if mins:
+        t0 = get_start(auth, aid)
+        if t0 is None:
+            raise Denied("Bài có giới hạn thời gian: hãy bấm \"Bắt đầu làm bài\" trước.")
+        dl = t0 + mins * 60
+        if time.time() > dl + GRACE:
+            raise Denied("Đã hết giờ làm bài.")
+        expired = time.time() >= dl - 3
+    miss = missing_parts(cfg, clean)
+    if (miss["mc"] or miss["tf"] or miss["sa"]) and not expired:
+        raise Denied("Chưa làm đủ các ô, còn thiếu: " + missing_text(miss))
     g = grade_sheet(cfg, clean)
     hs.tbl_append("sheetsubs", SSUB_H, [aid, auth["cls"], auth["key"], now, json.dumps(clean, ensure_ascii=False), g["score"],
                                         json.dumps({"detail": g["detail"], "max": g["max"], "right": g["right"]}, ensure_ascii=False)])
+    if mins:
+        clear_start(auth, aid)
     return g
 
 

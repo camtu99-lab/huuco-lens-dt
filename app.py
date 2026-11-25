@@ -2918,6 +2918,24 @@ def _review_ui(a, sh, plan, last, key):
         slot(("sa", i))
 
 
+def _exam_timer(aid, remaining):
+    """Đồng hồ đếm ngược dính ở đầu trang; hết giờ tự bấm nút Nộp bài (làm bằng JavaScript trong khung nhúng)."""
+    st.markdown(f'<style>.st-key-examtimer_{aid}{{position:sticky;top:3.2rem;z-index:99;background:rgba(255,255,255,.95);padding:4px 0;border-radius:10px}}</style>',
+                unsafe_allow_html=True)
+    with st.container(key=f"examtimer_{aid}"):
+        components.html(f"""<div id="t" style="font:700 18px sans-serif;padding:8px 14px;border-radius:10px;display:inline-block"></div>
+<script>
+let left={int(max(0, remaining))},fired=false;const el=document.getElementById('t');
+function fmt(s){{s=Math.max(0,s);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}}
+function auto(){{if(fired)return;fired=true;el.textContent='⏱️ Hết giờ, đang nộp bài…';
+  try{{const d=window.parent.document;if(d.activeElement)d.activeElement.blur();
+  setTimeout(()=>{{const b=[...d.querySelectorAll('button')].find(x=>x.innerText.includes('Nộp bài'));if(b)b.click();}},400);}}catch(e){{}}}}
+function tick(){{el.textContent='⏱️ Còn lại '+fmt(left);el.style.background=left<=60?'#ffd9d9':'#e8edff';el.style.color=left<=60?'#a00':'#223';
+  if(left<=0){{auto();return;}}left--;setTimeout(tick,1000);}}
+tick();
+</script>""", height=54)
+
+
 def answer_sheet_ui(a, atts=()):
     """Học sinh làm bài: các ô chọn A–D, Đúng/Sai, nhập đáp án nằm ngay trong đề (nếu ghép được), không thì dùng phiếu rời. Chấm tự động."""
     au = cur_auth()
@@ -2965,6 +2983,35 @@ def answer_sheet_ui(a, atts=()):
             st.session_state[f"_redo_{aid}"] = True
             st.rerun()
         return
+    mins, t0, expired = int(a.get("mins") or 0), None, False
+    if mins:
+        try:
+            t0 = cr.get_start(au, aid)
+        except OSError:
+            st.error(hs.last_error)
+            return
+        if t0 is None:
+            st.info(tx(f"⏱️ Bài này giới hạn **{mins} phút**. Đồng hồ bắt đầu chạy khi em bấm nút bên dưới; hết giờ bài sẽ tự nộp.",
+                       f"⏱️ This one is limited to **{mins} minutes**. The clock starts when you press the button; it submits itself at the end."))
+            if st.button(tx("▶️ Bắt đầu làm bài", "▶️ Start"), key=f"begin_{aid}", type="primary"):
+                try:
+                    cr.begin_attempt(au, aid, time.time())
+                    st.rerun()
+                except OSError:
+                    st.error(hs.last_error)
+            return
+        left = t0 + mins * 60 - time.time()
+        if left < -cr.GRACE:
+            st.warning(tx("⏰ Đã hết giờ làm bài lần này.", "⏰ Time is up for this attempt."))
+            if st.button(tx("🔁 Làm lại bài", "🔁 Start again"), key=f"restart_{aid}"):
+                try:
+                    cr.clear_start(au, aid)
+                    st.rerun()
+                except OSError:
+                    st.error(hs.last_error)
+            return
+        expired = left <= 3
+        _exam_timer(aid, left)
     with st.form(f"sheet_{aid}_{n}"):
         if plan:
             st.markdown(_EXAM_CSS, unsafe_allow_html=True)
@@ -3006,6 +3053,11 @@ def answer_sheet_ui(a, atts=()):
         ans = {"mc": [mc.get(i) or "" for i in range(len(sh["mc"]))],
                "tf": [[tf.get((i, j)) for j in range(len(items))] for i, items in enumerate(sh["tf"])],
                "sa": [sa.get(i, "") for i in range(len(sh["sa"]))]}
+        miss = cr.missing_parts(sh, ans)
+        if (miss["mc"] or miss["tf"] or miss["sa"]) and not (mins and t0 and time.time() >= t0 + mins * 60 - 3):
+            st.error(tx("⚠️ Em chưa làm đủ các ô nên chưa nộp được. Còn thiếu: ", "⚠️ Some answers are still empty, so it can't be submitted yet. Missing: ")
+                     + cr.missing_text(miss, "vi" if i18n.lang() != "en" else "en"))
+            return
         try:
             g = cr.submit_sheet(au, aid, ans, _now().strftime("%Y-%m-%d %H:%M"))
             st.session_state[f"_redo_{aid}"] = False
@@ -3110,7 +3162,7 @@ def practice_assign_ui(cat=None):
                 else tx(f"Lớp {acct['cls']} chưa có bài luyện tập nào.", f"Class {acct['cls']} has no practice sets yet."))
         return
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key=f"asg_pick_{cat}",
-                     format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
+                     format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · ⏱️ {x['mins']} {tx('phút', 'min')}" if x["mins"] else "") + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     student_files_ui(a)
     if not a["questions"]:
         st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
@@ -6193,6 +6245,9 @@ def teacher_assign_ui():
     d1, d2 = st.columns(2)
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
+    minutes = st.number_input(tx("⏱️ Thời gian làm bài (phút, 0 = không giới hạn)", "⏱️ Time limit (minutes, 0 = none)"), 0, 300, 0, step=5, key="ta_mins",
+                              help=tx("Áp dụng cho bài làm trên phiếu trả lời. Đồng hồ chạy khi học sinh bấm Bắt đầu; hết giờ bài tự nộp.",
+                                      "Applies to the online answer sheet. The clock starts when the student presses Start; it auto-submits at the end."))
     cat = st.radio(tx("Phân loại", "Category"), [cr.PRACTICE, cr.TEST], horizontal=True, key="ta_cat", format_func=_cat_label)
     if cat == cr.TEST:
         hints = False
@@ -6239,7 +6294,7 @@ def teacher_assign_ui():
                 st.error(tx("Tệp quá lớn: ", "File too large: ") + ", ".join(bad))
             else:
                 try:
-                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind, cat)
+                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind, cat, int(minutes))
                     up = 0
                     for f in files or []:
                         info = infos.get(f.name)
@@ -6272,7 +6327,7 @@ def teacher_assign_ui():
         return
     def _row(a):
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
-        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
+        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · ⏱️ {a['mins']} {tx('phút', 'min')}" if a["mins"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
         if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
             try:
