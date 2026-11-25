@@ -46,3 +46,10 @@
 ## Làm bài trực tiếp trên đề
 Khi bài giao có đề .docx và phiếu trả lời, học sinh thấy **đề hiện đúng định dạng và các ô trả lời nằm ngay trong đề**: ô chọn A–D dưới mỗi câu phần I, ô Đúng/Sai ngay dưới từng ý a), b), c), d) ở phần II, ô nhập đáp án dưới mỗi câu phần III. Bấm **Nộp bài** ở cuối đề để được chấm.
 - App ghép ô vào đề dựa trên chữ "Phần I/II/III" và "Câu N." trong file Word. Nếu đề đánh số câu bằng danh sách tự động của Word (không có chữ "Câu N."), hoặc số câu trong phiếu không khớp đề, app tự dùng phiếu rời: học sinh xem đề ở trên và chọn đáp án ở phiếu bên dưới.
+
+## Đề có kèm đáp án: tự đọc, tự chấm
+- **Giáo viên:** đính kèm file đề .docx **có sẵn đáp án** khi giao bài. App tự đọc đáp án từ: bảng/danh sách "ĐÁP ÁN" hoặc "HƯỚNG DẪN CHẤM" ở cuối đề (phần I dạng 1.B 2.A… hoặc bảng, phần II dạng ĐSĐS hoặc a) Đ b) S…, phần III dạng Câu 1: 12,5), dòng "Đáp án: B" dưới từng câu, hoặc đáp án A–D gạch chân/tô màu trong đề. Kết quả đọc được điền sẵn vào phiếu để giáo viên kiểm tra lại trước khi giao. Đáp án đọc sai/thiếu thì sửa tay ngay trong phiếu.
+- **File đáp án để riêng:** tải kèm cả file đề và file đáp án (.docx) khi giao bài; file chỉ có đáp án không gửi cho học sinh. Với bài đã giao, vào mục "📝 Phiếu trả lời → Có file đáp án" để tải lên.
+- **Bản học sinh không lộ đáp án:** phần đáp án ở cuối file được tự cắt khỏi bản học sinh xem/tải; dòng "Đáp án: …", chữ (Đúng)/(Sai) và dấu in đậm ở đáp án A–D được ẩn khi làm bài trực tuyến. Nếu không cắt được, app cảnh báo; khi đó nên dùng đề sạch và đáp án file riêng.
+- **Học sinh:** làm ngay trên đề rồi bấm Nộp bài; app chấm ngay, hiện ✅/❌ từng câu kèm lựa chọn của em và (nếu giáo viên bật "Cho học sinh xem đáp án đúng sau khi nộp") đáp án đúng. Bấm "🔁 Làm lại bài" để làm lại.
+- Chỉ đọc được file Word .docx (chưa đọc PDF hay .doc cũ).

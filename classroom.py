@@ -490,7 +490,7 @@ def detect_structure(text):
         k = names.get(parts[i].upper())
         if k:
             nums = {int(n) for n in re.findall(r"(?m)^\s*Câu\s+(\d+)\s*[.:]", parts[i + 1])}
-            out[k] = max(nums) if nums else 0
+            out[k] = max(out[k], max(nums) if nums else 0)
     return out
 
 
@@ -514,7 +514,7 @@ def clean_sheet(cfg):
         raise Denied("Phiếu cần có ít nhất một câu.")
     if any(len(x) > 8 for x in tf):
         raise Denied("Mỗi câu đúng/sai tối đa 8 ý.")
-    return {"mc": mc, "tf": tf, "sa": sa, "n_tf_items": [len(x) or 4 for x in tf]}
+    return {"mc": mc, "tf": tf, "sa": sa, "n_tf_items": [len(x) or 4 for x in tf], "show_key": bool(cfg.get("show_key", True))}
 
 
 def _num(x):
@@ -621,6 +621,21 @@ def get_sheet(auth, aid, force=False):
             "sa": ["?"] * len(cfg["sa"])}
 
 
+def sheet_review(auth, aid):
+    """Đáp án đúng để học sinh xem lại: chỉ khi giáo viên cho phép và học sinh đã nộp ít nhất một lần."""
+    got = _sheet_row(aid, True)
+    if not got:
+        return None
+    code, cfg = got
+    if is_teacher(auth):
+        return cfg
+    if not is_student(auth) or auth["cls"] != code or not cfg.get("show_key", True):
+        return None
+    if not sheet_results(auth, aid, force=True):
+        return None
+    return {"mc": cfg["mc"], "tf": cfg["tf"], "sa": cfg["sa"]}
+
+
 def submit_sheet(auth, aid, ans, now):
     """Học sinh nộp phiếu; chấm ở máy chủ rồi lưu. Trả về kết quả chấm (không lộ đáp án đúng)."""
     if not is_student(auth):
@@ -660,6 +675,327 @@ def sheet_results(auth, aid, student=None, force=False):
         out.append({"student": r[2], "ts": r[3], "score": sc, "max": d.get("max", 0), "detail": d.get("detail", {}),
                     "right": d.get("right", {}), "answers": a})
     return out
+
+
+
+# ---------------- Đọc đáp án có sẵn trong file Word ----------------
+KEY_MARK = re.compile(r"^\s*(?:BẢNG\s+)?(?:ĐÁP\s*ÁN|HƯỚNG\s*DẪN\s*(?:CHẤM|GIẢI)|LỜI\s*GIẢI)", re.I)
+_ALPHA = "A-Za-zÀ-ỹ0-9"
+
+
+def _unesc(t):
+    import html as _h
+    return _h.unescape(t)
+
+
+def _body_spans(xml):
+    """Các phần tử cấp cao của thân tài liệu: [(loại, bắt đầu, kết thúc)] với loại p / tbl / sdt."""
+    b = xml.find("<w:body")
+    if b < 0:
+        return []
+    b = xml.find(">", b) + 1
+    spans, depth, start, insect, sstart = [], 0, 0, False, 0
+    for m in re.finditer(r"<(/?)(w:p|w:tbl|w:sdt|w:sectPr)(?=[\s>/])[^>]*?(/?)>", xml[b:]):
+        close, tag, selfc = m.group(1), m.group(2), m.group(3)
+        a, e = b + m.start(), b + m.end()
+        if tag == "w:sectPr":
+            if depth == 0:
+                if close:
+                    insect = False
+                    spans.append(("sect", sstart, e))
+                elif selfc:
+                    spans.append(("sect", a, e))
+                else:
+                    insect, sstart = True, a
+            continue
+        if insect:
+            continue
+        if close:
+            depth -= 1
+            if depth == 0:
+                spans.append((tag[2:], start, e))
+        elif selfc:
+            if depth == 0:
+                spans.append((tag[2:], a, e))
+        else:
+            if depth == 0:
+                start = a
+            depth += 1
+    return spans
+
+
+def _runs(pxml):
+    """[(chữ, cờ định dạng)] của một đoạn; cờ gồm đậm, gạch chân, màu khác đen, tô sáng."""
+    out = []
+    for r in re.finditer(r"<w:r(?:\s[^>]*)?>(.*?)</w:r>", pxml, re.S):
+        rx = r.group(1)
+        t = "".join(re.findall(r"<w:t(?:\s[^>]*)?>([^<]*)</w:t>", rx))
+        t = _unesc(t) + ("\t" if "<w:tab/>" in rx else "")
+        if not t:
+            continue
+        rp = re.search(r"<w:rPr>(.*?)</w:rPr>", rx, re.S)
+        rp = rp.group(1) if rp else ""
+        fl = set()
+        if re.search(r'<w:b(?:\s[^>]*)?/>', rp) and not re.search(r'<w:b\s+w:val="(?:0|false)"', rp):
+            fl.add("b")
+        if re.search(r'<w:u\s+w:val="(?!none)', rp):
+            fl.add("u")
+        if re.search(r'<w:color\s+w:val="(?!auto|000000|FFFFFF)', rp, re.I):
+            fl.add("c")
+        if "<w:highlight" in rp or re.search(r'<w:shd\s[^>]*w:fill="(?!auto|FFFFFF)', rp, re.I):
+            fl.add("h")
+        out.append((t, fl))
+    return out
+
+
+def docx_elements(data):
+    """Thân Word thành danh sách: ('p', chữ, runs) hoặc ('t', hàng-ô). Kèm danh sách span để cắt file."""
+    import zipfile
+    from io import BytesIO
+    try:
+        xml = zipfile.ZipFile(BytesIO(data)).read("word/document.xml").decode("utf-8", "ignore")
+    except Exception:
+        return [], [], ""
+    spans = _body_spans(xml)
+    els = []
+    for kind, a, b in spans:
+        sx = xml[a:b]
+        if kind == "p":
+            rs = _runs(sx)
+            els.append(("p", "".join(t for t, _ in rs).strip(), rs))
+        elif kind == "tbl":
+            rows = []
+            for tr in re.findall(r"<w:tr(?:\s[^>]*)?>(.*?)</w:tr>", sx, re.S):
+                cells = []
+                for tc in re.findall(r"<w:tc>(.*?)</w:tc>", tr, re.S):
+                    cells.append(" ".join("".join(t for t, _ in _runs(px)).strip() for px in re.findall(r"<w:p[ >].*?</w:p>", tc, re.S)).strip())
+                rows.append(cells)
+            els.append(("t", rows, []))
+        else:
+            els.append(("x", "", []))
+    return els, spans, xml
+
+
+def _key_marker(els):
+    """Chỉ số phần tử mở đầu phần đáp án (tiêu đề ngắn, không phải dòng 'Đáp án: B' dưới từng câu)."""
+    seen_q = 0
+    for i, e in enumerate(els):
+        if e[0] != "p":
+            continue
+        t = e[1]
+        if re.match(r"Câu\s+\d+\s*[.:]", t):
+            seen_q += 1
+        if KEY_MARK.match(t) and len(t) <= 100 and not re.search(r"[:：]\s*(?:[A-D]\b|[-\d])", t):
+            nxt = [x for x in els[i + 1:i + 4] if x[0] in ("p", "t")]
+            if seen_q >= 1 or nxt:
+                return i
+    return None
+
+
+def _norm_tf_val(v):
+    return v.upper() in ("Đ", "ĐÚNG", "T", "D")
+
+
+def _parse_key_region(region, struct_hint=None):
+    """Đọc đáp án từ phần đáp án (bảng và dòng chữ)."""
+    mc, tf, sa = {}, {}, {}
+    lines = []
+    for e in region:
+        if e[0] == "t":
+            rows = [[c.strip() for c in r] for r in e[1] if any(c.strip() for c in r)]
+            used = False
+            for a, b in zip(rows, rows[1:]):                      # hàng số câu + hàng đáp án (bảng ngang)
+                na = [c for c in a[1:] if c]
+                nb = [c for c in b[1:] if c]
+                if len(na) >= 3 and len(na) == len(nb) and all(re.fullmatch(r"\d{1,2}", re.sub(r"\D", "", c) or "x") and re.search(r"\d", c) for c in na) \
+                        and all(re.fullmatch(r"[A-D]", c.strip().upper()) for c in nb):
+                    for x, y in zip(na, nb):
+                        mc[int(re.sub(r"\D", "", x))] = y.strip().upper()
+                    used = True
+            for r in rows:                                         # (Câu, Đáp án) lặp theo hàng
+                for k in range(len(r) - 1):
+                    if re.fullmatch(r"(?:Câu\s*)?\d{1,2}", r[k], re.I) and re.fullmatch(r"[A-D]", r[k + 1].upper()):
+                        mc[int(re.sub(r"\D", "", r[k]))] = r[k + 1].upper()
+                        used = True
+            if not used:
+                for r in rows:
+                    lines.append(" ".join(r))
+        elif e[0] == "p" and e[1]:
+            lines.append(e[1])
+    cur = None
+    tfd = {}
+    for ln in lines:
+        ln = re.sub(r"\s*\|\s*", " ", ln).strip()
+        ln = re.sub(r"(?i)^PHẦN\s+I{1,3}\s*[:.\-–]?\s*", "", ln)
+        if not ln:
+            continue
+        toks = re.findall(r"(?<![%s])([a-d])\s*[).:\-–]?\s*(Đúng|Sai|Đ|S|T|F)(?![%s])" % (_ALPHA, _ALPHA), ln)
+        mq = re.match(r"(?:Câu\s*)?(\d{1,2})\b", ln, re.I)
+        if toks:
+            n = int(mq.group(1)) if mq and not re.match(r"[a-d]\b", ln) else cur
+            if n is not None:
+                for L, v in toks:
+                    tfd.setdefault(n, {})[L] = _norm_tf_val(v)
+                cur = n
+            continue
+        comp = re.match(r"(?:Câu\s*)?(\d{1,2})\s*[:.\-–]?\s*([ĐS](?:[\s,;\-–]*[ĐS]){1,7})\s*$", ln)
+        if comp:
+            tf[int(comp.group(1))] = re.sub(r"[^ĐS]", "", comp.group(2))
+            continue
+        pairs = re.findall(r"(?:Câu\s*)?(\d{1,2})\s*[.:\-–)]*\s*([ABCD])(?![%s])" % _ALPHA, ln)
+        if pairs:
+            for n, L in pairs:
+                mc.setdefault(int(n), L)
+            continue
+        if mq:
+            cur = int(mq.group(1))
+        m2 = re.match(r"(?:Câu\s*)?(\d{1,2})\s*[:.\-–]?\s*(-?\d[\d.,]*\s*[^\s\d]{0,8})\s*$", ln, re.I)
+        if m2:
+            sa[int(m2.group(1))] = m2.group(2).strip()
+    for n, d in tfd.items():
+        if all(L in d for L in "abcd"[:max(2, len(d))]) and len(d) >= 2:
+            tf[n] = "".join("Đ" if d[L] else "S" for L in sorted(d))
+    return mc, tf, sa
+
+
+def _parse_inline(els):
+    """Đáp án nằm ngay dưới từng câu: 'Đáp án: B', '(Đúng)' sau ý, ..."""
+    mc, tf, sa, part, n = {}, {}, {}, None, None
+    tfd = {}
+    for e in els:
+        if e[0] != "p" or not e[1]:
+            continue
+        t = e[1]
+        mp = re.match(r"(?i)PHẦN\s+(I{1,3})\b", t)
+        if mp:
+            part = {"I": "mc", "II": "tf", "III": "sa"}.get(mp.group(1).upper())
+            continue
+        mq = re.match(r"Câu\s+(\d+)\s*[.:]", t)
+        if mq:
+            n = int(mq.group(1))
+        ma = re.match(r"(?i)\s*(?:Đáp\s*án|ĐA|Chọn(?:\s+đáp\s+án)?)\s*(?:đúng)?\s*[:：.]?\s*(\S.*)$", t)
+        if ma and n is not None:
+            v = ma.group(1).strip()
+            if part in (None, "mc") and re.fullmatch(r"[ABCD]\b.*", v) and len(v) <= 3:
+                mc[n] = v[0]
+            elif part == "sa":
+                sa[n] = v[:40]
+            continue
+        mi = re.match(r"([a-d])\s*[).]", t)
+        if mi and part in (None, "tf") and n is not None:
+            mv = re.search(r"[(\[:→\-–]\s*(Đúng|Sai)\s*[)\]]?\s*\.?$", t)
+            if mv:
+                tfd.setdefault(n, {})[mi.group(1)] = mv.group(1) == "Đúng"
+    for k, d in tfd.items():
+        if len(d) >= 2:
+            tf[k] = "".join("Đ" if d[L] else "S" for L in sorted(d))
+    return mc, tf, sa
+
+
+def _parse_format(els):
+    """Đáp án trắc nghiệm được đánh dấu bằng gạch chân / màu / tô sáng ở chữ A–D (đúng một đáp án mỗi câu)."""
+    mc, part, n = {}, None, None
+    flagged = {}
+    for e in els:
+        if e[0] != "p" or not e[1]:
+            continue
+        t = e[1]
+        mp = re.match(r"(?i)PHẦN\s+(I{1,3})\b", t)
+        if mp:
+            part = mp.group(1).upper()
+            continue
+        mq = re.match(r"Câu\s+(\d+)\s*[.:]", t)
+        if mq:
+            n = int(mq.group(1))
+        if part not in (None, "I") or n is None:
+            continue
+        pos = 0
+        for txt, fl in e[2]:
+            for m in re.finditer(r"(?<![%s])([A-D])\s*[.)]" % _ALPHA, txt):
+                f = bool(fl & {"u", "c", "h"})
+                flagged.setdefault(n, {})
+                flagged[n][m.group(1)] = flagged[n].get(m.group(1), False) or f
+    for k, d in flagged.items():
+        hot = [L for L, f in d.items() if f]
+        if len(d) >= 3 and len(hot) == 1:
+            mc[k] = hot[0]
+    return mc
+
+
+def extract_key(data):
+    """Tìm đáp án trong file Word. Trả về {'mc':{n:'B'}, 'tf':{n:'ĐSĐS'}, 'sa':{n:'12,5'}, 'marker': chỉ số|None, 'src': [...]}."""
+    els, _, _ = docx_elements(data)
+    km = _key_marker(els)
+    res = {"mc": {}, "tf": {}, "sa": {}, "marker": km, "src": []}
+    layers = []
+    if km is not None:
+        layers.append(("bảng/danh sách đáp án cuối đề", _parse_key_region(els[km + 1:])))
+    layers.append(("dòng đáp án dưới từng câu", _parse_inline(els[:km] if km is not None else els)))
+    layers.append(("đáp án đánh dấu trong đề", (_parse_format(els[:km] if km is not None else els), {}, {})))
+    for name, (mc, tf, sa) in layers:
+        got = False
+        for k, d in (("mc", mc), ("tf", tf), ("sa", sa)):
+            for n, v in d.items():
+                if n not in res[k]:
+                    res[k][n] = v
+                    got = True
+        if got:
+            res["src"].append(name)
+    return res
+
+
+def key_only(data):
+    """File chỉ có đáp án (không có câu hỏi trước phần đáp án)."""
+    els, _, _ = docx_elements(data)
+    km = _key_marker(els)
+    if km is None:
+        return False
+    return not any(e[0] == "p" and re.match(r"Câu\s+\d+\s*[.:]", e[1]) for e in els[:km])
+
+
+def strip_key_docx(data):
+    """Bản dành cho học sinh: cắt từ tiêu đề phần đáp án đến hết tài liệu. None nếu không cắt được."""
+    import zipfile
+    from io import BytesIO
+    els, spans, xml = docx_elements(data)
+    km = _key_marker(els)
+    if km is None or km >= len(spans) or spans[km][0] != "p":
+        return None
+    cut = spans[km][1]
+    tail = next((a for kind, a, b in spans[km:] if kind == "sect"), None)
+    end = tail if tail is not None else xml.find("</w:body>")
+    if end < 0:
+        return None
+    new = xml[:cut] + xml[end:]
+    zin = zipfile.ZipFile(BytesIO(data))
+    out = BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zo:
+        for it in zin.infolist():
+            zo.writestr(it, new.encode("utf-8") if it.filename == "word/document.xml" else zin.read(it.filename))
+    return out.getvalue()
+
+
+def cfg_from_key(key, struct):
+    """Ghép đáp án đọc được với số câu của đề thành cấu hình phiếu."""
+    def shift(d):
+        if d and 1 not in d:
+            off = min(d) - 1
+            return {n - off: v for n, v in d.items()}
+        return d
+    mc, tf, sa = dict(key["mc"]), shift(dict(key["tf"])), shift(dict(key["sa"]))
+    n_mc = max(struct.get("mc", 0), max(mc, default=0))
+    n_tf = max(struct.get("tf", 0), max(tf, default=0))
+    n_sa = max(struct.get("sa", 0), max(sa, default=0))
+    return {"mc": [mc.get(i, "") for i in range(1, n_mc + 1)], "tf": [tf.get(i, "") for i in range(1, n_tf + 1)],
+            "sa": [sa.get(i, "") for i in range(1, n_sa + 1)]}
+
+
+def analyze_docx(data):
+    """Phân tích một file Word đề: số câu từng phần, đáp án có sẵn, file chỉ-đáp-án, bản học sinh đã cắt đáp án."""
+    key = extract_key(data)
+    return {"struct": detect_structure(docx_text(data)), "key": {k: key[k] for k in ("mc", "tf", "sa")}, "src": key["src"],
+            "key_only": key_only(data), "has_marker": key["marker"] is not None,
+            "stripped": strip_key_docx(data) if key["marker"] is not None else None}
 
 
 # ---------------- Bài nộp ----------------

@@ -2517,6 +2517,28 @@ def upload_ui(aid, kind, key, label, multiple):
     return 0
 
 
+@st.cache_data(show_spinner=False, max_entries=20)
+def _analyze_docx(data):
+    return cr.analyze_docx(data)
+
+
+def merge_analyses(infos):
+    """Gộp kết quả phân tích nhiều file Word (đề + file đáp án nếu có): số câu từng phần và đáp án đọc được."""
+    struct, key = {"mc": 0, "tf": 0, "sa": 0}, {"mc": {}, "tf": {}, "sa": {}}
+    for it in infos:
+        for k in struct:
+            struct[k] = max(struct[k], it["struct"][k])
+            for n, v in it["key"][k].items():
+                key[k].setdefault(n, v)
+    return struct, key
+
+
+def key_summary(cfg):
+    got = {"mc": sum(1 for x in cfg["mc"] if x), "tf": sum(1 for x in cfg["tf"] if x), "sa": sum(1 for x in cfg["sa"] if x)}
+    tot = {"mc": len(cfg["mc"]), "tf": len(cfg["tf"]), "sa": len(cfg["sa"])}
+    return got, tot
+
+
 def sheet_editor_ui(prefix, detected=None, existing=None):
     """Nhập cấu trúc và đáp án phiếu trả lời: phần I chọn 1 đáp án, phần II đúng/sai, phần III trả lời ngắn. Trả về cấu hình (dict)."""
     ex = existing or {}
@@ -2527,6 +2549,8 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
     n_sa = int(c3.number_input(tx("Phần III: số câu (trả lời ngắn)", "Part III: questions (short answer)"), 0, 40, len(ex["sa"]) if ex else d.get("sa") or 6, key=f"{prefix}_nsa"))
     st.caption(tx("Điền đáp án để hệ thống tự chấm (để trống nếu chưa có thì câu đó không tính điểm). Học sinh không nhìn thấy đáp án.",
                   "Enter the answer key so answers are auto-graded (blank = not graded). Students never see the key."))
+    show_key = st.checkbox(tx("Cho học sinh xem đáp án đúng sau khi nộp bài", "Show the correct answers to students after they submit"),
+                           value=ex.get("show_key", True), key=f"{prefix}_showkey")
     mc_str = st.text_input(tx(f"Đáp án phần I: {n_mc} chữ A–D viết liền (vd. BACD…)", f"Part I key: {n_mc} letters A–D (e.g. BACD…)"),
                            value="".join(x or "-" for x in ex.get("mc", [])), key=f"{prefix}_mc", max_chars=80)
     mc_clean = re.sub(r"[\s,;]", "", mc_str.upper())
@@ -2546,7 +2570,7 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
         for i in range(n_sa):
             sa.append(cols[i % 3].text_input(tx(f"Câu {i + 1}", f"Q{i + 1}"), value=ex["sa"][i] if i < len(ex.get("sa", [])) else "",
                                              key=f"{prefix}_sa{i}", max_chars=60))
-    return {"mc": [("" if x in ("-", "?", "_") else x) for x in mc], "tf": tf, "sa": sa}
+    return {"mc": [("" if x in ("-", "?", "_") else x) for x in mc], "tf": tf, "sa": sa, "show_key": show_key}
 
 
 _EXAM_CSS = """<style>
@@ -2563,19 +2587,85 @@ def _show_html(h):
         st.markdown(f'<div class="exam">{h}</div>', unsafe_allow_html=True)
 
 
+def _student_blocks(blocks):
+    """Bản đề cho học sinh: cắt phần đáp án nếu còn sót, bỏ dòng 'Đáp án: …', bỏ dấu in đậm ở đáp án A–D và chữ (Đúng)/(Sai) sau ý."""
+    out, seen = [], 0
+    for b in blocks:
+        t = _plain(b)
+        if re.match(r"Câu\s+\d+\s*[.:]", t):
+            seen += 1
+        if seen >= 1 and cr.KEY_MARK.match(t) and len(t) <= 100 and not re.search(r"[:：]\s*(?:[A-D]\b|[-\d])", t):
+            break
+        if re.match(r"(?i)\s*(Đáp\s*án|ĐA)\s*[:：]", t):
+            continue
+        if re.match(r"[A-D]\s*[.)]", t):
+            b = re.sub(r"</?(?:strong|em|u)>", "", b)
+        if re.match(r"[a-d]\s*[).]", t):
+            b = re.sub(r"\s*[(\[→:\-–]\s*(?:Đúng|Sai)\s*[)\]]?\s*\.?(?=\s*</p>)", "", b)
+        out.append(b)
+    return out
+
+
 def _exam_blocks(au, atts):
     """Các khối HTML của đề (file .docx đầu tiên giáo viên đính kèm), đọc một lần rồi giữ trong phiên."""
     for m in atts:
         if cr.ext_of(m["name"]) != "docx":
             continue
-        ck = f"_exam_blocks_{m['id']}"
+        ck = f"_exam_blocks2_{m['id']}"
         if ck not in st.session_state:
             try:
-                st.session_state[ck] = _html_blocks(_docx_body(cr.read_file(au, m["id"])[1]))
+                st.session_state[ck] = _student_blocks(_html_blocks(_docx_body(cr.read_file(au, m["id"])[1])))
             except (OSError, cr.Denied):
                 return None
         return st.session_state[ck] or None
     return None
+
+
+def _review_ui(a, sh, plan, last, key):
+    """Xem lại bài đã nộp: đề kèm lựa chọn của học sinh, ✅/❌ từng câu và đáp án đúng (nếu giáo viên cho xem)."""
+    ans, det = last["answers"], last["detail"]
+    LET = "abcdefgh"
+
+    def slot(w):
+        k, i = w[0], w[1]
+        if k == "mc":
+            g = (ans.get("mc") or [""] * (i + 1))[i] if i < len(ans.get("mc") or []) else ""
+            ok = det.get("mc", [])[i] if i < len(det.get("mc", [])) else None
+            extra = f" · {tx('đáp án đúng', 'correct')}: **{key['mc'][i]}**" if key and ok is False and i < len(key["mc"]) and key["mc"][i] else ""
+            st.markdown(f"{'✅' if ok else '❌' if ok is False else '▫️'} " + tx(f"Câu {i + 1}: bạn chọn **{g or '—'}**", f"Q{i + 1}: you chose **{g or '—'}**") + extra)
+        elif k == "tf":
+            j = w[2]
+            row = ans.get("tf", [])[i] if i < len(ans.get("tf", [])) else []
+            g = row[j] if j < len(row) else None
+            marks = det.get("tf", [])[i] if i < len(det.get("tf", [])) else None
+            ok = marks[j] if marks and j < len(marks) else None
+            gs = tx("Đúng", "True") if g else tx("Sai", "False") if g is False else "—"
+            extra = ""
+            if key and ok is False and i < len(key["tf"]) and j < len(key["tf"][i]):
+                extra = f" · {tx('đáp án đúng', 'correct')}: **{tx('Đúng', 'True') if key['tf'][i][j] == 'Đ' else tx('Sai', 'False')}**"
+            st.markdown(f"{'✅' if ok else '❌' if ok is False else '▫️'} " + tx(f"Câu {i + 1} ý {LET[j]}): bạn chọn **{gs}**", f"Q{i + 1} {LET[j]}): you chose **{gs}**") + extra)
+        else:
+            g = (ans.get("sa") or [])[i] if i < len(ans.get("sa") or []) else ""
+            ok = det.get("sa", [])[i] if i < len(det.get("sa", [])) else None
+            extra = f" · {tx('đáp án đúng', 'correct')}: **{key['sa'][i]}**" if key and ok is False and i < len(key["sa"]) and key["sa"][i] else ""
+            st.markdown(f"{'✅' if ok else '❌' if ok is False else '▫️'} " + tx(f"Câu {i + 1}: bạn trả lời **{g or '—'}**", f"Q{i + 1}: you answered **{g or '—'}**") + extra)
+
+    if plan:
+        st.markdown(_EXAM_CSS, unsafe_allow_html=True)
+        for h, ws in plan:
+            _show_html(h)
+            for w in ws:
+                slot(w)
+        return
+    cols = st.columns(3)
+    for i in range(len(sh["mc"])):
+        with cols[i % 3]:
+            slot(("mc", i))
+    for i, items in enumerate(sh["tf"]):
+        for j in range(len(items)):
+            slot(("tf", i, j))
+    for i in range(len(sh["sa"])):
+        slot(("sa", i))
 
 
 def answer_sheet_ui(a, atts=()):
@@ -2619,6 +2709,12 @@ def answer_sheet_ui(a, atts=()):
 
     blocks = _exam_blocks(au, atts)
     plan = exam_plan(blocks, sh) if blocks else None
+    if mine and not st.session_state.get(f"_redo_{aid}"):
+        _review_ui(a, sh, plan, mine[-1], cr.sheet_review(au, aid))
+        if st.button(tx("🔁 Làm lại bài", "🔁 Retake"), key=f"redo_{aid}"):
+            st.session_state[f"_redo_{aid}"] = True
+            st.rerun()
+        return
     with st.form(f"sheet_{aid}_{n}"):
         if plan:
             st.markdown(_EXAM_CSS, unsafe_allow_html=True)
@@ -2656,6 +2752,7 @@ def answer_sheet_ui(a, atts=()):
                "sa": [sa.get(i, "") for i in range(len(sh["sa"]))]}
         try:
             g = cr.submit_sheet(au, aid, ans, _now().strftime("%Y-%m-%d %H:%M"))
+            st.session_state[f"_redo_{aid}"] = False
             st.session_state["_toast"] = tx(f"Đã nộp: {g['score']:g}/{g['max']:g} điểm.", f"Submitted: {g['score']:g}/{g['max']:g}.")
             st.rerun()
         except (OSError, cr.Denied) as e:
@@ -5810,18 +5907,29 @@ def teacher_assign_ui():
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
                              help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Có thể giao bài chỉ gồm tệp, không cần chọn chất.",
                                      f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). File-only assignments are allowed."))
-    use_sheet = st.checkbox(tx("📝 Tạo phiếu trả lời trực tuyến (trắc nghiệm / đúng-sai / trả lời ngắn) cho đề này", "📝 Add an online answer sheet (multiple choice / true-false / short answer)"), key="ta_sheet_on")
-    sheet_cfg = None
+    use_sheet = st.checkbox(tx("📝 Cho học sinh làm bài trực tuyến trên đề (trắc nghiệm / đúng-sai / trả lời ngắn, tự chấm)", "📝 Let students take the test online (multiple choice / true-false / short answer, auto-graded)"), value=True, key="ta_sheet_on")
+    sheet_cfg, infos = None, {}
+    for f in files or []:
+        if cr.ext_of(f.name) == "docx":
+            infos[f.name] = _analyze_docx(f.getvalue())
     if use_sheet:
-        det = {}
-        for f in files or []:
-            if cr.ext_of(f.name) == "docx":
-                det = cr.detect_structure(cr.docx_text(f.getvalue()))
-                break
-        if det and any(det.values()):
-            st.caption(tx(f"Đã nhận ra từ đề: {det['mc']} câu phần I, {det['tf']} câu phần II, {det['sa']} câu phần III. Có thể chỉnh lại.",
-                          f"Detected from the exam: {det['mc']} / {det['tf']} / {det['sa']} questions. You can adjust."))
-        sheet_cfg = sheet_editor_ui(f"ta_sh{hash(tuple(sorted(det.items()))) % 10**6}", detected=det)
+        struct, key = merge_analyses(infos.values())
+        prefill = cr.cfg_from_key(key, struct) if any(key.values()) or any(struct.values()) else None
+        if infos:
+            if prefill and any(prefill["mc"] + prefill["tf"] + prefill["sa"]):
+                got, tot = key_summary(prefill)
+                srcs = sorted({x for it in infos.values() for x in it["src"]})
+                st.success(tx(f"✅ Đã đọc đáp án từ file ({', '.join(srcs)}): phần I {got['mc']}/{tot['mc']}, phần II {got['tf']}/{tot['tf']}, phần III {got['sa']}/{tot['sa']} câu. Kiểm tra lại bên dưới rồi giao bài.",
+                              f"✅ Answer key read from the file: {got['mc']}/{tot['mc']}, {got['tf']}/{tot['tf']}, {got['sa']}/{tot['sa']}. Check it below, then assign."))
+                if any(it["key_only"] for it in infos.values()):
+                    st.caption(tx("File chỉ có đáp án sẽ không gửi cho học sinh.", "Answer-only files are not shared with students."))
+                if any(it["has_marker"] and not it["stripped"] for it in infos.values()):
+                    st.warning(tx("Không tự cắt được phần đáp án khỏi file này, học sinh có thể thấy khi xem/tải file. Hãy dùng file đề không có đáp án (đáp án để file riêng).", "Couldn't remove the key section from this file; students could see it. Upload a clean exam file and the key separately."))
+                if "đáp án đánh dấu trong đề" in srcs:
+                    st.warning(tx("Đáp án đang được đánh dấu (gạch chân/màu) trong đề nên học sinh có thể thấy khi tải file. Khi làm bài trực tuyến, app đã ẩn dấu này.", "The key is marked (underline/colour) inside the exam; students could see it in the downloaded file."))
+            else:
+                st.info(tx("Chưa tìm thấy đáp án trong file, hãy nhập tay bên dưới (hoặc tải thêm file đáp án .docx).", "No answer key found in the file; enter it below or upload a separate key file (.docx)."))
+        sheet_cfg = sheet_editor_ui(f"ta_sh{abs(hash(json.dumps(prefill, sort_keys=True, ensure_ascii=False))) % 10**8}", detected=struct, existing=prefill)
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
         pool = (chosen if how == "pick" else random.sample(names, int(n))) or []
         ks = ["draw", "name"] if kinds == "both" else [kinds]
@@ -5839,8 +5947,15 @@ def teacher_assign_ui():
                     aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"))
                     up = 0
                     for f in files or []:
+                        info = infos.get(f.name)
+                        data = f.getvalue()
+                        if use_sheet and info:
+                            if info["key_only"]:
+                                continue
+                            if info["stripped"]:
+                                data = info["stripped"]
                         try:
-                            cr.add_file(cur_auth(), aid, cr.ATT, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
+                            cr.add_file(cur_auth(), aid, cr.ATT, f.name, f.type, data, _now().strftime("%Y-%m-%d %H:%M"))
                             up += 1
                         except cr.Denied as e:
                             st.error(f"{f.name}: {e}")
@@ -5884,6 +5999,29 @@ def teacher_assign_ui():
             ex_sheet = None
         with st.expander(tx("📝 Phiếu trả lời" + (" (đã có)" if ex_sheet else " (chưa có)"), "📝 Answer sheet" + (" (set)" if ex_sheet else " (none)"))):
             cfg = sheet_editor_ui(f"tsh_{a['id']}", existing=ex_sheet)
+            kf = st.file_uploader(tx("📄 Có file đáp án (.docx)? Tải lên để app tự đọc đáp án", "📄 Have an answer-key file (.docx)? Upload it to read the key automatically"),
+                                  type=["docx"], key=f"tsh_kf_{a['id']}_{st.session_state.get('_up_n', 0)}")
+            if kf is not None and st.button(tx("📥 Đọc đáp án từ file", "📥 Read key from file"), key=f"tsh_rd_{a['id']}"):
+                info = _analyze_docx(kf.getvalue())
+                base = ex_sheet or {"mc": [], "tf": [], "sa": []}
+                struct = {k: max(len(base[k]), info["struct"][k]) for k in ("mc", "tf", "sa")}
+                new = cr.cfg_from_key(info["key"], struct)
+                if not any(new["mc"] + new["tf"] + new["sa"]):
+                    st.warning(tx("Không tìm thấy đáp án trong file này.", "No answer key found in this file."))
+                else:
+                    merged = {k: [(new[k][i] if i < len(new[k]) and new[k][i] else (base[k][i] if i < len(base[k]) else "")) for i in range(max(len(new[k]), len(base[k])))]
+                              for k in ("mc", "tf", "sa")}
+                    merged["show_key"] = base.get("show_key", True)
+                    try:
+                        cr.set_sheet(cur_auth(), a["id"], merged)
+                        got, tot = key_summary(merged)
+                        for k in list(st.session_state):
+                            if str(k).startswith(f"tsh_{a['id']}_"):
+                                del st.session_state[k]
+                        st.session_state["_toast"] = tx(f"Đã đọc đáp án: phần I {got['mc']}/{tot['mc']}, II {got['tf']}/{tot['tf']}, III {got['sa']}/{tot['sa']}.", "Answer key imported.")
+                        st.rerun()
+                    except (OSError, cr.Denied) as e:
+                        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
             if st.button(tx("💾 Lưu phiếu", "💾 Save sheet"), key=f"tsh_save_{a['id']}", type="primary"):
                 try:
                     cr.set_sheet(cur_auth(), a["id"], cfg)
