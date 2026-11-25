@@ -2301,6 +2301,8 @@ _FMT_RULES = """.opts{display:grid;gap:.1em 1.4em;margin:.25em 0 .6em 1.4em}
 .opts img{max-width:100%;height:auto}
 .fig{text-align:center;margin:.6em 0}.fig img{max-width:min(100%,440px);height:auto}
 .sec{text-align:center;font-weight:700;margin:1em 0 .5em}
+.exam,.exam p,.exam div,.exam td,.exam th{font-family:'Times New Roman',Times,serif!important;font-size:1.05rem!important;line-height:1.55!important}
+.exam p{margin:.3em 0!important}
 @media(max-width:560px){.opts.c4{grid-template-columns:repeat(2,1fr)}.opts.c2{grid-template-columns:1fr}}"""
 
 
@@ -2426,7 +2428,7 @@ def _split_marks(inner, letters, need):
                 return None
         else:
             nxt = letters.index(found[-1][0]) + 1
-            if nxt >= len(letters) or ch != letters[nxt] or inner[m.start() - 1] not in " \t\n\xa0>.;,)":
+            if nxt >= len(letters) or ch != letters[nxt] or not (inner[m.start() - 1].isspace() or inner[m.start() - 1] in ">.;,)"):
                 continue
         found.append((ch, m.start()))
     if len(found) < need:
@@ -2482,7 +2484,7 @@ def tidy_exam(blocks, student=False):
     if student:
         flat = [x if k == "b" else f"<p>{x}</p>" for k, x in items]
         flat = _student_blocks(flat)
-        items = [("opt", re.sub(r"^<p>|</p>$", "", x)) if re.match(r"<p>[A-D]\s*[.)]", x) else ("b", x) for x in flat]
+        items = [("opt", re.sub(r"^<p[^>]*>|</p>$", "", x)) if x.startswith("<p") and re.match(r"[A-D]\s*[.)]", _plain(x)) else ("b", x) for x in flat]
     out, run = [], []
 
     def flush():
