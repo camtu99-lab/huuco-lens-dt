@@ -1,7 +1,8 @@
 # Lớp học trong MolSnap: đăng nhập, giao bài, xem kết quả
 
 ## Giáo viên (một lần)
-1. Đặt `TEACHER_CODE` trong Secrets (và nên nối Google Sheets, xem HUONG_DAN_GOOGLE_SHEETS.md, để dữ liệu không mất).
+0. **Chưa có mã giáo viên?** Thanh bên > **Đăng nhập / Tham gia lớp** > **Giáo viên** > chọn **Chưa có mã, tạo mã**: nhập họ tên, tự đặt mã (6-24 ký tự) hoặc bấm **Tạo mã ngẫu nhiên**, rồi vào luôn với vai trò giáo viên. Lần sau chọn **Đã có mã**. Mã được lưu dạng băm nên quên mã thì phải tạo mã mới. Muốn chỉ người được mời mới tạo được mã, đặt `TEACHER_INVITE` trong Secrets (mã mời); khi đó ô tạo mã sẽ hỏi mã mời. Mã chung `TEACHER_CODE` vẫn dùng được như trước.
+1. (Tùy chọn) Đặt `TEACHER_CODE` trong Secrets (và nên nối Google Sheets, xem HUONG_DAN_GOOGLE_SHEETS.md, để dữ liệu không mất).
 2. Thanh bên > **Đăng nhập / Tham gia lớp** > chọn **Giáo viên**, nhập mã giáo viên. Sau đó mở tab **Lịch sử tra cứu** (hoặc nút **Quản lý lớp**). Tải lại trang thì phải nhập lại mã (không lưu trong địa chỉ trang).
 3. Tab **Lớp & tài khoản**: tạo lớp (mã lớp ví dụ `10A1`). Đưa mã lớp cho học sinh.
 4. Tab **Giao bài**: chọn lớp, đặt tên bài, chọn dạng (vẽ công thức / gọi tên / cả hai), chọn chất hoặc để ngẫu nhiên, đặt hạn, bật/tắt gợi ý.

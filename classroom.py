@@ -25,6 +25,7 @@ ACC_H = ["ma_lop", "hoc_sinh", "salt", "pin_hash", "tao_luc"]
 ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_goi_y"]
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
 SHEET_H = ["id_bai", "ma_lop", "cau_hinh_json"]
+TCH_H = ["ten", "salt", "ma_hash", "tao_luc"]
 SSUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "tra_loi_json", "diem", "chi_tiet_json"]
 TF_POINTS = {0: 0.0, 1: 0.1, 2: 0.25, 3: 0.5, 4: 1.0}   # thang điểm đúng/sai THPT: số ý đúng -> điểm
 MC_POINT = SA_POINT = 0.25
@@ -110,6 +111,59 @@ def check_teacher_code(entered, expected):
     if not expected or not entered:
         return False
     return hmac.compare_digest(str(entered).encode(), str(expected).encode())
+
+
+# ---------------- Tài khoản giáo viên tự tạo (bảng teachers: tên, muối, mã băm) ----------------
+TCODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"      # bỏ O/0/I/1 cho dễ đọc
+
+
+def gen_teacher_code():
+    """Mã giáo viên ngẫu nhiên, dễ đọc: GV-XXXXXX."""
+    return "GV-" + "".join(secrets.choice(TCODE_ALPHABET) for _ in range(6))
+
+
+def clean_tcode(code):
+    return str(code or "").strip()
+
+
+def valid_tcode(code):
+    c = clean_tcode(code)
+    return 6 <= len(c) <= 24 and not re.search(r"\s", c)
+
+
+def _teacher_rows():
+    return [r for r in hs.tbl_read("teachers", TCH_H, force=True) if len(r) >= 3 and r[1] and r[2]]
+
+
+def register_teacher(name, code, code2, now, master=""):
+    """Giáo viên chưa có mã tự tạo mã của mình. Trạng thái: new | bad_name | bad_tcode | mismatch | taken.
+    Mã được băm (PBKDF2) rồi mới lưu, không lưu mã gốc."""
+    n, c = clean_name(name), clean_tcode(code)
+    if not valid_name(n):
+        return "bad_name"
+    if not valid_tcode(c):
+        return "bad_tcode"
+    if clean_tcode(code2) != c:
+        return "mismatch"
+    if master and check_teacher_code(c, master):
+        return "taken"
+    for r in _teacher_rows():
+        if hmac.compare_digest(hash_pin(c, r[1]), r[2]):
+            return "taken"
+    salt = secrets.token_hex(8)
+    hs.tbl_append("teachers", TCH_H, [n, salt, hash_pin(c, salt), now])
+    return "new"
+
+
+def login_teacher(code):
+    """Tên giáo viên nếu mã đúng, ngược lại None."""
+    c = clean_tcode(code)
+    if not c:
+        return None
+    for r in _teacher_rows():
+        if hmac.compare_digest(hash_pin(c, r[1]), r[2]):
+            return r[0]
+    return None
 
 
 # ---------------- Lớp (chỉ giáo viên được tạo/xóa/liệt kê) ----------------

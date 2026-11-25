@@ -2,6 +2,7 @@ import base64
 import copy
 import csv
 import hashlib
+import hmac
 import html
 import io
 import json
@@ -4406,16 +4407,50 @@ def submit_student_auth(mode, code, name, pin, pin2):
     return ""
 
 
+_TEACHER_INVITE = str(st.secrets.get("TEACHER_INVITE", "") or "")   # tùy chọn: mã mời, có đặt thì mới được tự tạo mã giáo viên
+
+_TCH_ERR = {
+    "bad_name": ("Họ tên cần 2-40 ký tự, bắt đầu bằng chữ cái và không có ký tự đặc biệt.", "Your name needs 2-40 characters, starting with a letter, with no special symbols."),
+    "bad_tcode": ("Mã giáo viên cần 6-24 ký tự, không có khoảng trắng.", "The teacher code needs 6-24 characters with no spaces."),
+    "mismatch": ("Hai lần nhập mã chưa giống nhau.", "The two codes do not match."),
+    "taken": ("Mã này đã có người dùng, hãy chọn mã khác.", "This code is already taken, choose another one."),
+    "invite": ("Mã mời chưa đúng. Hãy hỏi quản trị viên của trường/nhóm.", "Wrong invitation code. Ask your administrator."),
+}
+
+
 def submit_teacher_auth(code):
+    """Đăng nhập giáo viên bằng mã chung (TEACHER_CODE trong Secrets) hoặc mã cá nhân đã tự tạo."""
     ss = st.session_state
-    if not _TEACHER_CODE:
-        return tx('Chưa đặt TEACHER_CODE trong Secrets nên chưa có tài khoản giáo viên.', 'TEACHER_CODE is not set in Secrets, so there is no teacher account yet.')
     if ss.get("lg_fail", 0) >= 5:
         return tx("Nhập sai quá nhiều lần. Hãy tải lại trang.", "Too many wrong attempts. Reload the page.")
-    if not cr.check_teacher_code(code, _TEACHER_CODE):
+    ok = bool(_TEACHER_CODE) and cr.check_teacher_code(code, _TEACHER_CODE)
+    if not ok:
+        try:
+            ok = cr.login_teacher(code) is not None
+        except OSError:
+            return tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error
+    if not ok:
         ss["lg_fail"] = ss.get("lg_fail", 0) + 1
-        return tx("Mã giáo viên chưa đúng.", "Wrong teacher code.")
+        return tx("Mã giáo viên chưa đúng. Chưa có mã? Chọn \"Chưa có mã, tạo mã\".", "Wrong teacher code. No code yet? Choose \"No code yet, create one\".")
     finish_login(cr.make_auth(cr.TEACHER), tx("Đã đăng nhập giáo viên.", "Logged in as teacher."))
+    return ""
+
+
+def submit_teacher_register(name, code, code2, invite):
+    """Giáo viên chưa có mã tự tạo mã rồi đăng nhập luôn. Trả về chuỗi lỗi, hoặc '' nếu thành công."""
+    ss = st.session_state
+    if ss.get("lg_fail", 0) >= 5:
+        return tx("Thử quá nhiều lần. Hãy tải lại trang.", "Too many attempts. Reload the page.")
+    if _TEACHER_INVITE and not hmac.compare_digest(str(invite or "").strip().encode(), _TEACHER_INVITE.encode()):
+        ss["lg_fail"] = ss.get("lg_fail", 0) + 1
+        return tx(*_TCH_ERR["invite"])
+    try:
+        stt = cr.register_teacher(name, code, code2, _now().strftime("%Y-%m-%d %H:%M"), _TEACHER_CODE)
+    except OSError:
+        return tx("Không kết nối được nơi lưu dữ liệu: ", "Cannot reach the data store: ") + hs.last_error
+    if stt != "new":
+        return tx(*_TCH_ERR[stt])
+    finish_login(cr.make_auth(cr.TEACHER), tx(f"Đã tạo mã và đăng nhập giáo viên. Hãy ghi nhớ mã: {code.strip()}", f"Teacher code created and logged in. Remember your code: {code.strip()}"))
     return ""
 
 
@@ -6945,9 +6980,33 @@ def _auth_form():
     show = st.checkbox(tx("Hiện PIN / mã", "Show PIN / code"), key="au_show")
     ptype = "default" if show else "password"
     if role == cr.TEACHER:
-        tcode = st.text_input(tx("Mã giáo viên", "Teacher code"), type=ptype, key="au_tcode")
-        if st.button(tx("Đăng nhập giáo viên", "Teacher log in"), type="primary", key="au_go_t"):
-            err = submit_teacher_auth(tcode)
+        tmode = st.radio(tx("Bạn đã có mã giáo viên chưa?", "Do you have a teacher code?"), ["login", "register"], horizontal=True, key="au_tmode",
+                         format_func=lambda m: tx("Đã có mã", "I have a code") if m == "login" else tx("Chưa có mã, tạo mã", "No code yet, create one"))
+        if tmode == "login":
+            tcode = st.text_input(tx("Mã giáo viên", "Teacher code"), type=ptype, key="au_tcode")
+            if st.button(tx("Đăng nhập giáo viên", "Teacher log in"), type="primary", key="au_go_t"):
+                err = submit_teacher_auth(tcode)
+                if err:
+                    st.error(err)
+                else:
+                    st.rerun()
+            return
+        tname = st.text_input(tx("Họ và tên giáo viên", "Teacher's full name"), key="au_tname", max_chars=40, placeholder=tx("Nguyễn Thị Lan", "Your full name"))
+        if st.button(tx("🎲 Tạo mã ngẫu nhiên", "🎲 Generate a random code"), key="au_gen_t"):
+            g = cr.gen_teacher_code()
+            st.session_state["au_tnew"] = g
+            st.session_state["au_tnew2"] = g
+        tnew = st.text_input(tx("Mã giáo viên của bạn (6-24 ký tự)", "Your teacher code (6-24 characters)"), type=ptype, key="au_tnew", max_chars=24)
+        tnew2 = st.text_input(tx("Nhập lại mã", "Repeat the code"), type=ptype, key="au_tnew2", max_chars=24)
+        if tnew2 and tnew2 != tnew:
+            st.caption("⚠️ " + tx(*_TCH_ERR["mismatch"]))
+        tinv = ""
+        if _TEACHER_INVITE:
+            tinv = st.text_input(tx("Mã mời (quản trị viên cung cấp)", "Invitation code (from your administrator)"), type=ptype, key="au_tinv")
+        st.caption(tx("Hãy ghi nhớ mã này: lần sau bạn chọn \"Đã có mã\" và nhập đúng mã để vào. Mã được lưu dạng băm, không ai xem lại được; quên mã thì phải tạo mã mới.",
+                      "Remember this code: next time choose \"I have a code\" and enter it. It is stored hashed and cannot be viewed again; if you forget it you must create a new one."))
+        if st.button(tx("Tạo mã và vào với vai trò giáo viên", "Create code and join as teacher"), type="primary", key="au_go_tr"):
+            err = submit_teacher_register(tname, tnew, tnew2, tinv)
             if err:
                 st.error(err)
             else:
