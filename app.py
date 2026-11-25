@@ -6177,17 +6177,7 @@ def teacher_assign_ui():
     if not cls:
         return
     st.markdown("#### " + tx("Giao bài mới", "New assignment"))
-    title = st.text_input(tx("Tên bài", "Title"), key="ta_title", max_chars=100, placeholder=tx("VD: Ôn danh pháp ancol", "e.g. Naming alcohols"))
-    kinds = st.radio(tx("Dạng bài", "Type"), ["draw", "name", "both"], horizontal=True, key="ta_kind",
-                     format_func=lambda k: {"draw": tx("Vẽ công thức", "Draw formula"), "name": tx("Gọi tên", "Name it"), "both": tx("Cả hai", "Both")}[k])
-    how = st.radio(tx("Cách chọn chất", "How to pick"), ["pick", "random"], horizontal=True, key="ta_how",
-                   format_func=lambda k: tx("Chọn từng chất", "Pick compounds") if k == "pick" else tx("Ngẫu nhiên", "Random"))
-    names = [b[0] for b in BANK]
-    if how == "pick":
-        chosen = st.multiselect(tx("Chất", "Compounds"), names, key="ta_sel")
-    else:
-        n = st.number_input(tx("Số chất", "How many"), 1, len(names), 5, key="ta_n")
-        chosen = None
+    title = st.text_input(tx("Tên bài", "Title"), key="ta_title", max_chars=100, placeholder=tx("VD: Kiểm tra 15 phút - Hóa 12", "e.g. 15-minute quiz"))
     d1, d2 = st.columns(2)
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
@@ -6195,8 +6185,8 @@ def teacher_assign_ui():
     exts = sorted(cr.ALLOWED_EXT)
     files = st.file_uploader(tx("📎 Đính kèm tệp cho học sinh tải về (đề, phiếu bài tập, tài liệu…)", "📎 Attach files for students to download (worksheet, handout…)"),
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
-                             help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Có thể giao bài chỉ gồm tệp, không cần chọn chất.",
-                                     f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). File-only assignments are allowed."))
+                             help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Bài giao gồm tệp đề và/hoặc phiếu trả lời.",
+                                     f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). An assignment is the exam file and/or the answer sheet."))
     use_sheet = st.checkbox(tx("📝 Cho học sinh làm bài trực tuyến trên đề (trắc nghiệm / đúng-sai / trả lời ngắn, tự chấm)", "📝 Let students take the test online (multiple choice / true-false / short answer, auto-graded)"), value=True, key="ta_sheet_on")
     sheet_cfg, infos = None, {}
     for f in files or []:
@@ -6221,11 +6211,9 @@ def teacher_assign_ui():
                 st.info(tx("Chưa tìm thấy đáp án trong file, hãy nhập tay bên dưới (hoặc tải thêm file đáp án .docx).", "No answer key found in the file; enter it below or upload a separate key file (.docx)."))
         sheet_cfg = sheet_editor_ui("ta_sh", detected=struct, existing=prefill)
     if st.button(tx("Giao bài", "Assign"), type="primary", key="ta_go"):
-        pool = (chosen if how == "pick" else random.sample(names, int(n))) or []
-        ks = ["draw", "name"] if kinds == "both" else [kinds]
-        qs = [{"k": k, "n": nm} for nm in pool for k in ks]
-        if not title.strip() or (not qs and not files and not use_sheet):
-            st.error(tx("Cần nhập tên bài và chọn ít nhất một chất, đính kèm tệp hoặc tạo phiếu trả lời.", "Enter a title and pick a compound, attach a file or add an answer sheet."))
+        qs = []
+        if not title.strip() or (not files and not use_sheet):
+            st.error(tx("Cần nhập tên bài và đính kèm tệp đề hoặc tạo phiếu trả lời.", "Enter a title and attach a file or add an answer sheet."))
         elif len(files or []) > cr.MAX_ATT:
             st.error(tx(f"Tối đa {cr.MAX_ATT} tệp cho mỗi bài.", f"At most {cr.MAX_ATT} files per assignment."))
         else:
@@ -6255,7 +6243,7 @@ def teacher_assign_ui():
                         except cr.Denied as e:
                             st.error(tx("Đã giao bài nhưng chưa lưu được phiếu: ", "Assigned, but the sheet was not saved: ") + str(e))
                     st.session_state["_ta_n"] = st.session_state.get("_ta_n", 0) + 1
-                    st.session_state["_toast"] = tx(f"Đã giao {len(qs)} câu và {up} tệp cho lớp {cls}.", f"Assigned {len(qs)} questions and {up} file(s) to {cls}.")
+                    st.session_state["_toast"] = tx(f"Đã giao bài \"{title.strip()}\" ({up} tệp) cho lớp {cls}.", f"Assigned \"{title.strip()}\" ({up} file(s)) to {cls}.")
                     st.rerun()
                 except OSError:
                     st.error(hs.last_error)
@@ -6267,7 +6255,7 @@ def teacher_assign_ui():
         return
     for a in asgs:
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
-        c1.markdown(f"**{html.escape(a['title'])}** · {len(a['questions'])} {tx('câu', 'questions')} · {a['created']}"
+        c1.markdown(f"**{html.escape(a['title'])}**" + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
         if c2.button(tx("Xóa", "Delete"), key=f"ta_del_{a['id']}"):
             try:
