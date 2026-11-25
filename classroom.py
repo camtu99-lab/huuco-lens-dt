@@ -40,6 +40,8 @@ MAX_IMG_RAW = 20_000_000      # ảnh gốc tối đa 20 MB, sẽ được nén 
 ATT, SUBF = "att", "sub"      # tệp giáo viên đính kèm / tệp học sinh nộp
 TOKEN_DAYS = 14
 PIN_ROUNDS = 120_000
+PRACTICE = "practice"        # phân loại bài giao: luyện tập (có gợi ý) / kiểm tra
+TEST = "test"
 TEACHER = "teacher"
 STUDENT = "student"
 NAME_RE = re.compile(r"^[^\W\d_](?:[\w .'\-]*[^\W_])?$", re.UNICODE)   # chữ cái (có dấu), số, khoảng trắng, . ' -
@@ -341,11 +343,11 @@ def verify_token(key, token, now=None):
 
 
 # ---------------- Bài giao ----------------
-def create_assignment(auth, code, title, questions, due, hints, now, kind=""):
+def create_assignment(auth, code, title, questions, due, hints, now, kind="", cat=PRACTICE):
     _need_teacher(auth)
     aid = secrets.token_hex(4)
     hs.tbl_append("assignments", ASG_H, [aid, norm_code(code), title.strip()[:100], now, due or "",
-                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0", clean_name(kind)[:40] if kind else ""])
+                                         json.dumps(questions, ensure_ascii=False), "1" if hints else "0", clean_name(kind)[:40] if kind else "", TEST if cat == TEST else PRACTICE])
     return aid
 
 
@@ -360,7 +362,7 @@ def assignments(auth, code):
                 qs = json.loads(r[5])
             except ValueError:
                 qs = []
-            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1", "kind": r[7] if len(r) > 7 else ""})
+            out.append({"id": r[0], "code": r[1], "title": r[2], "created": r[3], "due": r[4], "questions": qs, "hints": r[6] == "1", "kind": r[7] if len(r) > 7 else "", "cat": TEST if len(r) > 8 and r[8] == TEST else PRACTICE})
     return sorted(out, key=lambda a: a["created"], reverse=True)
 
 

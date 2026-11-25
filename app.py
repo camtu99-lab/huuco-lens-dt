@@ -3080,6 +3080,10 @@ def student_files_ui(a):
         upload_ui(a["id"], cr.SUBF, f"su_{a['id']}", tx("Chọn tệp bài làm (ảnh, PDF, Word…)", "Choose your file (photo, PDF, Word…)"), True)
 
 
+def _cat_label(c):
+    return tx("📝 Kiểm tra", "📝 Test") if c == cr.TEST else tx("📘 Luyện tập", "📘 Practice")
+
+
 def practice_assign_ui():
     au = cur_auth()
     if not cr.is_student(au):
@@ -3102,7 +3106,14 @@ def practice_assign_ui():
     if not asgs:
         st.info(tx(f"Lớp {acct['cls']} chưa có bài giao nào.", f"Class {acct['cls']} has no assignments yet."))
         return
-    a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key="asg_pick",
+    n_t = sum(1 for x in asgs if x["cat"] == cr.TEST)
+    cat = st.radio(tx("Loại bài", "Kind"), [cr.PRACTICE, cr.TEST], horizontal=True, key="asg_cat",
+                   format_func=lambda c: f"{_cat_label(c)} ({len(asgs) - n_t if c == cr.PRACTICE else n_t})")
+    asgs = [x for x in asgs if x["cat"] == cat]
+    if not asgs:
+        st.info(tx(f"Chưa có bài {'kiểm tra' if cat == cr.TEST else 'luyện tập'} nào.", f"No {'tests' if cat == cr.TEST else 'practice sets'} yet."))
+        return
+    a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key=f"asg_pick_{cat}",
                      format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
     student_files_ui(a)
     if not a["questions"]:
@@ -6183,7 +6194,12 @@ def teacher_assign_ui():
     d1, d2 = st.columns(2)
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
     due = d2.date_input(tx("Hạn nộp", "Due date"), key="ta_due", disabled=not due_on)
-    hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
+    cat = st.radio(tx("Phân loại", "Category"), [cr.PRACTICE, cr.TEST], horizontal=True, key="ta_cat", format_func=_cat_label)
+    if cat == cr.TEST:
+        hints = False
+        st.caption(tx("Bài kiểm tra: không có gợi ý từng bước.", "Test: no step-by-step hints."))
+    else:
+        hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
     exts = sorted(cr.ALLOWED_EXT)
     files = st.file_uploader(tx("📎 Đính kèm tệp cho học sinh tải về (đề, phiếu bài tập, tài liệu…)", "📎 Attach files for students to download (worksheet, handout…)"),
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
@@ -6224,7 +6240,7 @@ def teacher_assign_ui():
                 st.error(tx("Tệp quá lớn: ", "File too large: ") + ", ".join(bad))
             else:
                 try:
-                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind)
+                    aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind, cat)
                     up = 0
                     for f in files or []:
                         info = infos.get(f.name)
@@ -6255,7 +6271,7 @@ def teacher_assign_ui():
     except OSError:
         st.error(hs.last_error)
         return
-    for a in asgs:
+    def _row(a):
         c1, c2 = st.columns([5, 1.5], vertical_alignment="center")
         c1.markdown(f"**{html.escape(a['title'])}**" + (f" · 🏷️ {html.escape(a['kind'])}" if a["kind"] else "") + (f" · {len(a['questions'])} {tx('câu', 'questions')}" if a["questions"] else "") + f" · {a['created']}"
                     + (f" · {tx('hạn', 'due')} {a['due']}" if a["due"] else ""), unsafe_allow_html=True)
@@ -6287,6 +6303,16 @@ def teacher_assign_ui():
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
 
+    t_prac, t_test = st.tabs([f"{_cat_label(cr.PRACTICE)} ({sum(1 for x in asgs if x['cat'] != cr.TEST)})",
+                              f"{_cat_label(cr.TEST)} ({sum(1 for x in asgs if x['cat'] == cr.TEST)})"])
+    for tab, cat_ in ((t_prac, cr.PRACTICE), (t_test, cr.TEST)):
+        with tab:
+            sub = [x for x in asgs if x["cat"] == cat_]
+            if not sub:
+                st.caption(tx("Chưa có bài nào.", "Nothing here yet."))
+            for a in sub:
+                _row(a)
+
 
 def teacher_results_ui():
     cls = _t_class_pick("tr_cls")
@@ -6301,7 +6327,14 @@ def teacher_results_ui():
     if not asgs:
         st.info(tx("Lớp này chưa có bài giao.", "This class has no assignments yet."))
         return
-    a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{x['title']} ({x['created']})", key="tr_asg")
+    fcat = st.radio(tx("Loại bài", "Kind"), ["all", cr.PRACTICE, cr.TEST], horizontal=True, key="tr_cat",
+                    format_func=lambda c: tx("Tất cả", "All") if c == "all" else _cat_label(c))
+    if fcat != "all":
+        asgs = [x for x in asgs if x["cat"] == fcat]
+        if not asgs:
+            st.info(tx("Chưa có bài nào thuộc loại này.", "No assignments of this kind."))
+            return
+    a = st.selectbox(tx("Bài", "Assignment"), asgs, format_func=lambda x: f"{_cat_label(x['cat'])} · {x['title']} ({x['created']})", key=f"tr_asg_{fcat}")
     if st.button(tx("🔄 Tải lại", "🔄 Refresh"), key="tr_refresh"):
         cr.submissions(cur_auth(), aid=a["id"], force=True)
     try:
