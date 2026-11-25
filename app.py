@@ -6335,6 +6335,18 @@ def teacher_assign_ui():
                 st.rerun()
             except OSError:
                 st.error(hs.last_error)
+        with st.expander(tx(f"⏱️ Giờ làm bài ({a['mins']} phút)" if a["mins"] else "⏱️ Giờ làm bài (không giới hạn)",
+                            f"⏱️ Time limit ({a['mins']} min)" if a["mins"] else "⏱️ Time limit (none)")):
+            m1, m2 = st.columns([2, 1], vertical_alignment="bottom")
+            nm = m1.number_input(tx("Số phút (0 = không giới hạn)", "Minutes (0 = none)"), 0, 300, int(a["mins"]), step=5, key=f"tmin_{a['id']}")
+            if m2.button(tx("💾 Lưu giờ", "💾 Save time"), key=f"tmin_save_{a['id']}", type="primary"):
+                try:
+                    cr.set_assignment_minutes(cur_auth(), a["id"], int(nm))
+                    st.session_state["_toast"] = tx("Đã lưu thời gian làm bài.", "Time limit saved.")
+                    st.rerun()
+                except (OSError, cr.Denied) as e:
+                    st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+            st.caption(tx("Chỉ áp dụng cho bài làm trên phiếu trả lời. Học sinh phải bấm Bắt đầu thì đồng hồ mới chạy.", "Applies to the online answer sheet only. The clock starts when the student presses Start."))
         try:
             atts = cr.list_files(cur_auth(), a["id"], kind=cr.ATT)
         except OSError:

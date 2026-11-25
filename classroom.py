@@ -369,6 +369,23 @@ def assignments(auth, code):
     return sorted(out, key=lambda a: a["created"], reverse=True)
 
 
+def set_assignment_minutes(auth, aid, minutes):
+    """Giáo viên đặt/sửa thời gian làm bài (phút) của bài đã giao; 0 = không giới hạn."""
+    _need_teacher(auth)
+    m = str(max(0, min(int(minutes or 0), 300)))
+    rows = hs.tbl_read("assignments", ASG_H, force=True)
+    hit = False
+    for r in rows:
+        if r and r[0] == aid:
+            r += [""] * (len(ASG_H) - len(r))
+            r[9] = m
+            hit = True
+    if not hit:
+        raise Denied("Không tìm thấy bài giao.")
+    hs.tbl_write("assignments", ASG_H, rows)
+    return int(m)
+
+
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
