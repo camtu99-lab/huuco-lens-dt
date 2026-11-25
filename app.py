@@ -6178,7 +6178,7 @@ def teacher_assign_ui():
         return
     st.markdown("#### " + tx("Giao bài mới", "New assignment"))
     title = st.text_input(tx("Tên bài", "Title"), key="ta_title", max_chars=100, placeholder=tx("VD: Kiểm tra 15 phút - Hóa 12", "e.g. 15-minute quiz"))
-    kind = st.text_input(tx("Dạng bài (tự nhập)", "Type (type it yourself)"), key="ta_kind_txt", max_chars=40,
+    kind = st.text_input(tx("Dạng bài", "Type"), key="ta_kind_txt", max_chars=40,
                          placeholder=tx("VD: Trắc nghiệm, Kiểm tra 15 phút, Ôn tập, Bài tập về nhà", "e.g. Multiple choice, 15-minute quiz, Homework"))
     d1, d2 = st.columns(2)
     due_on = d1.checkbox(tx("Đặt hạn nộp", "Set a due date"), key="ta_due_on")
