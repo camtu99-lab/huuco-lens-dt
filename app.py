@@ -7588,7 +7588,7 @@ def home_page():
         bar = f'<div class="pbar"><i style="width:{prog}%"></i></div>'
         st.markdown('<div class="stats">'
                     + _stat_card("flask", tx("Lượt phân tích", "Lookups"), len(st.session_state.hist), "s1")
-                    + _stat_card("practice", tx("Bài luyện tập đã hoàn thành", "Exercises finished"), prof["finished"], "s2")
+                    + _stat_card("practice", tx("Bài luyện tập đã hoàn thành", "Exercises finished"), f'{prof["finished"]} <span style="font-size:.62em;font-weight:700;opacity:.75">({prog}%)</span>', "s2", bar)
                     + _stat_card("stats", tx("Độ chính xác luyện tập", "Practice accuracy"), f'{prof["accuracy"]}%' if prof["attempts"] else "—", "s3")
                     + _stat_card("test", tx("Tiến độ học tập", "Learning progress"), f"{prog}%", "s4", bar) + "</div>", unsafe_allow_html=True)
 
