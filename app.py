@@ -1043,36 +1043,40 @@ def render_reactions(res):
 
 def reaction_ui():
     top = st.container()  # lỗi và lý do sai hiện ở đầu tab
-    src = st.radio("Nguồn phương trình", ["🖼️ Tải ảnh", "📷 Chụp ảnh", "⌨️ Gõ phương trình"], horizontal=True, key="rx_src")
-    img, txt = None, None
-    if src.startswith("🖼️"):
-        f = st.file_uploader("Chọn ảnh phương trình", type=["jpg", "jpeg", "png", "webp"], key="rx_up")
-        img = f.getvalue() if f else None
-    elif src.startswith("📷"):
-        f = st.camera_input("Chụp phương trình", key="rx_cam")
-        img = f.getvalue() if f else None
-    else:
-        txt = voice_text_input("rx_txt", "Phương trình", "Ví dụ: CH2=CH2 + Br2 -> CH2Br-CH2Br").strip()
-    if st.button("Nhận dạng và phân loại phản ứng", type="primary", disabled=not (img or txt), key="rx_go"):
-        if over_quota():
-            show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+    PL, PR = tool_panels(("Chọn cách nhập phương trình phản ứng.", "Choose how to enter the reaction equation."))
+    with PL:
+        src = st.radio("Nguồn phương trình", ["🖼️ Tải ảnh", "📷 Chụp ảnh", "⌨️ Gõ phương trình"], horizontal=True, key="rx_src", label_visibility="collapsed")
+        img, txt = None, None
+        if src.startswith("🖼️"):
+            f = st.file_uploader("Chọn ảnh phương trình", type=["jpg", "jpeg", "png", "webp"], key="rx_up")
+            img = f.getvalue() if f else None
+        elif src.startswith("📷"):
+            f = st.camera_input("Chụp phương trình", key="rx_cam")
+            img = f.getvalue() if f else None
         else:
-            with st.spinner("Đang phân tích…"):
-                try:
-                    st.session_state.rx = analyze_reaction(img, txt)
-                    _items = reactions_of(st.session_state.rx)
-                    _lbl = (_items[0].get('phuong_trinh') if _items else None) or txt or 'Phương trình'
-                    if len(_items) > 1:
-                        _lbl = f"{_lbl[:45]} (+{len(_items) - 1} phương trình)"
-                    add_history(_lbl[:60], 'Phản ứng')
-                    st.session_state.n += 1
-                except Exception as e:
-                    st.session_state.rx = None
-                    show_top_error(top, "Có lỗi khi phân tích, hãy thử lại hoặc chụp rõ hơn.", e)
-    if st.session_state.get("rx"):
-        st.divider()
-        render_reactions(st.session_state.rx)
-
+            txt = voice_text_input("rx_txt", "Phương trình", "Ví dụ: CH2=CH2 + Br2 -> CH2Br-CH2Br").strip()
+        if st.button("Nhận dạng và phân loại phản ứng", type="primary", disabled=not (img or txt), key="rx_go"):
+            if over_quota():
+                show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+            else:
+                with st.spinner("Đang phân tích…"):
+                    try:
+                        st.session_state.rx = analyze_reaction(img, txt)
+                        _items = reactions_of(st.session_state.rx)
+                        _lbl = (_items[0].get('phuong_trinh') if _items else None) or txt or 'Phương trình'
+                        if len(_items) > 1:
+                            _lbl = f"{_lbl[:45]} (+{len(_items) - 1} phương trình)"
+                        add_history(_lbl[:60], 'Phản ứng')
+                        st.session_state.n += 1
+                    except Exception as e:
+                        st.session_state.rx = None
+                        show_top_error(top, "Có lỗi khi phân tích, hãy thử lại hoặc chụp rõ hơn.", e)
+    with PR:
+        if st.session_state.get("rx"):
+            render_reactions(st.session_state.rx)
+        else:
+            empty_state("flask", ("Chưa có dữ liệu để phân tích", "No data to analyse yet"),
+                        ("Nhập phương trình ở khung bên trái rồi bấm nhận dạng để xem loại phản ứng và phương trình cân bằng.", "Enter an equation on the left and press recognise to see the reaction type and balanced equation."))
 
 
 # ---------------- Đồng phân ----------------
@@ -1673,96 +1677,104 @@ def render_understood(u, r):
 
 def isomer_ui():
     top = st.container()  # lỗi và lý do sai hiện ở đầu tab
-    t1, t2 = st.tabs(["Liệt kê đồng phân", "So sánh hai chất"])
-    with t1:
-        q = voice_text_input("iso_q", "Câu hỏi hoặc công thức",
-                             "Ví dụ: số đồng phân este của C4H8O2   ·   C4H10O").strip()
-        with st.expander("Tùy chọn"):
-            scope = st.radio("Phạm vi khi chỉ nhập công thức", ["Đơn chức, mạch hở (đề SGK)", "Phổ thông (cả đa chức và 1 vòng)",
-                                                               "Toán học (mọi cấu trúc)"], key="iso_scope")
-            want_names = st.checkbox("Gọi tên bằng AI (có thể sai)", key="iso_names")
-            f = st.file_uploader("Hoặc dùng ảnh công thức", type=["jpg", "jpeg", "png", "webp"], key="iso_up")
-        img = f.getvalue() if f else None
-        if st.button("Đếm đồng phân", type="primary", disabled=not (q or img), key="iso_go"):
-            direct = bool(img) or is_simple_formula(q) or smiles_like(q)
-            ai_used = bool(img or want_names or not direct)
-            if ai_used and over_quota():
-                show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
-            else:
-                with st.spinner("Đang tính…"):
-                    try:
-                        st.session_state.iso = None
-                        counts = nH = orig = err = und = None
-                        if direct:
-                            counts, nH, orig, err = resolve_formula(img, q)
-                            p = dict(PRESETS["mono" if scope.startswith("Đơn") else ("pho" if scope.startswith("Phổ") else "math")])
-                        else:
-                            p, warn, raw = parse_question(q)
-                            ftxt, gc = raw.get("cong_thuc"), raw.get("chat_goc")
-                            und = {"warn": warn, "chat_goc": gc}
-                            if ftxt and is_simple_formula(str(ftxt)):
-                                counts, nH = parse_formula(str(ftxt))
-                            elif gc:
-                                counts, nH, orig, err = resolve_formula(None, str(gc))
+    PL, PR = tool_panels(("Chọn chức năng rồi nhập đề hoặc công thức.", "Pick a function, then enter the question or formula."))
+    with PL:
+        _im = st.radio("Chức năng", ["Liệt kê đồng phân", "So sánh hai chất"], horizontal=True, key="iso_mode", label_visibility="collapsed")
+        if _im == "Liệt kê đồng phân":
+            q = voice_text_input("iso_q", "Câu hỏi hoặc công thức",
+                                 "Ví dụ: số đồng phân este của C4H8O2   ·   C4H10O").strip()
+            with st.expander("Tùy chọn"):
+                scope = st.radio("Phạm vi khi chỉ nhập công thức", ["Đơn chức, mạch hở (đề SGK)", "Phổ thông (cả đa chức và 1 vòng)",
+                                                                   "Toán học (mọi cấu trúc)"], key="iso_scope")
+                want_names = st.checkbox("Gọi tên bằng AI (có thể sai)", key="iso_names")
+                f = st.file_uploader("Hoặc dùng ảnh công thức", type=["jpg", "jpeg", "png", "webp"], key="iso_up")
+            img = f.getvalue() if f else None
+            if st.button("Đếm đồng phân", type="primary", disabled=not (q or img), key="iso_go"):
+                direct = bool(img) or is_simple_formula(q) or smiles_like(q)
+                ai_used = bool(img or want_names or not direct)
+                if ai_used and over_quota():
+                    show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+                else:
+                    with st.spinner("Đang tính…"):
+                        try:
+                            st.session_state.iso = None
+                            counts = nH = orig = err = und = None
+                            if direct:
+                                counts, nH, orig, err = resolve_formula(img, q)
+                                p = dict(PRESETS["mono" if scope.startswith("Đơn") else ("pho" if scope.startswith("Phổ") else "math")])
                             else:
-                                err = raw.get("can_hoi_lai") or "Câu hỏi chưa có công thức hoặc tên chất."
-                        if err:
-                            show_top_error(top, err)
-                        else:
-                            n_heavy = sum(counts.values())
-                            fkey = hill_key(counts, nH)
-                            if n_heavy > 12:
-                                show_top_error(top, f"{pretty(fkey)} có {n_heavy} nguyên tử khác H, quá lớn để liệt kê chính xác (tối đa 12).")
-                            else:
-                                res = build_iso_result(fkey, orig, p)
-                                if not res["ok"]:
-                                    show_top_error(top, f"{pretty(fkey)} có quá nhiều đồng phân để sinh trong {ISO_TIME:.0f} giây. Hãy nêu rõ nhóm chức.")
+                                p, warn, raw = parse_question(q)
+                                ftxt, gc = raw.get("cong_thuc"), raw.get("chat_goc")
+                                und = {"warn": warn, "chat_goc": gc}
+                                if ftxt and is_simple_formula(str(ftxt)):
+                                    counts, nH = parse_formula(str(ftxt))
+                                elif gc:
+                                    counts, nH, orig, err = resolve_formula(None, str(gc))
                                 else:
-                                    nm = {}
-                                    if want_names and 0 < len(res["kept"]) <= 60:
-                                        nm = ai_names([k["smiles"] for k in res["kept"]])
-                                    st.session_state.iso, st.session_state.iso_nm, st.session_state.iso_und = res, nm, und
-                                    add_history(pretty(res['fkey']), 'Đồng phân')
-                                    if ai_used:
-                                        st.session_state.n += 1
-                    except Exception as e:
-                        st.session_state.iso = None
-                        show_top_error(top, "Có lỗi, hãy thử lại.", e)
-        res = st.session_state.get("iso")
-        if res:
-            st.divider()
-            render_understood(st.session_state.get("iso_und"), res)
-            if res["kept"]:
-                render_iso(res, st.session_state.get("iso_nm") or {})
-            else:
-                st.warning(f"Không có đồng phân nào của {pretty(res['fkey'])} thỏa điều kiện (đã ẩn {res['hidden']}).")
-    with t2:
-        st.caption("Mỗi chất nhập bằng ảnh, SMILES hoặc tên.")
-        ca, cb = st.columns(2)
-        inp = []
-        for col, tag in ((ca, "A"), (cb, "B")):
-            with col:
-                st.markdown(f"**Chất {tag}**")
-                f = st.file_uploader(f"Ảnh chất {tag}", type=["jpg", "jpeg", "png", "webp"], key=f"cmp_up{tag}")
-                t = st.text_input(f"Hoặc SMILES/tên chất {tag}", key=f"cmp_t{tag}").strip()
-                inp.append((f.getvalue() if f else None, t))
-        ok = all(i or t for i, t in inp)
-        if st.button("So sánh", type="primary", disabled=not ok, key="cmp_go"):
-            if over_quota():
-                show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
-            else:
-                with st.spinner("Đang phân tích…"):
-                    try:
-                        smi = [to_smiles(i, t) for i, t in inp]
-                        st.session_state.n += 1
-                        st.session_state.cmp = smi
-                    except Exception as e:
-                        st.session_state.cmp = None
-                        show_top_error(top, "Có lỗi khi đọc chất, hãy thử lại.", e)
-        if st.session_state.get("cmp"):
-            st.divider()
-            compare_ui_result(*st.session_state.cmp)
-
+                                    err = raw.get("can_hoi_lai") or "Câu hỏi chưa có công thức hoặc tên chất."
+                            if err:
+                                show_top_error(top, err)
+                            else:
+                                n_heavy = sum(counts.values())
+                                fkey = hill_key(counts, nH)
+                                if n_heavy > 12:
+                                    show_top_error(top, f"{pretty(fkey)} có {n_heavy} nguyên tử khác H, quá lớn để liệt kê chính xác (tối đa 12).")
+                                else:
+                                    res = build_iso_result(fkey, orig, p)
+                                    if not res["ok"]:
+                                        show_top_error(top, f"{pretty(fkey)} có quá nhiều đồng phân để sinh trong {ISO_TIME:.0f} giây. Hãy nêu rõ nhóm chức.")
+                                    else:
+                                        nm = {}
+                                        if want_names and 0 < len(res["kept"]) <= 60:
+                                            nm = ai_names([k["smiles"] for k in res["kept"]])
+                                        st.session_state.iso, st.session_state.iso_nm, st.session_state.iso_und = res, nm, und
+                                        add_history(pretty(res['fkey']), 'Đồng phân')
+                                        if ai_used:
+                                            st.session_state.n += 1
+                        except Exception as e:
+                            st.session_state.iso = None
+                            show_top_error(top, "Có lỗi, hãy thử lại.", e)
+        else:
+            st.caption("Mỗi chất nhập bằng ảnh, SMILES hoặc tên.")
+            ca, cb = st.columns(2)
+            inp = []
+            for col, tag in ((ca, "A"), (cb, "B")):
+                with col:
+                    st.markdown(f"**Chất {tag}**")
+                    f = st.file_uploader(f"Ảnh chất {tag}", type=["jpg", "jpeg", "png", "webp"], key=f"cmp_up{tag}")
+                    t = st.text_input(f"Hoặc SMILES/tên chất {tag}", key=f"cmp_t{tag}").strip()
+                    inp.append((f.getvalue() if f else None, t))
+            ok = all(i or t for i, t in inp)
+            if st.button("So sánh", type="primary", disabled=not ok, key="cmp_go"):
+                if over_quota():
+                    show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+                else:
+                    with st.spinner("Đang phân tích…"):
+                        try:
+                            smi = [to_smiles(i, t) for i, t in inp]
+                            st.session_state.n += 1
+                            st.session_state.cmp = smi
+                        except Exception as e:
+                            st.session_state.cmp = None
+                            show_top_error(top, "Có lỗi khi đọc chất, hãy thử lại.", e)
+    with PR:
+        if _im == "Liệt kê đồng phân":
+            res = st.session_state.get("iso")
+            if res:
+                render_understood(st.session_state.get("iso_und"), res)
+                if res["kept"]:
+                    render_iso(res, st.session_state.get("iso_nm") or {})
+                else:
+                    st.warning(f"Không có đồng phân nào của {pretty(res['fkey'])} thỏa điều kiện (đã ẩn {res['hidden']}).")
+            if not st.session_state.get("iso"):
+                empty_state("isomer", ("Chưa có dữ liệu để phân tích", "No data to analyse yet"),
+                            ("Nhập câu hỏi hoặc công thức ở khung bên trái rồi bấm đếm đồng phân.", "Enter a question or formula on the left and press count isomers."))
+        else:
+            if st.session_state.get("cmp"):
+                compare_ui_result(*st.session_state.cmp)
+            if not st.session_state.get("cmp"):
+                empty_state("isomer", ("Chưa có dữ liệu để so sánh", "Nothing to compare yet"),
+                            ("Nhập hai chất ở khung bên trái rồi bấm so sánh.", "Enter two substances on the left and press compare."))
 
 
 # ---------------- Dụng cụ thí nghiệm ----------------
@@ -1831,32 +1843,36 @@ def equipment_ui():
     if _m.startswith("Mô phỏng"):
         _sim_ui(top)
         return
-    src = st.radio("Nguồn", ["🖼️ Tải ảnh", "📷 Chụp ảnh", "⌨️ Gõ tên dụng cụ"], horizontal=True, key="eq_src")
-    img, txt = None, None
-    if src.startswith("📷"):
-        f = st.camera_input("Chụp dụng cụ hoặc bộ thí nghiệm", key="eq_cam")
-        img = f.getvalue() if f else None
-    elif src.startswith("🖼️"):
-        f = st.file_uploader("Ảnh dụng cụ hoặc bộ thí nghiệm", type=["jpg", "jpeg", "png", "webp"], key="eq_up")
-        img = f.getvalue() if f else None
-    else:
-        txt = st.text_input("Tên dụng cụ", placeholder="Ví dụ: ống sinh hàn", key="eq_txt").strip()
-    if st.button("Nhận biết dụng cụ", type="primary", disabled=not (img or txt), key="eq_go"):
-        if over_quota():
-            show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+    PL, PR = tool_panels(("Chọn cách nhập dụng cụ hoặc bộ thí nghiệm.", "Choose how to enter a piece of equipment or a lab set-up."))
+    with PL:
+        src = st.radio("Nguồn", ["🖼️ Tải ảnh", "📷 Chụp ảnh", "⌨️ Gõ tên dụng cụ"], horizontal=True, key="eq_src", label_visibility="collapsed")
+        img, txt = None, None
+        if src.startswith("📷"):
+            f = st.camera_input("Chụp dụng cụ hoặc bộ thí nghiệm", key="eq_cam")
+            img = f.getvalue() if f else None
+        elif src.startswith("🖼️"):
+            f = st.file_uploader("Ảnh dụng cụ hoặc bộ thí nghiệm", type=["jpg", "jpeg", "png", "webp"], key="eq_up")
+            img = f.getvalue() if f else None
         else:
-            with st.spinner("Đang phân tích…"):
-                try:
-                    st.session_state.eq = analyze_equipment(img, txt)
-                    add_history(txt or ', '.join(str(t.get('ten', '')) for t in ((st.session_state.eq or {}).get('dung_cu') or [])[:2]) or 'Dụng cụ', 'Dụng cụ')
-                    st.session_state.n += 1
-                except Exception as e:
-                    st.session_state.eq = None
-                    show_top_error(top, "Có lỗi khi phân tích, hãy thử lại hoặc chụp rõ hơn.", e)
-    if st.session_state.get("eq"):
-        st.divider()
-        render_equipment(st.session_state.eq)
-
+            txt = st.text_input("Tên dụng cụ", placeholder="Ví dụ: ống sinh hàn", key="eq_txt").strip()
+        if st.button("Nhận biết dụng cụ", type="primary", disabled=not (img or txt), key="eq_go"):
+            if over_quota():
+                show_top_error(top, "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục.")
+            else:
+                with st.spinner("Đang phân tích…"):
+                    try:
+                        st.session_state.eq = analyze_equipment(img, txt)
+                        add_history(txt or ', '.join(str(t.get('ten', '')) for t in ((st.session_state.eq or {}).get('dung_cu') or [])[:2]) or 'Dụng cụ', 'Dụng cụ')
+                        st.session_state.n += 1
+                    except Exception as e:
+                        st.session_state.eq = None
+                        show_top_error(top, "Có lỗi khi phân tích, hãy thử lại hoặc chụp rõ hơn.", e)
+    with PR:
+        if st.session_state.get("eq"):
+            render_equipment(st.session_state.eq)
+        else:
+            empty_state("equipment", ("Chưa có dữ liệu để nhận biết", "Nothing to identify yet"),
+                        ("Tải ảnh, chụp ảnh hoặc gõ tên dụng cụ ở khung bên trái rồi bấm nhận biết.", "Upload or take a photo, or type a name on the left, then press identify."))
 
 
 # ---------------- Chẩn đoán lỗi & chấm bài ----------------
@@ -3866,12 +3882,19 @@ def _mm_result():
 def mindmap_ui():
     top = st.container()
     st.session_state.setdefault("mm", None)
-    mode = st.radio("Cách tạo sơ đồ", ["Từ chủ đề", "Từ ảnh sơ đồ tôi vẽ tay"], horizontal=True, key="mm_mode")
-    if mode.startswith("Từ ảnh"):
-        _mm_photo_inputs(top)
-    else:
-        _mm_topic_inputs(top)
-    _mm_result()
+    PL, PR = tool_panels(("Chọn cách tạo sơ đồ tư duy.", "Choose how to create the mind map."))
+    with PL:
+        mode = st.radio("Cách tạo sơ đồ", ["Từ chủ đề", "Từ ảnh sơ đồ tôi vẽ tay"], horizontal=True, key="mm_mode", label_visibility="collapsed")
+        if mode.startswith("Từ ảnh"):
+            _mm_photo_inputs(top)
+        else:
+            _mm_topic_inputs(top)
+    with PR:
+        if st.session_state.get("mm"):
+            _mm_result()
+        else:
+            empty_state("mind", ("Chưa có sơ đồ", "No mind map yet"),
+                        ("Nhập chủ đề hoặc tải ảnh sơ đồ ở khung bên trái, sơ đồ sẽ hiện ở đây.", "Enter a topic or upload a diagram on the left and the map will appear here."))
 
 
 # ---------------- Giao diện ----------------
@@ -3901,6 +3924,15 @@ ICON_PATHS = {
     "image": "<rect x='3' y='3' width='18' height='18' rx='3'/><circle cx='9' cy='9' r='2'/><path d='M21 15l-5-5L5 21'/>",
     "arrow": "<path d='M5 12h14M13 6l6 6-6 6'/>",
     "camera": "<path d='M4 8h3l2-3h6l2 3h3v11H4z'/><circle cx='12' cy='13' r='3.5'/>",
+    "scale": "<path d='M12 3v18M6 21h12M5 7h14'/><path d='M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z'/>",
+    "code": "<path d='M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16'/>",
+    "shield": "<path d='M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z'/><path d='M8.5 12l2.5 2.5L16 9.5'/>",
+    "layers": "<path d='M12 3l9 5-9 5-9-5z'/><path d='M3 13l9 5 9-5M3 17.5l9 5 9-5'/>",
+    "grid": "<rect x='3' y='3' width='7' height='7' rx='1.5'/><rect x='14' y='3' width='7' height='7' rx='1.5'/><rect x='3' y='14' width='7' height='7' rx='1.5'/><rect x='14' y='14' width='7' height='7' rx='1.5'/>",
+    "drop": "<path d='M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z'/>",
+    "bulb": "<path d='M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z'/>",
+    "book": "<path d='M3 5.5C5 4 8 4 12 6c4-2 7-2 9-.5V19c-2-1.5-5-1.5-9 .5-4-2-7-2-9-.5z'/><path d='M12 6v13.5'/>",
+    "clock": "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>",
 }
 
 
@@ -4573,7 +4605,7 @@ def _run_structure(top, img_bytes=None, smi=None):
 
 def structure_ui():
     top = st.container()  # lỗi và lý do sai hiện ở đầu tab
-    # Ảnh hoặc SMILES gửi từ trang chủ / ô Nhập nhanh: phân tích ngay
+    # Ảnh hoặc SMILES gửi từ trang chủ: phân tích ngay
     pend_img = st.session_state.pop("pending_img", None)
     pend_smi = st.session_state.pop("pending_smi", None)
     if pend_img:
@@ -4581,51 +4613,58 @@ def structure_ui():
     elif pend_smi:
         _run_structure(top, smi=pend_smi)
 
-    mode = st.radio("Cách nhập", ["🖼️ Tải ảnh lên", "📷 Chụp ảnh", "⌨️ Nhập SMILES"], horizontal=True, key="st_mode")
-    img_bytes, smi_in = None, None
-    if mode.startswith("📷"):
-        f = st.camera_input("Chụp công thức (viết rõ nét, nền sáng, mỗi ảnh một chất)", key="st_cam")
-        img_bytes = f.getvalue() if f else None
-    elif mode.startswith("🖼️"):
-        f = st.file_uploader("Chọn ảnh công thức (viết rõ nét, nền sáng, mỗi ảnh một chất)", type=["jpg", "jpeg", "png", "webp"], key="st_up")
-        img_bytes = f.getvalue() if f else None
-    else:
-        smi_in = st.text_input("Mã SMILES", placeholder="Ví dụ: CC(=O)O", key="st_smi").strip()
-
-    if st.button("Phân tích", type="primary", disabled=not (img_bytes or smi_in), key="st_go"):
-        _run_structure(top, img_bytes=img_bytes, smi=smi_in)
-
-    if st.session_state.res:
-        r, from_img = st.session_state.res
-        smiles_r = (r.get("smiles") or "").strip()
-        _, err_r = parse_student(smiles_r) if smiles_r else (None, None)
-        if err_r:
-            with top:
-                st.markdown(errbanner("CÔNG THỨC VẼ SAI: " + err_r), unsafe_allow_html=True)
-                im = draw_student(smiles_r)
-                if im is not None:
-                    st.markdown("**Hình máy đọc lại đúng như hình vẽ (nguyên tử sai khoanh đỏ):**")
-                    st.image(im)
-                if r.get("luu_y"):
-                    st.caption("Ghi chú khi đọc ảnh: " + " • ".join([r["luu_y"]] if isinstance(r["luu_y"], str) else r["luu_y"]))
-            st.info("Vì công thức sai hóa trị nên chưa thể gọi tên hay tính khối lượng mol. Hãy sửa lại hình vẽ hoặc sửa SMILES ở ô bên dưới.")
+    PL, PR = tool_panels(("Chọn phương thức nhập dữ liệu cấu trúc phân tử.", "Choose how to enter the molecular structure."))
+    with PL:
+        mode = st.radio("Cách nhập", ["🖼️ Tải ảnh lên", "📷 Chụp ảnh", "⌨️ Nhập SMILES"], horizontal=True, key="st_mode", label_visibility="collapsed")
+        img_bytes, smi_in = None, None
+        if mode.startswith("📷"):
+            f = st.camera_input("Chụp công thức (viết rõ nét, nền sáng, mỗi ảnh một chất)", key="st_cam")
+            img_bytes = f.getvalue() if f else None
+        elif mode.startswith("🖼️"):
+            f = st.file_uploader("Chọn ảnh công thức (viết rõ nét, nền sáng, mỗi ảnh một chất)", type=["jpg", "jpeg", "png", "webp"], key="st_up")
+            img_bytes = f.getvalue() if f else None
         else:
-            st.divider()
-            render(r, from_img)
-        st.divider()
-        fix = st.text_input("Nhận dạng sai? Sửa SMILES rồi phân tích lại", value=r.get("smiles", ""), key="st_fix").strip()
-        if st.button("Phân tích lại từ SMILES đã sửa", key="st_fix_go") and fix:
-            if over_quota():
-                show_top_error(top, "Đã hết số lượt của phiên này.")
+            smi_in = st.text_input("Mã SMILES", placeholder="Ví dụ: CC(=O)O", key="st_smi").strip()
+
+        if st.button(_one("Phân tích cấu trúc", "Analyse structure"), type="primary", disabled=not (img_bytes or smi_in), key="st_go", icon=":material/hub:"):
+            _run_structure(top, img_bytes=img_bytes, smi=smi_in)
+        if st.button(_one("Sử dụng dữ liệu mẫu", "Use sample data"), key="st_demo", icon=":material/layers:"):
+            _run_structure(top, smi="OC(=O)c1ccccc1")   # axit benzoic
+    with PR:
+        if not st.session_state.res:
+            empty_state("structure", ("Chưa có dữ liệu để phân tích", "No data to analyse yet"),
+                        ("Vui lòng nhập hình ảnh công thức hoặc mã SMILES và nhấn \"Phân tích cấu trúc\" để xem kết quả.", "Add a formula image or SMILES code and press \"Analyse structure\" to see the result."),
+                        [("Tên hợp chất", "Compound name"), ("Công thức phân tử", "Molecular formula"), ("Khối lượng mol", "Molar mass"), ("Mã SMILES", "SMILES"), ("Nhóm chức", "Functional groups")])
+        else:
+            r, from_img = st.session_state.res
+            smiles_r = (r.get("smiles") or "").strip()
+            _, err_r = parse_student(smiles_r) if smiles_r else (None, None)
+            if err_r:
+                with top:
+                    st.markdown(errbanner("CÔNG THỨC VẼ SAI: " + err_r), unsafe_allow_html=True)
+                    im = draw_student(smiles_r)
+                    if im is not None:
+                        st.markdown("**Hình máy đọc lại đúng như hình vẽ (nguyên tử sai khoanh đỏ):**")
+                        st.image(im)
+                    if r.get("luu_y"):
+                        st.caption("Ghi chú khi đọc ảnh: " + " • ".join([r["luu_y"]] if isinstance(r["luu_y"], str) else r["luu_y"]))
+                st.info("Vì công thức sai hóa trị nên chưa thể gọi tên hay tính khối lượng mol. Hãy sửa lại hình vẽ hoặc sửa SMILES ở ô bên dưới.")
             else:
-                with st.spinner("Đang phân tích…"):
-                    try:
-                        st.session_state.res = (analyze_smiles(fix), False)
-                        st.session_state.n += 1
-                        _log_result()
-                        st.rerun()
-                    except Exception as e:
-                        show_top_error(top, "Có lỗi khi phân tích lại.")
+                structure_result(r, from_img)
+            st.divider()
+            fix = st.text_input("Nhận dạng sai? Sửa SMILES rồi phân tích lại", value=r.get("smiles", ""), key="st_fix").strip()
+            if st.button("Phân tích lại từ SMILES đã sửa", key="st_fix_go") and fix:
+                if over_quota():
+                    show_top_error(top, "Đã hết số lượt của phiên này.")
+                else:
+                    with st.spinner("Đang phân tích…"):
+                        try:
+                            st.session_state.res = (analyze_smiles(fix), False)
+                            st.session_state.n += 1
+                            _log_result()
+                            st.rerun()
+                        except Exception as e:
+                            show_top_error(top, "Có lỗi khi phân tích lại.")
 
 
 # ---------------- Trợ lý AI ----------------
@@ -6979,9 +7018,17 @@ def solubility_dialog():
 
 # ---------------- Các khối giao diện ----------------
 def topbar():
+    nav = st.session_state.get("nav", HOME)
+    hm = icon_svg("home", "currentColor", 20, 1.8)
+    if nav == HOME:
+        bc = f'{hm}<span>{html.escape(APP_NAME)}</span><i>/</i><b>{html.escape(tx("Trang chủ"))}</b>'
+    else:
+        grp = tx("Khám phá hóa học", "Explore chemistry") if (nav in LABELS or nav == ASSIST) else tx("Học tập", "Learning")
+        bc = f'{hm}<i>›</i><span>{html.escape(grp)}</span><i>›</i><b>{html.escape(tx(nav))}</b>'
+    guest = "" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"
     with st.container(key="topbar"):
-        st.markdown(f'<div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}<div class="av{"" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"}">{html.escape(_initials())}</div></div>',
-                    unsafe_allow_html=True)
+        st.markdown(f'<div class="tb-row"><div class="tb-bc">{bc}</div><div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}'
+                    f'<div class="av{guest}">{html.escape(_initials())}</div></div></div>', unsafe_allow_html=True)
 
 
 def hero():
@@ -6997,6 +7044,416 @@ def hero():
         f'<div class="hr"><img class="art" src="{_uri(HERO_ART)}"><div class="slogan">{tx("Mỗi phản ứng")}<br>{tx("là một khám phá!")}<u></u></div></div></div>',
         unsafe_allow_html=True,
     )
+
+
+# ================= Giao diện mới: trang tối cho các tab công cụ, trang sáng cho Trang chủ =================
+TOOL_ART = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 170'><defs>
+<linearGradient id='lq' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#33d6ff'/><stop offset='1' stop-color='#5b5cf0'/></linearGradient>
+<linearGradient id='gl' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#fff' stop-opacity='.55'/><stop offset='1' stop-color='#9fb6ff' stop-opacity='.12'/></linearGradient>
+<radialGradient id='gw' cx='.5' cy='.5' r='.5'><stop offset='0' stop-color='#5b6cff' stop-opacity='.6'/><stop offset='1' stop-color='#5b6cff' stop-opacity='0'/></radialGradient></defs>
+<ellipse cx='200' cy='150' rx='190' ry='18' fill='url(#gw)'/>
+<g stroke='#6ea8ff' stroke-opacity='.5' fill='none' stroke-width='1.6'><path d='M30 70l16-9 16 9v18l-16 9-16-9z'/><path d='M62 30l12-7 12 7v14l-12 7-12-7z'/><path d='M120 60l14-8 14 8v16l-14 8-14-8z'/></g>
+<path d='M178 14h34v36l36 66c6 12-2 24-15 24h-76c-13 0-21-12-15-24l36-66z' fill='url(#gl)' stroke='#c4d8ff' stroke-width='3'/>
+<path d='M158 108h84l17 28c4 8-1 14-10 14h-98c-9 0-14-6-10-14z' fill='url(#lq)'/>
+<circle cx='190' cy='122' r='4.5' fill='#fff' fill-opacity='.75'/><circle cx='214' cy='132' r='3' fill='#fff' fill-opacity='.75'/><circle cx='200' cy='96' r='2.6' fill='#7fe3ff'/>
+<g fill='none' stroke='#c4d8ff' stroke-width='3'><rect x='292' y='78' width='17' height='70' rx='8'/><rect x='318' y='78' width='17' height='70' rx='8'/><rect x='344' y='78' width='17' height='70' rx='8'/></g>
+<rect x='296' y='108' width='9' height='36' rx='4.5' fill='#33d6ff'/><rect x='322' y='116' width='9' height='28' rx='4.5' fill='#8b5cff'/><rect x='348' y='98' width='9' height='46' rx='4.5' fill='#33d6ff'/></svg>"""
+
+CLOUD_ICON = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 48' fill='none' stroke='#5fe0ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M18 38a12 12 0 0 1-1-24 16 16 0 0 1 31 4 10 10 0 0 1-2 20'/><path d='M32 44V24M24 31l8-8 8 8'/></svg>"""
+
+DNA_ART = None
+
+
+def _dna_svg():
+    import math
+    w, h = 230, 300
+    a, b, rungs = [], [], []
+    for i in range(0, 61):
+        y = 10 + i * 4.7
+        x1 = 115 + 62 * math.sin(i / 7.0)
+        x2 = 115 - 62 * math.sin(i / 7.0)
+        a.append(f"{x1:.1f},{y:.1f}")
+        b.append(f"{x2:.1f},{y:.1f}")
+        if i % 3 == 0:
+            rungs.append(f"<line x1='{x1:.1f}' y1='{y:.1f}' x2='{x2:.1f}' y2='{y:.1f}' stroke='#5fb4ff' stroke-opacity='.45' stroke-width='2'/>")
+    return (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {w} {h}'><defs><linearGradient id='dg' x1='0' y1='0' x2='1' y2='1'>"
+            "<stop offset='0' stop-color='#37d9ff'/><stop offset='1' stop-color='#8b5cff'/></linearGradient></defs>"
+            + "".join(rungs)
+            + f"<polyline points='{' '.join(a)}' fill='none' stroke='url(#dg)' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>"
+            + f"<polyline points='{' '.join(b)}' fill='none' stroke='url(#dg)' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' opacity='.75'/></svg>")
+
+
+def _one(vi, en):
+    """Chữ ngắn gọn cho nút/bước: tiếng Việt khi chọn Việt hoặc Việt – Anh, tiếng Anh khi chọn English."""
+    return en if i18n.lang() == "en" else vi
+
+
+DARK_TABS = None   # điền sau khi biết các hằng số tab
+
+
+def _tools_meta():
+    return {
+        STRUCT: ("structure", ("Phân tích cấu trúc phân tử", "Molecular structure analysis"),
+                 ("Nhận dạng, phân tích và kiểm chứng cấu trúc hóa học từ hình ảnh hoặc mã SMILES.", "Recognise, analyse and verify chemical structures from images or SMILES codes."),
+                 [("Nhập dữ liệu", "Input"), ("Nhận dạng", "Recognise"), ("Kiểm chứng", "Verify"), ("Kết quả", "Result")], ("res",)),
+        REACT: ("flask", ("Nhận dạng phương trình phản ứng", "Reaction equation recognition"),
+                ("Đọc phương trình từ ảnh hoặc chữ, phân loại phản ứng và kiểm tra cân bằng.", "Read equations from images or text, classify the reaction and check the balance."),
+                [("Nhập phương trình", "Input"), ("Nhận dạng", "Recognise"), ("Phân loại", "Classify"), ("Kết quả", "Result")], ("rx",)),
+        ISO: ("isomer", ("Đếm và so sánh đồng phân", "Count and compare isomers"),
+              ("Đếm, liệt kê đồng phân cấu tạo và so sánh hai chất bất kì.", "Count and list structural isomers, or compare any two substances."),
+              [("Nhập đề", "Input"), ("Phân tích", "Analyse"), ("Liệt kê", "List"), ("Kết quả", "Result")], ("iso", "cmp")),
+        EQUIP: ("equipment", ("Dụng cụ thí nghiệm hóa học", "Chemistry lab equipment"),
+                ("Nhận biết, gọi tên dụng cụ và xem hướng dẫn sử dụng an toàn.", "Identify and name lab equipment and see safe-use guidance."),
+                [("Nhập dụng cụ", "Input"), ("Nhận dạng", "Recognise"), ("Hướng dẫn", "Guide"), ("Kết quả", "Result")], ("eq",)),
+        MIND: ("mind", ("Sơ đồ tư duy hóa học", "Chemistry mind maps"),
+               ("Tạo sơ đồ tư duy từ chủ đề hoặc từ hình vẽ tay, tải về để chỉnh sửa.", "Build a mind map from a topic or a hand-drawn photo, then download it to edit."),
+               [("Chọn chủ đề", "Topic"), ("Phân nhánh", "Branches"), ("Vẽ sơ đồ", "Draw"), ("Kết quả", "Result")], ("mm",)),
+        PRACTICE_TAB: ("practice", ("Luyện tập hóa học", "Chemistry practice"),
+                       ("Làm bài tập giáo viên giao hoặc tự luyện, nhận gợi ý từng bước.", "Do assigned exercises or practise on your own with step-by-step hints."), None, ()),
+        TEST_TAB: ("test", ("Kiểm tra", "Tests"), ("", ""), None, ()),
+        HISTORY_TAB: ("search", ("Lịch sử tra cứu", "Lookup history"), ("", ""), None, ()),
+    }
+
+
+def tool_header(nav):
+    ic, title, desc, _steps, _keys = _tools_meta()[nav]
+    t = tx(*title) if i18n.lang() == "bi" else _one(*title)
+    if nav == TEST_TAB:
+        d = tx("Xem điểm và bài làm kiểm tra của học sinh.", "See students' test scores and answers.") if cr.is_teacher(cur_auth()) else tx("Làm bài kiểm tra giáo viên giao và xem kết quả.", "Take the tests your teacher assigns and see your results.")
+    elif nav == HISTORY_TAB:
+        d = tx("Theo dõi học sinh, giao bài và xem kết quả cả lớp.", "Follow students, assign work and see class results.") if cr.is_teacher(cur_auth()) else tx("Xem lại những gì bạn đã tra cứu ở từng tab.", "Review what you looked up in each tab.")
+    else:
+        d = tx(*desc, sep=" | ")
+    words = html.escape(t).rsplit(" ", 1)
+    ttl = (words[0] + " <em>" + words[1] + "</em>") if len(words) == 2 else f"<em>{words[0]}</em>"
+    els = "".join(f'<div class="el"><sup>{n}</sup>{s}<small>{m}</small></div>' for n, s, m in (("6", "C", "12.01"), ("1", "H", "1.008"), ("8", "O", "16.00")))
+    st.markdown(f'<div class="thead"><div class="tic">{icon_svg(ic, "#7fe3ff", 34, 1.7)}</div><div class="ttx"><h1>{ttl}</h1><p>{html.escape(d)}</p></div>'
+                f'<div class="tart"><img src="{_uri(TOOL_ART)}"><div class="els">{els}</div></div></div>', unsafe_allow_html=True)
+
+
+def stepper(nav, done):
+    steps = _tools_meta()[nav][3]
+    cur = len(steps) if done else 1
+    parts = []
+    for i, (vi, en) in enumerate(steps, 1):
+        cls = "on" if i == cur else ("ok" if i < cur else "")
+        parts.append(f'<div class="stp {cls}"><i>{i:02d}</i><span>{html.escape(_one(vi, en))}</span></div>')
+    st.markdown('<div class="stepper">' + "<u>→</u>".join(parts) + "</div>", unsafe_allow_html=True)
+
+
+def tool_panels(lsub, rtitle=("Kết quả phân tích", "Analysis results"), ltitle=("Nhập dữ liệu", "Input")):
+    """Hai khung kính: trái nhập dữ liệu, phải kết quả. lsub = (vi, en). Trả về (khung_trái, khung_phải)."""
+    c1, c2 = st.columns([1, 1.16], gap="large")
+    with c1:
+        pl = st.container(key="pl")
+    with c2:
+        pr = st.container(key="pr")
+    with pl:
+        st.markdown(f'<div class="ph"><b>01. {html.escape(_one(*ltitle))}</b><span>{html.escape(tx(*lsub, sep=" | "))}</span></div>', unsafe_allow_html=True)
+    with pr:
+        st.markdown(f'<div class="ph r">{icon_svg("flask", "#7fe3ff", 28, 1.7)}<b>{html.escape(_one(*rtitle))}</b></div>', unsafe_allow_html=True)
+    return pl, pr
+
+
+def empty_state(ic, title, desc, tiles=()):
+    """Khung trống bên phải khi chưa có kết quả. title, desc = (vi, en); tiles = [(vi, en)]."""
+    t = "".join(f'<div class="etile"><small>{html.escape(_one(*x))}</small><b>—</b></div>' for x in tiles)
+    st.markdown(f'<div class="empty"><div class="eglow">{icon_svg(ic, "#7fe3ff", 56, 1.5)}</div><h4>{html.escape(tx(*title, sep=" | "))}</h4>'
+                f'<p>{html.escape(tx(*desc, sep=" | "))}</p>' + (f'<div class="etiles">{t}</div>' if t else "") + "</div>", unsafe_allow_html=True)
+
+
+def mol_dark_png(mol, size=(440, 320)):
+    """Hình cấu tạo nét sáng trên nền trong suốt (hợp nền tối); lỗi thì dùng hình mặc định của RDKit."""
+    try:
+        from rdkit.Chem.Draw import rdMolDraw2D
+        d = rdMolDraw2D.MolDraw2DCairo(size[0], size[1])
+        rdMolDraw2D.SetDarkMode(d)
+        d.drawOptions().clearBackground = False
+        d.DrawMolecule(mol)
+        d.FinishDrawing()
+        return d.GetDrawingText()
+    except Exception:
+        return Draw.MolToImage(mol, size=size)
+
+
+def render_props(r):
+    """Phần tính chất chi tiết của một chất (không lặp lại hình và số liệu đã hiện ở thẻ kết quả)."""
+    if r.get("tinh_tan"):
+        _tt = r["tinh_tan"]
+        st.markdown("**Tính tan:** " + (" ".join(str(x) for x in _tt) if isinstance(_tt, list) else str(_tt)))
+    bullets("Trạng thái, nhiệt độ", r.get("trang_thai_nhiet_do"))
+    bullets("Tính chất vật lí", r.get("tinh_chat_vat_ly"))
+    bullets("Tính chất hóa học", r.get("tinh_chat_hoa_hoc"))
+    bullets("Điều chế và ứng dụng", r.get("dieu_che_ung_dung"))
+    bullets("Đồng phân", r.get("dong_phan"))
+    if r.get("luu_y"):
+        st.info("Lưu ý: " + " • ".join([r["luu_y"]] if isinstance(r["luu_y"], str) else r["luu_y"]))
+
+
+def structure_result(r, from_img):
+    """Thẻ kết quả + khung kiểm chứng của tab Công thức cấu tạo (số liệu tính bằng RDKit)."""
+    smiles = (r.get("smiles") or "").strip()
+    mol, num = chem_numbers(smiles) if smiles else (None, None)
+    if mol is None:
+        st.warning(tx("Chưa nhận dạng được công thức trong ảnh.", "Could not recognise a formula in the image."))
+        return
+    name = r.get("ten_danh_phap") or r.get("ten_thuong_goi") or tx("Chưa rõ tên", "Name unknown")
+    common = r.get("ten_thuong_goi") if r.get("ten_thuong_goi") and r.get("ten_thuong_goi") != name else ""
+    groups = " · ".join(r.get("nhom_chuc") or []) or "—"
+    kind = r.get("loai_hop_chat") or ""
+    a, b = st.columns([1, 1.2], gap="medium")
+    with a:
+        st.markdown('<div class="molbox">', unsafe_allow_html=True)
+        st.image(mol_dark_png(mol))
+        st.markdown("</div>", unsafe_allow_html=True)
+    with b:
+        rows = [("structure", tx("Công thức phân tử", "Molecular formula"), num["formula"]),
+                ("scale", tx("Khối lượng mol", "Molar mass"), f'{num["mass"]:.2f} g/mol'),
+                ("code", tx("Mã SMILES", "SMILES"), html.escape(smiles)),
+                ("isomer", tx("Nhóm chức", "Functional groups"), html.escape(groups))]
+        body = "".join(f'<div class="irow"><span>{icon_svg(ic, "currentColor", 20, 1.7)}</span><em>{html.escape(k)}</em><b>{v}</b></div>' for ic, k, v in rows)
+        st.markdown(f'<div class="rescard"><div class="rt"><h3>{html.escape(name)}</h3>' + (f'<span class="kind">{html.escape(kind)}</span>' if kind else "")
+                    + "</div>" + (f'<div class="chip">{html.escape(common)}</div>' if common else "") + body + "</div>", unsafe_allow_html=True)
+    ok_groups = bool(r.get("nhom_chuc"))
+    checks = [(True, tx("Kiểm tra hóa trị", "Valence check"), tx("Hóa trị các nguyên tử hợp lệ theo RDKit.", "All atom valences are valid (RDKit).")),
+              (True, tx("Tính hợp lệ cấu trúc", "Structure validity"), tx("Mã SMILES đọc được và đúng quy tắc hóa học.", "The SMILES parses and follows chemical rules.")),
+              (ok_groups, tx("Nhận dạng nhóm chức", "Functional groups"), (tx("Nhóm chức: ", "Groups: ") + groups + tx(" (do AI nhận dạng).", " (identified by AI).")) if ok_groups else tx("Chưa nhận dạng được nhóm chức.", "No functional group identified.")),
+              (True, tx("Số liệu tính trực tiếp", "Computed values"), tx("Công thức phân tử và khối lượng mol tính bằng RDKit, không qua AI.", "Formula and molar mass computed by RDKit, not by AI."))]
+    li = "".join(f'<div class="chk {"ok" if ok else "no"}"><i>{"✓" if ok else "–"}</i><b>{html.escape(t)}</b><span>{html.escape(d)}</span></div>' for ok, t, d in checks)
+    conf = ""
+    if from_img and isinstance(r.get("do_tin_cay"), (int, float)):
+        conf = f'<div class="conf">{html.escape(tx("Độ tin cậy nhận dạng ảnh", "Image recognition confidence"))}: <b>{round(max(0.0, min(1.0, float(r["do_tin_cay"]))) * 100)}%</b></div>'
+    st.markdown(f'<div class="verify"><div class="vh">{icon_svg("shield", "#7fe3ff", 28, 1.7)}<b>{html.escape(tx("Kiểm chứng khoa học", "Scientific verification"))}</b>'
+                f'<span class="vbadge">✓ {html.escape(tx("Cấu trúc hợp lệ", "Valid structure"))}</span></div>{li}{conf}</div>', unsafe_allow_html=True)
+    with st.expander(tx("Xem đầy đủ tính chất", "Show all properties")):
+        render_props(r)
+
+
+
+DARK_CSS = """
+.stApp{background:radial-gradient(60rem 28rem at 78% -8%,rgba(92,74,255,.40),transparent 62%),radial-gradient(48rem 26rem at 6% 108%,rgba(0,170,255,.22),transparent 60%),linear-gradient(160deg,#050929 0%,#0a1040 52%,#070c34 100%)}
+.block-container [data-testid="stMarkdownContainer"]>:is(p,ul,ol,blockquote){color:#dfe5ff}
+.block-container [data-testid="stMarkdownContainer"]>:is(ul,ol) li{color:#dfe5ff}
+.block-container [data-testid="stMarkdownContainer"]>:is(h1,h2,h3,h4,h5,h6){color:#fff}
+.block-container [data-testid="stMarkdownContainer"]>p strong,.block-container [data-testid="stMarkdownContainer"]>ul strong{color:#fff}
+.block-container [data-testid="stWidgetLabel"] *{color:#cfd8ff}
+.block-container [data-testid="stCaptionContainer"] *{color:#9fb0ee}
+.block-container :is([data-testid="stCheckbox"],[data-testid="stToggle"]) label *{color:#dfe5ff}
+.block-container [data-testid="stExpander"] details{background:rgba(255,255,255,.04);border:1px solid rgba(120,160,255,.32);border-radius:1rem}
+.block-container [data-testid="stExpander"] summary *{color:#e8ecff}
+.block-container [data-testid="stTabs"] button p{color:#b9c4ff}
+.block-container [data-testid="stTabs"] button[aria-selected="true"] p{color:#fff}
+.block-container [data-testid="stMetricValue"],.block-container [data-testid="stMetricLabel"] *{color:#fff}
+.block-container [data-testid="stAlert"]{background:rgba(110,140,255,.14);border:1px solid rgba(120,160,255,.35);border-radius:1rem}
+.block-container [data-testid="stAlert"] *{color:#e8ecff}
+.block-container [data-testid="stDataFrame"]{filter:invert(.92) hue-rotate(180deg);border-radius:.8rem}
+.block-container [data-testid="stVerticalBlockBorderWrapper"]{border-color:rgba(120,160,255,.35)!important}
+.block-container :is([data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div){background:rgba(255,255,255,.07)!important;border:1px solid rgba(120,160,255,.42)!important;border-radius:.9rem}
+.block-container :is(input,textarea){color:#fff!important;-webkit-text-fill-color:#fff}
+.block-container ::placeholder{color:#8e9bd8!important;opacity:1;-webkit-text-fill-color:#8e9bd8}
+.block-container [data-baseweb="select"] *{color:#fff}
+.block-container .tb-bc,.block-container .tb-bc *{color:#b9c4ff}
+.block-container .tb-bc b{color:#7fe3ff}
+.block-container .tb-right svg{stroke:#cfd8ff}
+
+/* khung hai bên */
+.block-container .st-key-panel:not(:has(.st-key-pl)){background:linear-gradient(180deg,rgba(18,28,92,.74),rgba(10,16,64,.78));border:1px solid rgba(110,150,255,.38);box-shadow:0 1.2rem 3rem rgba(0,0,0,.35)}
+.block-container .st-key-panel:has(.st-key-pl){background:transparent;border:0;box-shadow:none;padding:0}
+.block-container :is(.st-key-pl,.st-key-pr){background:linear-gradient(180deg,rgba(18,28,96,.80),rgba(9,14,60,.84));border:1.5px solid rgba(90,140,255,.55);border-radius:1.5rem;padding:1.3rem 1.5rem 1.5rem;box-shadow:0 0 1.8rem rgba(70,110,255,.24),0 0 0 1px rgba(255,255,255,.04) inset;min-height:32rem}
+.block-container :is(.st-key-pl,.st-key-pr) [data-testid="stElementContainer"]{width:100%}
+
+/* tiêu đề trang */
+.thead{display:flex;align-items:center;gap:1.1rem;margin:.2rem 0 .9rem;position:relative}
+.thead .tic{flex:0 0 auto;width:4.6rem;height:4.6rem;border-radius:1.2rem;display:grid;place-items:center;background:linear-gradient(145deg,rgba(60,90,230,.55),rgba(20,30,110,.8));border:1.5px solid rgba(110,160,255,.65);box-shadow:0 0 1.4rem rgba(70,120,255,.45)}
+.thead .ttx{flex:1 1 auto;min-width:0}
+.block-container .thead h1{margin:0;padding:0;color:#fff;font-size:2.35rem;font-weight:800;line-height:1.1;letter-spacing:-.01em}
+.block-container .thead h1 em{font-style:normal;background:linear-gradient(90deg,#3de0ff,#9d7bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.block-container .thead p{margin:.35rem 0 0;color:#c4cdf5;font-size:1rem}
+.thead .tart{flex:0 0 auto;position:relative;width:27rem;height:7.2rem}
+.thead .tart img{position:absolute;left:0;top:-.4rem;height:8.2rem}
+.thead .els{position:absolute;right:0;top:.2rem;display:flex;gap:.7rem}
+.thead .el{position:relative;width:3.7rem;height:4.3rem;border-radius:.8rem;border:1.5px solid rgba(110,160,255,.7);background:rgba(15,25,90,.7);box-shadow:0 0 1rem rgba(70,120,255,.35);color:#fff;font-weight:700;font-size:1.7rem;text-align:center;padding-top:.5rem;line-height:1.5rem}
+.thead .el sup{position:absolute;left:.35rem;top:.2rem;font-size:.6rem;color:#9fb4ff}
+.thead .el small{display:block;font-size:.62rem;font-weight:500;color:#9fb4ff;margin-top:.3rem}
+
+/* các bước */
+.stepper{display:flex;align-items:center;justify-content:space-between;gap:.6rem;background:rgba(15,25,95,.55);border:1.5px solid rgba(90,140,255,.45);border-radius:1.2rem;padding:.7rem 1rem;margin:0 0 1rem;box-shadow:0 0 1.4rem rgba(70,110,255,.18)}
+.stepper u{flex:1 1 2rem;text-align:center;text-decoration:none;color:#33c8ff;font-size:1.3rem}
+.stp{flex:0 1 auto;display:flex;align-items:center;gap:.7rem;border-radius:99px;padding:.35rem 1.4rem .35rem .4rem;background:rgba(255,255,255,.05);border:1px solid rgba(110,150,255,.4);color:#cfd8ff;font-weight:600;font-size:1.05rem;white-space:nowrap}
+.stp i{font-style:normal;display:grid;place-items:center;width:2.4rem;height:2.4rem;border-radius:50%;background:rgba(80,110,230,.55);color:#fff;font-weight:700;font-size:.95rem}
+.stp.on{background:linear-gradient(90deg,rgba(0,190,255,.32),rgba(110,90,255,.28));border-color:#3cd0ff;box-shadow:0 0 1.2rem rgba(60,200,255,.4);color:#fff}
+.stp.on i{background:linear-gradient(135deg,#22d3ee,#4f8cff);box-shadow:0 0 .9rem rgba(60,210,255,.7)}
+.stp.ok i{background:#16c784}
+
+/* đầu khung */
+.ph{display:flex;flex-direction:column;gap:.15rem;margin:0 0 .9rem;padding-left:.9rem;border-left:4px solid #22d3ee;line-height:1.2}
+.ph b{color:#fff;font-size:1.55rem;font-weight:800}
+.ph span{color:#c4cdf5;font-size:.92rem}
+.ph.r{flex-direction:row;align-items:center;gap:.8rem;border-left:0;padding-left:0}
+.ph.r b{font-size:1.6rem}
+
+/* ô nhập: cách nhập dạng nút phân đoạn */
+.block-container .st-key-pl [role="radiogroup"]{gap:0;flex-wrap:nowrap;background:rgba(255,255,255,.05);border:1.5px solid rgba(110,160,255,.5);border-radius:1rem;padding:.2rem;margin-bottom:.4rem}
+.block-container .st-key-pl :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){flex:1 1 0;justify-content:center;background:transparent;border:0;border-radius:.8rem;padding:.5rem .4rem;box-shadow:none}
+.block-container .st-key-pl :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#cfd8ff;font-weight:600;font-size:.92rem}
+.block-container .st-key-pl :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(135deg,rgba(0,200,255,.28),rgba(120,90,255,.34));box-shadow:0 0 0 1.5px #3cd0ff inset,0 0 1rem rgba(60,200,255,.35)}
+.block-container .st-key-pl :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]) p{color:#fff}
+.block-container .st-key-pl [data-testid="stRadio"] label>div:first-child{display:none}
+.block-container [data-testid="stFileUploaderDropzone"]{background:rgba(8,18,72,.62);border:2px dashed rgba(90,210,255,.85);border-radius:1.2rem;min-height:13rem}
+.block-container [data-testid="stFileUploaderDropzone"]::before{width:5.2rem;height:4rem;border-radius:0;background:url("__CLOUD__") center/contain no-repeat}
+.block-container [data-testid="stFileUploaderDropzone"]>span>button{background:rgba(60,200,255,.16);border:1px solid rgba(90,210,255,.7);box-shadow:none}
+.block-container [data-testid="stFileUploaderDropzoneInstructions"]::before{color:#a9b6f5}
+.block-container [data-testid="stFileUploader"] section+div *{color:#cfd8ff}
+.block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"]){background:linear-gradient(90deg,#12b8ff 0%,#5a5cf0 55%,#a04cf6 100%);border:0;color:#fff;border-radius:.95rem;min-height:3.1rem;font-size:1.05rem;box-shadow:0 0 1.5rem rgba(60,160,255,.45)}
+.block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"]) *{color:#fff}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"],[data-testid="stBaseButton-secondaryFormSubmit"]){background:rgba(255,255,255,.04);border:1.5px solid rgba(110,160,255,.7);color:#e8ecff;border-radius:.95rem;min-height:3rem}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]) *{color:#e8ecff}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]):hover{background:rgba(110,160,255,.16);border-color:#3cd0ff}
+.block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"])[disabled]{opacity:.45}
+.block-container :is(.st-key-pl,.st-key-pr) [data-testid="stButton"] button,.block-container :is(.st-key-pl,.st-key-pr) [data-testid="stDownloadButton"] button{width:100%}
+
+/* khung trống bên phải */
+.empty{text-align:center;padding:.4rem .4rem 0}
+.empty .eglow{width:10rem;height:10rem;margin:.6rem auto .2rem;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,rgba(70,130,255,.45),rgba(70,130,255,0) 68%)}
+.block-container .empty h4{color:#fff;font-size:1.35rem;margin:.2rem 0}
+.block-container .empty p{color:#b9c4f2;font-size:.95rem;margin:0 auto 1rem;max-width:26rem}
+.etiles{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;text-align:left}
+.etile{border:1px solid rgba(110,160,255,.4);background:rgba(255,255,255,.04);border-radius:.9rem;padding:.6rem .9rem}
+.etile small{display:block;color:#9fb0ee;font-size:.8rem}.etile b{color:#fff;font-size:1.05rem}
+.etile:last-child:nth-child(odd){grid-column:1/-1}
+
+/* thẻ kết quả cấu trúc */
+.molbox{background:radial-gradient(circle at 50% 55%,rgba(60,120,255,.28),transparent 70%);border-radius:1.2rem;padding:.4rem}
+.rescard{border:1.5px solid rgba(90,140,255,.55);background:rgba(10,18,80,.6);border-radius:1.2rem;padding:1rem 1.2rem;box-shadow:0 0 1.2rem rgba(70,110,255,.22)}
+.rescard .rt{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.block-container .rescard h3{margin:0;color:#fff;font-size:1.5rem}
+.kind{font-size:.78rem;color:#cfd8ff;border:1px solid rgba(120,160,255,.5);border-radius:99px;padding:.15rem .7rem;white-space:nowrap}
+.rescard .chip{display:inline-block;margin:.4rem 0 .5rem;background:rgba(110,140,255,.25);color:#e8ecff;border-radius:.6rem;padding:.1rem .7rem;font-weight:700;font-size:.9rem}
+.irow{display:flex;align-items:center;gap:.8rem;padding:.55rem 0;border-top:1px solid rgba(120,160,255,.22)}
+.irow span{color:#cfd8ff;display:grid;place-items:center;flex:0 0 auto}
+.irow em{font-style:normal;color:#c4cdf5;font-size:.88rem;flex:0 0 7.5rem}
+.irow b{color:#fff;font-size:.95rem;word-break:break-all}
+.verify{margin-top:1rem;border:1.5px solid rgba(60,200,255,.6);background:linear-gradient(180deg,rgba(10,30,100,.55),rgba(8,16,70,.6));border-radius:1.2rem;padding:.9rem 1.2rem;box-shadow:0 0 1.5rem rgba(50,190,255,.25)}
+.vh{display:flex;align-items:center;gap:.7rem;margin-bottom:.4rem}
+.vh b{color:#fff;font-size:1.3rem;font-weight:800}
+.vbadge{margin-left:auto;background:rgba(22,199,132,.2);border:1px solid #16c784;color:#7bf0c0;border-radius:99px;padding:.2rem .8rem;font-size:.85rem;font-weight:700}
+.chk{display:grid;grid-template-columns:1.6rem 11rem 1fr;gap:.6rem;align-items:center;padding:.4rem 0}
+.chk i{font-style:normal;display:grid;place-items:center;width:1.4rem;height:1.4rem;border-radius:50%;background:#16c784;color:#fff;font-size:.8rem;font-weight:800}
+.chk.no i{background:#6b739f}
+.chk b{color:#fff;font-size:.9rem}.chk span{color:#b9c4f2;font-size:.82rem}
+.conf{margin-top:.4rem;color:#b9c4f2;font-size:.85rem}.conf b{color:#7fe3ff}
+@media(max-width:900px){.thead .tart{display:none}.thead h1{font-size:1.6rem}.stepper{overflow-x:auto}.chk{grid-template-columns:1.6rem 1fr}.chk span{grid-column:2}}
+"""
+
+HOME_CSS = """
+.stApp{background:radial-gradient(50rem 24rem at 88% -12%,rgba(150,130,255,.34),transparent 62%),radial-gradient(42rem 24rem at 0% 104%,rgba(110,200,255,.30),transparent 60%),linear-gradient(135deg,#eef1ff 0%,#e5eaff 46%,#f2edff 100%)}
+.block-container .st-key-hero{position:relative;overflow:hidden;border-radius:1.7rem;padding:1.5rem 2.2rem;background:linear-gradient(110deg,#17269f 0%,#3338d8 46%,#7b4cf0 100%);box-shadow:0 1.1rem 2.6rem rgba(70,80,230,.30);min-height:13rem}
+.hero-t{color:#fff;font-style:italic;font-weight:800;font-size:2.45rem;line-height:1.15;margin:.2rem 0 0}
+.hero-t em{font-style:italic;background:linear-gradient(90deg,#43e0ff,#b79bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-s{color:#e4e9ff;font-style:italic;font-size:1.08rem;margin:.55rem 0 1rem}
+.hero-art img{width:100%;max-height:13rem;object-fit:contain;filter:drop-shadow(0 0 1.2rem rgba(120,200,255,.5))}
+.block-container .st-key-hero [data-testid="stButton"] button{border-radius:99px;min-height:2.9rem;font-weight:700;padding:0 1.5rem;width:auto}
+.block-container .st-key-hero_go button{background:#fff;border:0;color:#2a37c9}
+.block-container .st-key-hero_go button *{color:#2a37c9}
+.block-container .st-key-hero_ai button{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.75);color:#fff}
+.block-container .st-key-hero_ai button *{color:#fff}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:.2rem 0 .3rem}
+.stat{display:flex;align-items:center;gap:.9rem;background:rgba(255,255,255,.82);border:1px solid #e3e7fb;border-radius:1.2rem;padding:.9rem 1.1rem;box-shadow:0 .5rem 1.4rem rgba(79,92,240,.08)}
+.stat .si{flex:0 0 auto;width:3rem;height:3rem;border-radius:.9rem;background:#e7e3ff;color:#6d4df0;display:grid;place-items:center}
+.stat small{display:block;color:#4b5380;font-size:.82rem}.stat b{font-size:1.9rem;color:#1b2150;line-height:1.1}
+.sec-h{display:flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.25rem;color:#1b2150;margin:.5rem 0 .1rem}
+.sec-h svg{color:#6d4df0}
+.tcard{display:flex;align-items:center;gap:1rem;min-height:6.6rem;border-radius:1.3rem;padding:.8rem 1.1rem;border:1px solid rgba(255,255,255,.85);box-shadow:0 .6rem 1.5rem rgba(79,92,240,.12);transition:transform .15s,box-shadow .15s}
+div[class*="st-key-qk_tc"]:hover .tcard,div[class*="st-key-qk_lib"]:hover .libt{transform:translateY(-3px);box-shadow:0 .9rem 1.9rem rgba(79,92,240,.22)}
+.tcard .ti{flex:0 0 auto;width:3.9rem;height:3.9rem;border-radius:1.1rem;background:rgba(255,255,255,.72);display:grid;place-items:center}
+.tcard b{display:block;font-size:1.08rem;color:#1b2150;line-height:1.2}
+.tcard span.d{display:block;color:#4b5380;font-size:.82rem;margin-top:.2rem;line-height:1.35}
+.tcard .go{margin-left:auto;flex:0 0 auto;width:2.2rem;height:2.2rem;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
+.tc1{background:linear-gradient(120deg,#e0d9ff,#c9dbff);color:#6d4df0}.tc2{background:linear-gradient(120deg,#cfe3ff,#bfe9ff);color:#2563eb}
+.tc3{background:linear-gradient(120deg,#d4f6e6,#c4f0f3);color:#0f9f78}.tc4{background:linear-gradient(120deg,#ffe6cf,#ffefd8);color:#c2740a}
+.tc5{background:linear-gradient(120deg,#ffd9ee,#f1dcff);color:#d6389b}.tc6{background:linear-gradient(120deg,#cdeeff,#d8e6ff);color:#0e8fc4}
+.libt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;height:6.6rem;border-radius:1rem;border:1px solid #dfe4fb;background:rgba(255,255,255,.85);text-align:center;font-weight:600;font-size:.82rem;color:#1b2150;transition:transform .15s,box-shadow .15s;padding:.4rem}
+.libt svg{color:#6d4df0}
+.libpanel{background:rgba(255,255,255,.6);border:1px solid #e3e7fb;border-radius:1.4rem;padding:.8rem 1rem .9rem;box-shadow:0 .5rem 1.4rem rgba(79,92,240,.07)}
+.block-container .actcard{margin-top:0}
+@media(max-width:900px){.stats{grid-template-columns:1fr 1fr}.hero-t{font-size:1.7rem}.hero-art{display:none}}
+"""
+
+BASE_CSS = """
+.block-container .st-key-topbar{margin:0}
+.tb-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 .3rem}
+.tb-bc{display:flex;align-items:center;gap:.55rem;color:#6b7299;font-size:.95rem}
+.tb-bc b{color:#4f3bd8;font-weight:700}.tb-bc i{font-style:normal;opacity:.55}.tb-bc svg{color:#4f3bd8}
+.tb-row .tb-right{display:flex;align-items:center;gap:1rem}
+.sb-brand span{letter-spacing:.02em}
+.st-key-sidenav [role="radiogroup"]>*:nth-child(7){margin-top:.9rem;position:relative}
+.st-key-sidenav [role="radiogroup"]>*:nth-child(7)::before{content:"";position:absolute;left:.4rem;right:.4rem;top:-.55rem;height:1px;background:rgba(110,150,255,.4)}
+.dna{width:62%;margin:.2rem auto 0}.dna img{width:100%;display:block;filter:drop-shadow(0 0 .8rem rgba(80,170,255,.55))}
+"""
+DNA_ART = _dna_svg()
+DARK_CSS = DARK_CSS.replace("__CLOUD__", _uri(CLOUD_ICON))
+
+
+def _stat_card(ic, label, value):
+    return (f'<div class="stat"><div class="si">{icon_svg(ic, "currentColor", 26, 1.7)}</div>'
+            f'<div><small>{html.escape(label)}</small><b>{value}</b></div></div>')
+
+
+HOME_CARDS = [
+    (STRUCT, "structure", "tc1", ("Nhận dạng, phân tích và kiểm chứng cấu trúc phân tử", "Recognise, analyse and verify molecular structures")),
+    (REACT, "flask", "tc2", ("Nhận dạng, phân loại và kiểm tra cân bằng phản ứng", "Recognise, classify and check the balance of reactions")),
+    (ISO, "isomer", "tc3", ("Đếm, liệt kê và so sánh các đồng phân", "Count, list and compare isomers")),
+    (EQUIP, "equipment", "tc4", ("Nhận diện, gọi tên và nêu công dụng dụng cụ", "Identify, name and explain lab equipment")),
+    (MIND, "mind", "tc5", ("Hệ thống hóa kiến thức hóa học trực quan", "Organise chemistry knowledge visually")),
+    (ASSIST, "chat", "tc6", ("Giải thích, hướng dẫn và hỗ trợ học tập hóa học", "Explain, guide and support your chemistry study")),
+]
+
+
+def home_page():
+    with st.container(key="hero"):
+        c1, c2 = st.columns([1.55, 1], gap="large")
+        with c1:
+            st.markdown(f'<div class="hero-t">{html.escape(_one("Khám phá Hóa học cùng", "Explore Chemistry with"))} <em>{html.escape(APP_NAME)}</em></div>'
+                        f'<div class="hero-s">{html.escape(_one("Học tập trực quan – Phân tích thông minh – Kiểm chứng khoa học", "Visual learning – Smart analysis – Scientific verification"))}</div>',
+                        unsafe_allow_html=True)
+            b1, b2, _sp = st.columns([1, 1, 0.7], gap="small")
+            with b1, st.container(key="hero_go"):
+                st.button(_one("Bắt đầu khám phá", "Start exploring"), key="hero_go_b", icon=":material/rocket_launch:", on_click=go, args=(STRUCT,))
+            with b2, st.container(key="hero_ai"):
+                st.button(_one("Hỏi Trợ lý AI", "Ask the AI assistant"), key="hero_ai_b", icon=":material/auto_awesome:", on_click=go, args=(ASSIST,))
+        with c2:
+            st.markdown(f'<div class="hero-art"><img src="{_uri(HERO_ART)}"></div>', unsafe_allow_html=True)
+
+    prof = my_profile()
+    if prof is not None:
+        st.markdown('<div class="stats">'
+                    + _stat_card("flask", tx("Lượt tra cứu", "Lookups"), len(st.session_state.hist))
+                    + _stat_card("practice", tx("Bài đã làm", "Attempts"), prof["attempts"])
+                    + _stat_card("stats", tx("Độ chính xác", "Accuracy"), f'{prof["accuracy"]}%' if prof["attempts"] else "—")
+                    + _stat_card("test", tx("Bài hoàn thành", "Finished"), prof["finished"]) + "</div>", unsafe_allow_html=True)
+
+    st.markdown(f'<div class="sec-h">{icon_svg("flask", "currentColor", 26, 1.7)}{html.escape(tx("Công cụ hóa học thông minh", "Smart chemistry tools"))}</div>', unsafe_allow_html=True)
+    for row in (HOME_CARDS[:3], HOME_CARDS[3:]):
+        for col, (target, ic, cls, desc) in zip(st.columns(3, gap="medium"), row):
+            i = HOME_CARDS.index((target, ic, cls, desc))
+            with col, st.container(key=f"qk_tc{i}"):
+                st.markdown(f'<div class="tcard {cls}"><div class="ti">{icon_svg(ic, "currentColor", 34, 1.5)}</div><div><b>{html.escape(tx(target))}</b>'
+                            f'<span class="d">{html.escape(tx(*desc, sep=" | "))}</span></div><span class="go">{icon_svg("arrow", "currentColor", 18, 2.2)}</span></div>', unsafe_allow_html=True)
+                st.button("Mở", key=f"tcb_{i}", on_click=go, args=(target,))
+
+    left, right = st.columns([1, 1.3], gap="large")
+    with left:
+        home_activity()
+    with right:
+        with st.container(key="libpanel"):
+            st.markdown(f'<div class="sec-h" style="margin-top:0">{icon_svg("book", "currentColor", 26, 1.7)}{html.escape(tx("Thư viện kiến thức", "Knowledge library"))}</div>', unsafe_allow_html=True)
+            lib = [("Bảng tuần hoàn", "grid", periodic_dialog), ("Bảng tính tan", "drop", solubility_dialog), ("Công thức hữu cơ", "structure", organic_dialog),
+                   ("Phương trình phản ứng", "flask", reactions_dialog), ("Mẹo & lưu ý", "bulb", tips_dialog)]
+            for j, (col, (lab, ic, dlg)) in enumerate(zip(st.columns(5, gap="small"), lib)):
+                with col, st.container(key=f"qk_lib{j}"):
+                    st.markdown(f'<div class="libt">{icon_svg(ic, "currentColor", 28, 1.6)}<span>{html.escape(tx(lab))}</span></div>', unsafe_allow_html=True)
+                    if st.button("Mở", key=f"libb_{j}"):
+                        dlg() if is_logged_in() else auth_dialog()
 
 
 def page_banner(icon, title, desc):
@@ -7046,7 +7503,7 @@ def home_activity():
         me = au["name"] if cr.is_student(au) else ""
         ev = [{"name": me, "ts": f'{h.get("d", "")} {h.get("t", "")}'.strip(), "k": h.get("k", ""), "q": h["q"]}
               for h in st.session_state.hist[:10]]
-    title = tx("Hoạt động của lớp", "Class activity") if teacher else tx("Lịch sử tra cứu")
+    title = tx("Hoạt động của lớp", "Class activity") if teacher else tx("Hoạt động gần đây", "Recent activity")
     sub = tx("Học sinh nào đã vào, lúc nào, tra cứu nội dung gì.", "Who logged in, when, and what they looked up.") if teacher else ""
     rows = ""
     for e in ev:
@@ -7066,7 +7523,7 @@ def home_activity():
     if not rows:
         rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy dùng một công cụ ở menu bên trái.", "No lookups yet. Use one of the tools in the left menu.", sep=" | "))}</div>' \
             if not teacher else f'<div class="hempty">{html.escape(tx("Chưa có học sinh nào truy cập hoặc tra cứu.", "No student activity yet."))}</div>'
-    st.markdown(f'<div class="rcard actcard"><div class="rh">{icon_svg("search", "currentColor", 22)}<b>{title}</b></div>'
+    st.markdown(f'<div class="rcard actcard"><div class="rh">{icon_svg("clock", "currentColor", 22)}<b>{title}</b></div>'
                 + (f'<div class="rs">{html.escape(sub)}</div>' if sub else "") + rows + '</div>', unsafe_allow_html=True)
     if teacher:
         with st.container(key="hclear"):
@@ -7338,7 +7795,7 @@ def sidebar_account():
 _ACCT_SLOT = None
 with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
-                f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
+                f'<span>AI Chemistry Platform</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
     _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
     with st.container(key="sidenav"):
@@ -7350,7 +7807,7 @@ with st.sidebar:
         st.markdown(f'<div class="aicard"><img src="{_uri(AI_FACE)}"><div><b>{tx("Trợ lý AI")}</b><span>{tx("Hỏi bất cứ điều gì về")}<br>{tx("hóa học, mình luôn ở đây!")}</span></div>'
                     '<div class="go">›</div></div>', unsafe_allow_html=True)
         st.button("Mở trợ lý AI", key="aibtn_b", on_click=go, args=(ASSIST,))
-    st.markdown(f'<div class="mascot"><img src="{_uri(MASCOT_SVG)}"><div class="hw">{tx("Học hóa") if i18n.lang() != "bi" else "Học hóa"}<br>{tx("thật dễ!") if i18n.lang() != "bi" else "thật dễ!"}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="dna"><img src="{_uri(DNA_ART)}"></div>', unsafe_allow_html=True)
 
 # Trên điện thoại: tự đóng thanh bên sau khi chọn một mục (mã chạy trong trang chính để không bị hủy khi làm mới)
 components.html("""<script>
@@ -7377,43 +7834,44 @@ def login_gate():
 
 
 nav = st.session_state.nav
+_tab_pages = tuple(LABELS) + (PRACTICE_TAB, TEST_TAB, HISTORY_TAB)
+_dark = nav in _tab_pages and is_logged_in()
+_is_home = not (nav in _tab_pages or nav == ASSIST)
+st.markdown("<style>" + BASE_CSS + (DARK_CSS if _dark else (HOME_CSS if _is_home else "")) + "</style>", unsafe_allow_html=True)
 if nav in NAV_OPTS + [ASSIST] and nav != HOME and not is_logged_in():
     login_gate()
-elif nav == PRACTICE_TAB:
-    page_banner("practice", PRACTICE_TAB, "")
+elif nav in _tab_pages:
+    tool_header(nav)
+    _steps_on = bool(_tools_meta()[nav][3])
+    stp = st.empty() if _steps_on else None
     with st.container(key="panel"):
-        practice_ui()
-        tab_history_ui(nav)
-elif nav == TEST_TAB:
-    page_banner("test", TEST_TAB, "Xem điểm và bài làm kiểm tra của học sinh." if cr.is_teacher(cur_auth()) else "Làm bài kiểm tra giáo viên giao và xem điểm.")
-    with st.container(key="panel"):
-        if cr.is_teacher(cur_auth()):
-            st.markdown("#### " + tx("📝 Kết quả kiểm tra của học sinh", "📝 Students' test results"))
-            teacher_results_ui(cr.TEST)
+        if nav == PRACTICE_TAB:
+            practice_ui()
+            tab_history_ui(nav)
+        elif nav == TEST_TAB:
+            if cr.is_teacher(cur_auth()):
+                st.markdown("#### " + tx("📝 Kết quả kiểm tra của học sinh", "📝 Students' test results"))
+                teacher_results_ui(cr.TEST)
+            else:
+                practice_assign_ui(cr.TEST)
+        elif nav == HISTORY_TAB:
+            if cr.is_teacher(cur_auth()):
+                teacher_ui()
+            else:
+                my_history_ui()
         else:
-            practice_assign_ui(cr.TEST)
-elif nav == HISTORY_TAB:
-    page_banner("search", HISTORY_TAB, "Theo dõi học sinh, giao bài và xem kết quả cả lớp." if cr.is_teacher(cur_auth())
-                else "Xem lại những gì bạn đã tra cứu ở từng tab.")
-    with st.container(key="panel"):
-        if cr.is_teacher(cur_auth()):
-            teacher_ui()
-        else:
-            my_history_ui()
-elif nav == HOME or (nav not in LABELS and nav != ASSIST):
-    hero()
-    home_ui()
+            SECTIONS[LABELS.index(nav)][3]()
+            tab_history_ui(nav)
+    if stp is not None:
+        with stp.container():
+            stepper(nav, any(st.session_state.get(k) for k in _tools_meta()[nav][4]))
 elif nav == ASSIST:
     page_banner("chat", "Trợ lý AI", "Hỏi bất cứ điều gì về hóa học, mình luôn ở đây!")
     with st.container(key="panel"):
         assistant_ui()
         tab_history_ui(ASSIST)
 else:
-    label, title, desc, fn, ic = SECTIONS[LABELS.index(nav)]
-    page_banner(ic, title, desc)
-    with st.container(key="panel"):
-        fn()
-        tab_history_ui(nav)
+    home_page()
 
 # Thanh bên được điền sau cùng để thống kê gồm cả bài vừa nộp ở trang này.
 _toast = st.session_state.pop("_toast", None)
