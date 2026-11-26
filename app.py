@@ -7399,6 +7399,37 @@ BASE_CSS = """
 """
 DNA_ART = _dna_svg()
 DARK_CSS = DARK_CSS.replace("__CLOUD__", _uri(CLOUD_ICON))
+DARK_CSS += """
+/* ===== Chế độ tối: khung sáng phải có chữ đọc được ===== */
+.block-container :is([data-testid="stHeading"],[data-testid="stHeading"] *,h1,h2,h3,h4,h5,h6){color:#fff!important}
+.block-container [data-testid="stAlert"]{background:rgba(5,195,199,.16)!important;border:1px solid rgba(5,209,208,.4)!important;border-radius:1rem}
+.block-container [data-testid="stAlertContainer"]{background:transparent!important}
+.block-container [data-testid="stAlert"] :is(p,span,div,li,strong,b,em,code,a,h1,h2,h3,h4,small){color:#e8f6fb!important}
+.block-container [data-testid="stAlert"] svg{fill:#e8f6fb}
+.block-container [data-baseweb="select"]>div{background:rgba(255,255,255,.08)!important}
+.block-container [data-baseweb="select"] :is(div,span,input,p){color:#fff!important;-webkit-text-fill-color:#fff!important;background-color:transparent!important}
+.block-container [data-baseweb="select"] svg{fill:#fff!important;color:#fff!important}
+.block-container :is(label,[data-testid="stWidgetLabel"]) :is(p,span,div){color:#d5e9f3!important}
+.block-container [data-testid="stCaptionContainer"] :is(p,span){color:#a9cfe0!important}
+.block-container [data-testid="stExpanderDetails"] :is(p,li,span,strong,small,label){color:#d5e9f3!important}
+.block-container [data-testid="stMarkdownContainer"] :is(p,li,span,strong,small,em,b){color:#d5e9f3}
+.block-container [data-testid="stMarkdownContainer"] :is(h1,h2,h3,h4,h5,h6){color:#fff!important}
+.block-container [data-testid="stBaseButton-secondary"] *{color:#e8f6fb!important}
+.block-container [data-testid="stSelectbox"] :is(div,span,input,p){color:#fff!important;-webkit-text-fill-color:#fff!important;background-color:transparent!important}
+.block-container [data-testid="stSelectbox"] [data-baseweb="select"]>div{background-color:rgba(255,255,255,.08)!important;border:1px solid rgba(5,209,208,.42)!important}
+.block-container [data-testid="stSelectbox"] svg{fill:#fff!important}
+.block-container [data-testid="stRadio"] :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){background:rgba(255,255,255,.06)!important;border:1px solid rgba(5,209,208,.4)!important}
+.block-container [data-testid="stRadio"] :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(135deg,rgba(0,200,255,.3),rgba(5,168,192,.36))!important;border-color:#3cd0ff!important}
+.block-container [data-testid="stRadio"] :is(p,span,div){color:#eaf7fb!important}
+.block-container [data-testid="stCheckbox"] :is(p,span),.block-container [data-testid="stToggle"] :is(p,span){color:#eaf7fb!important}
+.block-container [data-testid="stTextInput"] div[data-baseweb="input"],.block-container [data-testid="stTextArea"] div[data-baseweb="textarea"],.block-container [data-testid="stNumberInput"] div[data-baseweb="input"]{background:rgba(255,255,255,.08)!important}
+.block-container [data-testid="stTextInput"] input::placeholder,.block-container [data-testid="stTextArea"] textarea::placeholder{color:#8fb6c6!important;-webkit-text-fill-color:#8fb6c6!important}
+.block-container .st-key-gsearch div[data-baseweb="input"]{background:rgba(255,255,255,.08)!important;border:1px solid rgba(5,209,208,.4)!important}
+.block-container .st-key-gsearch div{background-color:transparent!important}
+.block-container .st-key-gsearch [data-baseweb="base-input"],.block-container .st-key-gsearch div[data-baseweb="input"]{background-color:rgba(255,255,255,.08)!important}
+.block-container .st-key-gsearch input{color:#fff!important;-webkit-text-fill-color:#fff!important}
+.block-container [data-testid="stFileUploaderFile"] *,.block-container [data-testid="stFileUploaderFileName"]{color:#eaf7fb!important}
+"""
 
 def _img_uri(name):
     import base64, pathlib
