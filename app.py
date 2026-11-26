@@ -2838,9 +2838,12 @@ def sheet_editor_ui(prefix, detected=None, existing=None):
 
 
 _EXAM_CSS = """<style>
-.exam{font-family:'Times New Roman',Times,serif;font-size:1.05rem;line-height:1.55}
+.exam{font-family:'Times New Roman',Times,serif;font-size:1.05rem;line-height:1.55;color:#f4fafd;
+  background:rgba(1,10,16,.62);padding:.15rem 1.3rem;margin:0;border-left:3px solid rgba(34,211,238,.55)}
+.exam,.exam p,.exam div,.exam span,.exam li,.exam td,.exam th,.exam b,.exam strong,.exam em,.exam i,.exam u,.exam sub,.exam sup,.exam h1,.exam h2,.exam h3{color:#f4fafd!important;-webkit-text-fill-color:#f4fafd}
 .exam p{margin:.3em 0}.exam table{border-collapse:collapse;margin:.5em 0;max-width:100%}
-.exam td,.exam th{border:1px solid #888;padding:4px 8px;vertical-align:top}.exam img{max-width:100%;height:auto}
+.exam td,.exam th{border:1px solid rgba(200,232,244,.6);padding:4px 8px;vertical-align:top}
+.exam img{max-width:100%;height:auto;background:#fff;border-radius:6px;padding:3px}
 """
 _EXAM_CSS += _FMT_RULES + "</style>"
 
@@ -2938,15 +2941,16 @@ def _exam_timer(aid, remaining):
     """Đồng hồ đếm ngược dính ở đầu trang; hết giờ tự bấm nút Nộp bài (làm bằng JavaScript trong khung nhúng)."""
     st.markdown(f'<style>.st-key-examtimer_{aid}{{position:sticky;top:3.2rem;z-index:99;background:rgba(255,255,255,.95);padding:4px 0;border-radius:10px}}</style>',
                 unsafe_allow_html=True)
+    _l1, _l2 = json.dumps(tx("Còn lại", "Time left")), json.dumps(tx("Hết giờ, đang nộp bài…", "Time is up, submitting…"))
     with st.container(key=f"examtimer_{aid}"):
         components.html(f"""<div id="t" style="font:700 18px sans-serif;padding:8px 14px;border-radius:10px;display:inline-block"></div>
 <script>
 let left={int(max(0, remaining))},fired=false;const el=document.getElementById('t');
 function fmt(s){{s=Math.max(0,s);return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}}
-function auto(){{if(fired)return;fired=true;el.textContent='⏱️ Hết giờ, đang nộp bài…';
+function auto(){{if(fired)return;fired=true;el.textContent='⏱️ '+{_l2};
   try{{const d=window.parent.document;if(d.activeElement)d.activeElement.blur();
-  setTimeout(()=>{{const b=[...d.querySelectorAll('button')].find(x=>x.innerText.includes('Nộp bài'));if(b)b.click();}},400);}}catch(e){{}}}}
-function tick(){{el.textContent='⏱️ Còn lại '+fmt(left);el.style.background=left<=60?'#ffd9d9':'#e2f0f7';el.style.color=left<=60?'#a00':'#232e34';
+  setTimeout(()=>{{const b=[...d.querySelectorAll('button')].find(x=>(x.innerText.includes('Nộp bài')||x.innerText.includes('Submit')));if(b)b.click();}},400);}}catch(e){{}}}}
+function tick(){{el.textContent='⏱️ '+{_l1}+' '+fmt(left);el.style.background=left<=60?'#ffd9d9':'#e2f0f7';el.style.color=left<=60?'#a00':'#232e34';
   if(left<=0){{auto();return;}}left--;setTimeout(tick,1000);}}
 tick();
 </script>""", height=54)
@@ -7091,8 +7095,18 @@ def _dna_svg():
 
 
 def _one(vi, en):
-    """Chữ ngắn gọn cho nút/bước: tiếng Việt khi chọn Việt hoặc Việt – Anh, tiếng Anh khi chọn English."""
-    return en if i18n.lang() == "en" else vi
+    """Nhãn nút/tiêu đề: Việt -> tiếng Việt; Việt – Anh -> "Việt · English"; English -> tiếng Anh."""
+    return tx(vi, en)
+
+
+def _bi_html(vi, en):
+    """HTML cho tiêu đề lớn: chọn Việt – Anh thì tiếng Việt ở trên, tiếng Anh chữ nhỏ ngay bên dưới."""
+    L = i18n.lang()
+    if L == "en":
+        return html.escape(en)
+    if L == "bi":
+        return f'{html.escape(vi)}<small class="en2">{html.escape(en)}</small>'
+    return html.escape(vi)
 
 
 DARK_TABS = None   # điền sau khi biết các hằng số tab
@@ -7144,7 +7158,7 @@ def stepper(nav, done):
     parts = []
     for i, (vi, en) in enumerate(steps, 1):
         cls = "on" if i == cur else ("ok" if i < cur else "")
-        parts.append(f'<div class="stp {cls}"><i>{i:02d}</i><span>{html.escape(_one(vi, en))}</span></div>')
+        parts.append(f'<div class="stp {cls}"><i>{i:02d}</i><span>{_bi_html(vi, en)}</span></div>')
     st.markdown('<div class="stepper">' + "<u>→</u>".join(parts) + "</div>", unsafe_allow_html=True)
 
 
@@ -7349,6 +7363,9 @@ DARK_CSS = """
 .chk.no i{background:#6fa0a2}
 .chk b{color:#fff;font-size:.9rem}.chk span{color:#85e6e8;font-size:.82rem}
 .conf{margin-top:.4rem;color:#85e6e8;font-size:.85rem}.conf b{color:#7fe3ff}
+.en2{display:block;font-size:.58em;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.25;margin-top:.2em;opacity:.88;-webkit-text-fill-color:currentColor}
+.hero-t .en2{font-size:.46em;color:#bfeaf3}.hero-s .en2{font-size:.82em;color:#a9d6e4}
+.stp{white-space:normal}.stp span{line-height:1.15}.stp .en2{font-size:.72em;opacity:.8}
 @media(max-width:900px){.thead .tart{display:none}.thead h1{font-size:1.6rem}.stepper{overflow-x:auto}.chk{grid-template-columns:1.6rem 1fr}.chk span{grid-column:2}}
 """
 
@@ -7523,6 +7540,11 @@ div[class*="st-key-qk_tc"]{margin-bottom:.35rem}
 .libt{background:#fff;border:1px solid #e3eef3;border-radius:.9rem;height:7.2rem;color:#0c2a3a;font-weight:600;font-size:.76rem;line-height:1.25;padding:.4rem .3rem;box-shadow:0 .25rem .8rem rgba(3,37,54,.05)}
 .libt svg{color:#0a9a8a}.libt:nth-child(n){}
 """
+MATCH_HOME_CSS += """
+.en2{display:block;font-size:.58em;font-weight:500;font-style:normal;letter-spacing:0;line-height:1.25;margin-top:.2em;opacity:.88;-webkit-text-fill-color:currentColor}
+.hero-t .en2{font-size:.46em;color:#bfeaf3}.hero-s .en2{font-size:.82em;color:#a9d6e4}
+.stp{white-space:normal}.stp span{line-height:1.15}.stp .en2{font-size:.72em;opacity:.8}
+"""
 MATCH_HOME_CSS = MATCH_HOME_CSS.replace("__HEROIMG__", _img_uri("hero_art.png"))
 BASE_CSS += MATCH_BASE_CSS
 HOME_CSS += MATCH_HOME_CSS
@@ -7545,10 +7567,10 @@ HOME_CARDS = [
 
 def home_page():
     with st.container(key="hero"):
-        st.markdown(f'<div class="hero-t">{html.escape(_one("Khám phá Hóa học cùng", "Explore Chemistry with"))} <em>{html.escape(APP_NAME)}</em></div>'
-                    f'<div class="hero-s">{html.escape(_one("Học tập trực quan – Phân tích thông minh – Kiểm chứng khoa học", "Visual learning – Smart analysis – Scientific verification"))}</div>'
+        st.markdown(f'<div class="hero-t">{_bi_html("Khám phá Hóa học cùng", "Explore Chemistry with")} <em>{html.escape(APP_NAME)}</em></div>'
+                    f'<div class="hero-s">{_bi_html("Học tập trực quan – Phân tích thông minh – Kiểm chứng khoa học", "Visual learning – Smart analysis – Scientific verification")}</div>'
                     '<div class="hero-bar"></div>', unsafe_allow_html=True)
-        b1, b2, _sp = st.columns([1, 1, 2.2], gap="small")
+        b1, b2, _sp = st.columns([1.25, 1.25, 1.2] if i18n.lang() == "bi" else [1, 1, 2.2], gap="small")
         with b1, st.container(key="hero_go"):
             st.button(_one("Bắt đầu khám phá", "Start exploring"), key="hero_go_b", icon=":material/play_arrow:", on_click=go, args=(STRUCT,))
         with b2, st.container(key="hero_ai"):
