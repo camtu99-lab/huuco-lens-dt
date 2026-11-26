@@ -6038,7 +6038,7 @@ st.session_state.setdefault("nav_side", HOME)
 
 def _nav_disp(o):
     """Nhãn hiện trên menu thanh bên: dịch theo ngôn ngữ, thêm 🔒 nếu chưa đăng nhập (trừ Trang chủ)."""
-    return tx(o) if (o == HOME or is_logged_in()) else "🔒 " + tx(o)
+    return tx(o, sep="\n") if (o == HOME or is_logged_in()) else "🔒 " + tx(o, sep="\n")
 
 
 def _nav_key():
@@ -7465,6 +7465,8 @@ MATCH_BASE_CSS = """
 .sb-brand span{color:#cfe6f0;font-size:.72rem}
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])::before{background-color:#fff}
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#fff}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){align-items:center;height:auto;min-height:2.6rem}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) :is(p,div[data-testid="stMarkdownContainer"]){white-space:pre-line!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25;word-break:normal;overflow-wrap:anywhere}
 .st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(90deg,#00a7b5,#14b8a6);border-color:rgba(255,255,255,.2);box-shadow:0 .4rem 1.2rem rgba(0,167,181,.35)}
 .dna{width:100%;margin:.4rem 0 .2rem}.dna img{width:100%;display:block;filter:none;opacity:.9;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
 .st-key-sbacct{margin:.3rem 0 .4rem}
