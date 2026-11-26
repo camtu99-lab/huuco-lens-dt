@@ -7271,6 +7271,9 @@ DARK_CSS = """
 .block-container [data-testid="stVerticalBlockBorderWrapper"]{border-color:rgba(5,209,208,.35)!important}
 .block-container :is([data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div){background:rgba(255,255,255,.07)!important;border:1px solid rgba(5,209,208,.42)!important;border-radius:.9rem}
 .block-container :is(input,textarea){color:#fff!important;-webkit-text-fill-color:#fff}
+.block-container :is([data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-testid="stTextInputRootElement"],[data-testid="stNumberInputContainer"]){background:#0a2c3c!important;background-color:#0a2c3c!important}
+.block-container :is([data-baseweb="base-input"],[data-baseweb="textarea"]) :is(input,textarea),.block-container :is(input,textarea):-webkit-autofill{background:transparent!important;color:#fff!important;-webkit-text-fill-color:#fff!important;caret-color:#fff}
+.block-container :is(input,textarea):disabled{-webkit-text-fill-color:#9ccfe0!important;opacity:1}
 .block-container ::placeholder{color:#66c7ca!important;opacity:1;-webkit-text-fill-color:#66c7ca}
 .block-container [data-baseweb="select"] *{color:#fff}
 .block-container .tb-bc,.block-container .tb-bc *{color:#a1cde4}
