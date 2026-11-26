@@ -7064,7 +7064,7 @@ def home_activity():
         rows += (f'<div class="hrow act">{badge}<div class="actbody">{name_html}<b>{what}</b>'
                  f'<small>{tab}</small></div><div class="actwhen">{html.escape(_when(e["ts"]))}</div></div>')
     if not rows:
-        rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy thử Nhập nhanh hoặc dùng một công cụ bên trái.", sep=" | "))}</div>' \
+        rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy dùng một công cụ ở menu bên trái.", "No lookups yet. Use one of the tools in the left menu.", sep=" | "))}</div>' \
             if not teacher else f'<div class="hempty">{html.escape(tx("Chưa có học sinh nào truy cập hoặc tra cứu.", "No student activity yet."))}</div>'
     st.markdown(f'<div class="rcard actcard"><div class="rh">{icon_svg("search", "currentColor", 22)}<b>{title}</b></div>'
                 + (f'<div class="rs">{html.escape(sub)}</div>' if sub else "") + rows + '</div>', unsafe_allow_html=True)
@@ -7091,16 +7091,6 @@ def home_ui():
         home_activity()
 
     with right:
-        with st.container(key="quick"):
-            st.markdown(f'<div class="qhead"><div class="qi">{icon_svg("pen", "#fff", 24, 2)}</div><div><b>{tx("Nhập nhanh")}</b>'
-                        f'<span>{tx("Nhập công thức để tra cứu ngay")}</span></div></div>', unsafe_allow_html=True)
-            with st.form("quick_form", border=False, clear_on_submit=False):
-                qa, qb = st.columns([5, 1.2], vertical_alignment="center", gap="small")
-                with qa:
-                    st.text_input("Công thức", key="quick_in", placeholder="VD: C4H10O, CCO, axit axetic…", label_visibility="collapsed")
-                with qb:
-                    st.form_submit_button("➜", on_click=on_quick)
-
         with st.container(key="res"):
             st.markdown(f'<div class="rsh">{icon_svg("equipment", "currentColor", 24)}'
                         f'<div><b>{tx("Tài liệu học tập")}</b><span>{html.escape(tx("Kho tài liệu & công thức quan trọng"))}</span></div></div>', unsafe_allow_html=True)
