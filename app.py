@@ -7466,7 +7466,8 @@ MATCH_BASE_CSS = """
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])::before{background-color:#fff}
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#fff}
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){align-items:center;height:auto;min-height:2.6rem}
-.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) :is(p,div[data-testid="stMarkdownContainer"]){white-space:pre-line!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25;word-break:normal;overflow-wrap:anywhere}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) :is(p,div[data-testid="stMarkdownContainer"]){white-space:pre!important;overflow:visible!important;text-overflow:clip!important;line-height:1.25;font-size:.9rem;letter-spacing:-.01em}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){padding-left:.55rem!important;padding-right:.3rem!important;gap:.5rem}
 .st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(90deg,#00a7b5,#14b8a6);border-color:rgba(255,255,255,.2);box-shadow:0 .4rem 1.2rem rgba(0,167,181,.35)}
 .dna{width:100%;margin:.4rem 0 .2rem}.dna img{width:100%;display:block;filter:none;opacity:.9;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
 .st-key-sbacct{margin:.3rem 0 .4rem}
