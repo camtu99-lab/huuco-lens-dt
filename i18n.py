@@ -26,6 +26,13 @@ LANG_NAMES = {"vi": "Tiếng Việt", "bi": "Việt – Anh", "en": "English"}
 EN = {
     # --- điều hướng, trang ---
     "Trang chủ": "Home",
+    "Cần đăng nhập": "Login required",
+    "Đăng nhập để sử dụng các tab công cụ.": "Log in to use the tool tabs.",
+    "Tải phiếu kết quả (CSV, nộp cho giáo viên)": "Download result sheet (CSV, hand in to your teacher)",
+    "Tải bảng kết quả (CSV)": "Download results table (CSV)",
+    "SVG (vector, in sắc nét)": "SVG (vector, sharp print)",
+    "Dàn ý (Markdown)": "Outline (Markdown)",
+    "Thiếu thư viện python-pptx nên chưa xuất được PowerPoint.": "The python-pptx library is missing, so PowerPoint export is unavailable.",
     "Công thức cấu tạo": "Structure",
     "Phương trình phản ứng": "Reactions",
     "Đồng phân": "Isomers",
