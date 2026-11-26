@@ -1390,6 +1390,12 @@ def history_summary(auth, force=False):
     return hs.summary(force=force)
 
 
+def recent_activity(auth, limit=12, force=False):
+    """Ai đã truy cập / tra cứu gì gần đây (chỉ giáo viên)."""
+    _need_teacher(auth)
+    return hs.recent(limit, force=force)
+
+
 def delete_history(auth, who):
     _need_teacher(auth)
     hs.delete(who)

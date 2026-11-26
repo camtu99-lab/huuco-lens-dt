@@ -26,6 +26,7 @@ LANG_NAMES = {"vi": "Tiếng Việt", "bi": "Việt – Anh", "en": "English"}
 EN = {
     # --- điều hướng, trang ---
     "Trang chủ": "Home",
+    "Truy cập": "Visit",
     "Cần đăng nhập": "Login required",
     "Đăng nhập để sử dụng các tab công cụ.": "Log in to use the tool tabs.",
     "Tải phiếu kết quả (CSV, nộp cho giáo viên)": "Download result sheet (CSV, hand in to your teacher)",

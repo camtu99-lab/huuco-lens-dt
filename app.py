@@ -4154,6 +4154,11 @@ background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rg
 .rsh{display:flex;align-items:center;gap:0.857rem;color:var(--pri);padding:2px 0.286rem 0.857rem}
 .rsh b{display:block;color:var(--ink);font-size:1rem;line-height:1.3}.rsh span{display:block;color:var(--mut);font-size:.78rem;line-height:1.3;margin-top:2px}
 .hempty{color:var(--mut);font-size:.85rem;padding:0.571rem 2px}
+.actcard{margin-top:1rem}
+.hrow.act .actbody{flex:1 1 auto;min-width:0}
+.hrow.act .actname{display:block;color:var(--pri);font-weight:700;font-size:.8rem}
+.hrow.act b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow.act .actwhen{flex:0 0 auto;color:var(--mut);font-size:.75rem;white-space:nowrap}
 .st-key-hclear button{border:0;background:transparent;color:var(--pri);font-size:.78rem;padding:0;min-height:0;box-shadow:none}
 .quote{display:flex;align-items:center;gap:1rem;border-radius:1.286rem;padding:0.714rem 1rem;margin-top:0;background:linear-gradient(135deg,#f1ecff,#e6f6ff);border:1px solid #e3e6ff}
 .quote .lf{font-size:2.2rem;line-height:1}.quote p{margin:0;font-style:italic;color:#3a4690;font-size:.85rem;line-height:1.5}.quote em{display:block;text-align:right;color:var(--pri);font-size:.8rem;font-weight:600;margin-top:0.286rem}
@@ -7016,6 +7021,61 @@ HKIND = {"Công thức": ("structure", "c1"), "Phản ứng": ("flask", "c3"), "
          "Sơ đồ": ("mind", "c3"), "Mô phỏng": ("equipment", "c2"), "Luyện tập": ("practice", "c0"), "Hỏi đáp": ("chat", "c1")}
 
 
+def _when(ts):
+    """'2026-11-26 07:34' -> 'Hôm nay · 07:34' / '25/11 · 07:34'."""
+    d, _, t = (ts or "").partition(" ")
+    if d == _now().strftime("%Y-%m-%d"):
+        day = tx("Hôm nay", "Today")
+    else:
+        p = d.split("-")
+        day = f"{p[2]}/{p[1]}" if len(p) == 3 else d
+    return f"{day} · {t}" if t else day
+
+
+def home_activity():
+    """Lịch sử tra cứu ở giữa Trang chủ. Giáo viên thấy cả lớp: tên học sinh, lúc nào, tra cứu gì. Học sinh thấy lượt của mình."""
+    au = cur_auth()
+    teacher = cr.is_teacher(au)
+    ev = []
+    if teacher:
+        try:
+            ev = cr.recent_activity(au, 12, force=bool(st.session_state.pop("_act_force", False)))
+        except OSError:
+            st.error(tx("Không đọc được hoạt động của lớp: ", "Cannot read class activity: ") + hs.last_error)
+    else:
+        me = au["name"] if cr.is_student(au) else ""
+        ev = [{"name": me, "ts": f'{h.get("d", "")} {h.get("t", "")}'.strip(), "k": h.get("k", ""), "q": h["q"]}
+              for h in st.session_state.hist[:10]]
+    title = tx("Hoạt động của lớp", "Class activity") if teacher else tx("Lịch sử tra cứu")
+    sub = tx("Học sinh nào đã vào, lúc nào, tra cứu nội dung gì.", "Who logged in, when, and what they looked up.") if teacher else ""
+    rows = ""
+    for e in ev:
+        who = html.escape(e["name"]) if e["name"] else ""
+        if e["k"]:
+            ic, cl = HKIND.get(e["k"], HKIND["Công thức"])
+            what = html.escape(e["q"][:60] + ("…" if len(e["q"]) > 60 else ""))
+            tab = html.escape(tx(KIND_TAB.get(e["k"], e["k"])))
+            badge = f'<div class="hc {cl}">{icon_svg(ic, "currentColor", 20, 2)}</div>'
+        else:
+            what = html.escape(tx("Đã đăng nhập vào ứng dụng", "Logged in to the app"))
+            tab = html.escape(tx("Truy cập", "Visit"))
+            badge = '<div class="hc c0">🔑</div>'
+        name_html = f'<span class="actname">{who}</span>' if who else ""
+        rows += (f'<div class="hrow act">{badge}<div class="actbody">{name_html}<b>{what}</b>'
+                 f'<small>{tab}</small></div><div class="actwhen">{html.escape(_when(e["ts"]))}</div></div>')
+    if not rows:
+        rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy thử Nhập nhanh hoặc dùng một công cụ bên trái.", sep=" | "))}</div>' \
+            if not teacher else f'<div class="hempty">{html.escape(tx("Chưa có học sinh nào truy cập hoặc tra cứu.", "No student activity yet."))}</div>'
+    st.markdown(f'<div class="rcard actcard"><div class="rh">{icon_svg("search", "currentColor", 22)}<b>{title}</b></div>'
+                + (f'<div class="rs">{html.escape(sub)}</div>' if sub else "") + rows + '</div>', unsafe_allow_html=True)
+    if teacher:
+        with st.container(key="hclear"):
+            st.button(tx("Tải lại", "Refresh"), key="act_refresh", on_click=lambda: st.session_state.__setitem__("_act_force", True))
+    elif st.session_state.hist:
+        with st.container(key="hclear"):
+            st.button("Xóa lịch sử", key="hist_clear", on_click=clear_all_hist)
+
+
 def home_ui():
     left, right = st.columns([2.15, 1], gap="large")
     with left:
@@ -7028,6 +7088,7 @@ def home_ui():
                     st.button("Mở", key=f"qkb_{i}", on_click=go, args=(target,))
 
         st.markdown('<div class="feat">' + '<i></i>'.join(f"<span>{e} {tx(t)}</span>" for e, t in FEATS) + '</div>', unsafe_allow_html=True)
+        home_activity()
 
     with right:
         with st.container(key="quick"):
@@ -7054,15 +7115,6 @@ def home_ui():
             if st.button("Mẹo & lưu ý", icon=":material/lightbulb:", key="r_tip"):
                 tips_dialog() if is_logged_in() else auth_dialog()
 
-        hist = st.session_state.hist
-        rows = "".join(
-            f'<div class="hrow"><div class="hc {HKIND.get(h.get("k"), HKIND["Công thức"])[1]}">{icon_svg(HKIND.get(h.get("k"), HKIND["Công thức"])[0], "currentColor", 20, 2)}</div>'
-            f'<div><b>{html.escape(h["q"][:40] + ("…" if len(h["q"]) > 40 else ""))}</b><small>{html.escape(tx(h.get("k", "")))} · {html.escape(tx("Hôm nay", "Today") if h.get("d", _now().strftime("%Y-%m-%d")) == _now().strftime("%Y-%m-%d") else h["d"])} · {h["t"]}</small></div></div>'
-            for h in hist[:6]) or f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy thử Nhập nhanh hoặc dùng một công cụ bên trái.", sep=" | "))}</div>'
-        st.markdown(f'<div class="rcard"><div class="rh">{icon_svg("search", "currentColor", 22)}<b>{tx("Lịch sử tra cứu")}</b></div>{rows}</div>', unsafe_allow_html=True)
-        if hist:
-            with st.container(key="hclear"):
-                st.button("Xóa lịch sử", key="hist_clear", on_click=clear_all_hist)
         st.markdown(f'<div class="quote"><div class="lf">🌿</div><p>“{html.escape(tx("Hóa học không khó, chỉ cần bạn có công cụ đúng!", sep=" | "))}”<em>— {html.escape(APP_NAME)}</em></p></div>',
                     unsafe_allow_html=True)
 

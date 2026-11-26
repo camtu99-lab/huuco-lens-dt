@@ -362,6 +362,38 @@ def summary(force=False):
     return sorted(out, key=lambda r: r["last"], reverse=True)
 
 
+def recent(limit=12, force=False):
+    """Hoạt động gần nhất của mọi học sinh: [{name, ts, k, q}], mới nhất trước.
+    k rỗng nghĩa là một lần đăng nhập/truy cập; còn lại là lượt tra cứu (k = loại, q = nội dung)."""
+    ev = []
+    if _CFG:
+        look, vis = _s_rows(force)
+        for r in look:
+            if r and slug(r[0]):
+                it = _row_item(r)
+                ev.append({"name": r[0], "ts": f'{it["d"]} {it["t"]}'.strip(), "k": it["k"], "q": it["q"]})
+        for r in vis:
+            if len(r) >= 2 and slug(r[0]):
+                ev.append({"name": r[0], "ts": r[1], "k": "", "q": ""})
+    else:
+        try:
+            names = os.listdir(BASE)
+        except OSError:
+            names = []
+        with _LOCK:
+            for fn in names:
+                d = _read(os.path.join(BASE, fn)) if fn.endswith(".json") else None
+                if not d:
+                    continue
+                nm = d.get("name") or fn[:-5]
+                for h in d.get("items", []):
+                    ev.append({"name": nm, "ts": f'{h.get("d", "")} {h.get("t", "")}'.strip(), "k": h.get("k", ""), "q": h.get("q", "")})
+                for v in d.get("visits", []):
+                    ev.append({"name": nm, "ts": v, "k": "", "q": ""})
+    ev.sort(key=lambda e: e["ts"], reverse=True)
+    return ev[:limit]
+
+
 def students():
     """[(tên hiển thị, số lượt)] xếp theo tên."""
     return sorted([(r["name"], r["total"]) for r in summary()], key=lambda x: x[0].lower())
