@@ -7302,7 +7302,6 @@ with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
                 f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
-    st.markdown('<div style="opacity:.7;font-size:11px;color:#9fe8b4;padding:0 0 4px 2px">build: nav-v3 · lang=' + i18n.lang() + '</div>', unsafe_allow_html=True)
     _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
     with st.container(key="sidenav"):
         _cur_nav = st.session_state.get("nav", HOME)
