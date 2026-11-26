@@ -6207,6 +6207,15 @@ def tab_history_ui(tab):
 
 
 
+def practice_progress(prof):
+    """Tiến độ luyện tập: làm đúng hay sai đều tính là đã làm. Tổng = mỗi chất trong ngân hàng đề có 2 dạng (vẽ CTCT, gọi tên)."""
+    prof = prof or {}
+    done, solved = prof.get("done", 0), prof.get("solved", 0)
+    total = max(1, 2 * len(BANK))
+    return {"done": done, "right": solved, "wrong": max(0, done - solved), "total": total,
+            "pct": min(100, round(100 * done / total))}
+
+
 def my_history_ui():
     """Lịch sử của chính học sinh đang dùng, gom từ mọi tab."""
     who = student_name()
@@ -6219,6 +6228,18 @@ def my_history_ui():
                    "You are a guest: history is kept for this session only. Log in to keep it for next time."))
         if st.button(tx("🔐 Đăng nhập / Tham gia lớp", "🔐 Log in / Join a class"), key="mh_login", type="primary"):
             auth_dialog()
+    pg = practice_progress(my_profile()) if who else None
+    if pg:
+        with st.container(key="mh_prog"):
+            st.markdown(f"**{tx('Tiến độ luyện tập', 'Practice progress')}** · {pg['pct']}%")
+            st.progress(pg["pct"] / 100)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric(tx("Đã làm", "Done"), f"{pg['done']}/{pg['total']}")
+            m2.metric(tx("Làm đúng", "Correct"), pg["right"])
+            m3.metric(tx("Làm sai", "Wrong"), pg["wrong"])
+            m4.metric(tx("Chưa làm", "Not done"), max(0, pg["total"] - pg["done"]))
+            st.caption(tx("Làm đúng hay sai đều được tính vào tiến độ; bài chưa làm là phần còn lại.",
+                          "Right or wrong, every attempt counts towards progress; the rest are not done yet."))
     if not items:
         st.caption(tx("Chưa có lượt tra cứu nào.", "No lookups yet."))
         return
@@ -7584,11 +7605,12 @@ def home_page():
 
     prof = my_profile() or {"attempts": 0, "done": 0, "finished": 0, "accuracy": None}
     if True:
-        prog = round(100 * prof["finished"] / prof["done"]) if prof["done"] else 0
+        pg = practice_progress(prof)
+        prog = pg["pct"]
         bar = f'<div class="pbar"><i style="width:{prog}%"></i></div>'
         st.markdown('<div class="stats">'
                     + _stat_card("flask", tx("Lượt phân tích", "Lookups"), len(st.session_state.hist), "s1")
-                    + _stat_card("practice", tx("Bài luyện tập đã hoàn thành", "Exercises finished"), f'{prof["finished"]} <span style="font-size:.62em;font-weight:700;opacity:.75">({prog}%)</span>', "s2", bar)
+                    + _stat_card("practice", tx("Bài luyện tập đã hoàn thành", "Exercises finished"), f'{pg["done"]} <span style="font-size:.62em;font-weight:700;opacity:.75">({prog}%)</span>', "s2", bar)
                     + _stat_card("stats", tx("Độ chính xác luyện tập", "Practice accuracy"), f'{prof["accuracy"]}%' if prof["attempts"] else "—", "s3")
                     + _stat_card("test", tx("Tiến độ học tập", "Learning progress"), f"{prog}%", "s4", bar) + "</div>", unsafe_allow_html=True)
 
