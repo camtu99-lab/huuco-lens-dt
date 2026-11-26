@@ -6975,12 +6975,8 @@ def solubility_dialog():
 # ---------------- Các khối giao diện ----------------
 def topbar():
     with st.container(key="topbar"):
-        a, b = st.columns([5, 2], vertical_alignment="center")
-        with a:
-            st.text_input("Tìm kiếm", key="gsearch", placeholder="Tìm công cụ, công thức, tên chất…", on_change=on_search, label_visibility="collapsed")
-        with b:
-            st.markdown(f'<div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}<div class="av{"" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"}">{html.escape(_initials())}</div></div>',
-                        unsafe_allow_html=True)
+        st.markdown(f'<div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}<div class="av{"" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"}">{html.escape(_initials())}</div></div>',
+                    unsafe_allow_html=True)
 
 
 def hero():
