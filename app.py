@@ -7684,7 +7684,7 @@ def home_activity():
             badge = '<div class="hc c0">🔑</div>'
         name_html = f'<span class="actname">{who}</span>' if who else ""
         rows += (f'<div class="hrow act">{badge}<div class="actbody">{name_html}<b>{what}</b>'
-                 f'<small>{tab}</small></div>' + ('<span class="donep">✔ ' + html.escape(tx("Đã hoàn thành", "Completed")) + '</span>' if e["k"] else '')
+                 f'<small>{tab}</small></div>' + ('<span class="donep">' + html.escape(tx("Đã làm", "Attempted") if e["k"] == "Luyện tập" else tx("Đã tra cứu", "Looked up")) + '</span>' if e["k"] else '')
                  + f'<div class="actwhen">{html.escape(_when(e["ts"]))}</div><span class="chv">{icon_svg("chev", "currentColor", 16, 2)}</span></div>')
     if not rows:
         rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy dùng một công cụ ở menu bên trái.", "No lookups yet. Use one of the tools in the left menu.", sep=" | "))}</div>' \
