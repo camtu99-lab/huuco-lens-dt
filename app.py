@@ -7302,6 +7302,7 @@ with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
                 f'<span>{html.escape(tx("AI trong tay – Hóa học dễ dàng", sep=" | "))}</span></div></div>', unsafe_allow_html=True)
     st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
+    st.markdown('<div style="opacity:.7;font-size:11px;color:#9fe8b4;padding:0 0 4px 2px">build: nav-v3 · lang=' + i18n.lang() + '</div>', unsafe_allow_html=True)
     _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
     with st.container(key="sidenav"):
         _cur_nav = st.session_state.get("nav", HOME)
@@ -7313,7 +7314,6 @@ with st.sidebar:
                     '<div class="go">›</div></div>', unsafe_allow_html=True)
         st.button("Mở trợ lý AI", key="aibtn_b", on_click=go, args=(ASSIST,))
     st.markdown(f'<div class="mascot"><img src="{_uri(MASCOT_SVG)}"><div class="hw">{tx("Học hóa") if i18n.lang() != "bi" else "Học hóa"}<br>{tx("thật dễ!") if i18n.lang() != "bi" else "thật dễ!"}</div></div>', unsafe_allow_html=True)
-    st.markdown('<div style="opacity:.45;font-size:11px;color:#c9d0ff;text-align:center;padding:2px 0">build: nav-v3 · lang=' + i18n.lang() + '</div>', unsafe_allow_html=True)
 
 # Trên điện thoại: tự đóng thanh bên sau khi chọn một mục (mã chạy trong trang chính để không bị hủy khi làm mới)
 components.html("""<script>
