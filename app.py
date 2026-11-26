@@ -889,57 +889,57 @@ def _as_list(v):
 
 RX_CSS = """<style>
 .rxsum{display:flex;align-items:center;gap:1rem;border-radius:1.4rem;padding:1rem 1.2rem;margin:0.4rem 0 1.1rem;color:#fff;
-background:radial-gradient(18rem 9rem at 95% 0%,rgba(25,195,255,.4),rgba(25,195,255,0) 70%),linear-gradient(115deg,#152a9a 0%,#3a37cf 55%,#5a3bea 100%);box-shadow:0 0.857rem 2rem rgba(47,53,200,.28)}
+background:radial-gradient(18rem 9rem at 95% 0%,rgba(25,195,255,.4),rgba(25,195,255,0) 70%),linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);box-shadow:0 0.857rem 2rem rgba(31,126,133,.28)}
 .rxsum .big{flex:0 0 3.6rem;height:3.6rem;border-radius:50%;display:grid;place-items:center;font-size:1.9rem;font-weight:800;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.5)}
 .rxsum b{display:block;font-size:1.2rem;line-height:1.3}
 .rxsum small{opacity:.85;font-size:.9rem}
 .rxlist{margin:-0.4rem 0 1.1rem;display:flex;flex-direction:column;gap:.4rem}
-.rxlist div{display:flex;gap:.6rem;align-items:center;background:#f3f5ff;border:1px solid #e3e7fb;border-radius:.9rem;padding:.45rem .7rem;font-size:.95rem;line-height:1.5;color:#1b2150;word-break:break-word}
-.rxlist div i{flex:0 0 1.7rem;height:1.7rem;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.85rem;color:#fff;background:linear-gradient(135deg,#3b6cf6,#6d4df0)}
-[class*="st-key-rxcard"]{background:#fff;border:1px solid #dfe5ff;border-left:0.55rem solid #6d4df0;border-radius:1.4rem;padding:1.1rem 1.2rem 0.7rem;margin-bottom:1.3rem;box-shadow:0 1rem 2.2rem rgba(79,92,240,.15)}
+.rxlist div{display:flex;gap:.6rem;align-items:center;background:#eff7fa;border:1px solid #d8ebf4;border-radius:.9rem;padding:.45rem .7rem;font-size:.95rem;line-height:1.5;color:#163240;word-break:break-word}
+.rxlist div i{flex:0 0 1.7rem;height:1.7rem;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:.85rem;color:#fff;background:linear-gradient(135deg,#08aaaa,#0f9db3)}
+[class*="st-key-rxcard"]{background:#fff;border:1px solid #d5e9f3;border-left:0.55rem solid #0f9db3;border-radius:1.4rem;padding:1.1rem 1.2rem 0.7rem;margin-bottom:1.3rem;box-shadow:0 1rem 2.2rem rgba(14,161,169,.15)}
 .rxhead{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem}
-.rxnum{flex:0 0 2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;font-size:1.25rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#3b6cf6,#7a52f4);box-shadow:0 0.4rem 1rem rgba(79,92,240,.4)}
-.rxttl{font-weight:800;font-size:1.05rem;color:#1b2150}
-.rxttl em{font-style:normal;font-weight:600;font-size:.85rem;color:#6d4df0;background:#ece8ff;border-radius:2rem;padding:.12rem .6rem;margin-left:.4rem}
-.rxeq{font-size:1.3rem;font-weight:700;line-height:1.9;color:#10163f;background:linear-gradient(135deg,#eef1ff,#f6f0ff);border:1px solid #dfe5ff;border-radius:1.1rem;padding:.8rem 1rem;overflow-x:auto;margin-bottom:.8rem}
-.rxeq .ar{color:#6d4df0;font-weight:900;margin:0 .35rem}
+.rxnum{flex:0 0 2.6rem;height:2.6rem;border-radius:50%;display:grid;place-items:center;font-size:1.25rem;font-weight:800;color:#fff;background:linear-gradient(135deg,#08aaaa,#0ca2bd);box-shadow:0 0.4rem 1rem rgba(14,161,169,.4)}
+.rxttl{font-weight:800;font-size:1.05rem;color:#163240}
+.rxttl em{font-style:normal;font-weight:600;font-size:.85rem;color:#0f9db3;background:#ddedf5;border-radius:2rem;padding:.12rem .6rem;margin-left:.4rem}
+.rxeq{font-size:1.3rem;font-weight:700;line-height:1.9;color:#0d2532;background:linear-gradient(135deg,#e9f3f9,#eaf4f9);border:1px solid #d5e9f3;border-radius:1.1rem;padding:.8rem 1rem;overflow-x:auto;margin-bottom:.8rem}
+.rxeq .ar{color:#0f9db3;font-weight:900;margin:0 .35rem}
 .rxpills{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.8rem}
 .rxpills span{border-radius:2rem;padding:.3rem .85rem;font-weight:700;font-size:.92rem}
 .rxbal{border-radius:1.1rem;padding:.7rem 1rem;margin:.7rem 0;overflow-x:auto}
 .rxbal small{display:block;font-weight:800;font-size:.82rem;margin-bottom:.15rem}
-.rxbal .eq{font-size:1.2rem;font-weight:700;line-height:1.9;color:#10163f}
+.rxbal .eq{font-size:1.2rem;font-weight:700;line-height:1.9;color:#0d2532}
 .rxbal.ok{background:#e8f8ef;border:1px solid #bfe9d0}.rxbal.ok small{color:#047857}
 .rxbal.no{background:#fff7e0;border:1px solid #fde2a1}.rxbal.no small{color:#b45309}
 .rxbal .ar{color:#047857;font-weight:900;margin:0 .35rem}
-.rxredox{border-radius:1.1rem;border:1px solid #fcd9b6;background:linear-gradient(135deg,#fff8ee,#fff2f7);padding:.8rem 1rem;margin:.7rem 0}
+.rxredox{border-radius:1.1rem;border:1px solid #fcd9b6;background:linear-gradient(135deg,#fff8ee,#f0f6fb);padding:.8rem 1rem;margin:.7rem 0}
 .rxredhead{font-weight:800;color:#b45309;margin-bottom:.6rem}
 .rxroles{display:grid;grid-template-columns:1fr;gap:.6rem}
 @media(min-width:560px){.rxroles{grid-template-columns:1fr 1fr}}
 .rxrole{border-radius:.9rem;padding:.6rem .85rem}
 .rxrole small{display:block;font-weight:800;font-size:.76rem;line-height:1.35;margin-bottom:.2rem}
-.rxrole b{display:block;font-size:1.15rem;color:#10163f}
-.rxrole span{display:block;font-size:.85rem;color:#475569;margin-bottom:.25rem}
+.rxrole b{display:block;font-size:1.15rem;color:#0d2532}
+.rxrole span{display:block;font-size:.85rem;color:#57817f;margin-bottom:.25rem}
 .rxrole.ox{background:#ffe9e0;border:1px solid #ffc9b3}.rxrole.ox small{color:#b42318}
-.rxrole.rd{background:#e3eeff;border:1px solid #bcd3ff}.rxrole.rd small{color:#1d4ed8}
-.rxhalf{margin-top:.6rem;font-size:.95rem;line-height:1.75;color:#10163f}.rxhalf u{text-decoration:none;font-weight:800;color:#b45309}
-.rxsec{font-weight:800;font-size:1.25rem;color:#1b2150;margin:1.2rem 0 .7rem;padding-left:.7rem;border-left:.3rem solid #6d4df0}
-.rxq{background:#fff;border:1px solid #dfe5ff;border-radius:1.4rem;padding:1.1rem 1.2rem;margin-bottom:1.2rem;box-shadow:0 1rem 2.2rem rgba(79,92,240,.13)}
-.rxq h4{margin:0 0 .5rem;font-size:1.15rem;color:#1b2150;line-height:1.4}
-.rxq h4 em{font-style:normal;color:#6d4df0}
-.rxq p{margin:.3rem 0 .7rem;color:#334155;line-height:1.6}
+.rxrole.rd{background:#e1eff6;border:1px solid #b4d8e9}.rxrole.rd small{color:#138f8f}
+.rxhalf{margin-top:.6rem;font-size:.95rem;line-height:1.75;color:#0d2532}.rxhalf u{text-decoration:none;font-weight:800;color:#b45309}
+.rxsec{font-weight:800;font-size:1.25rem;color:#163240;margin:1.2rem 0 .7rem;padding-left:.7rem;border-left:.3rem solid #0f9db3}
+.rxq{background:#fff;border:1px solid #d5e9f3;border-radius:1.4rem;padding:1.1rem 1.2rem;margin-bottom:1.2rem;box-shadow:0 1rem 2.2rem rgba(14,161,169,.13)}
+.rxq h4{margin:0 0 .5rem;font-size:1.15rem;color:#163240;line-height:1.4}
+.rxq h4 em{font-style:normal;color:#0f9db3}
+.rxq p{margin:.3rem 0 .7rem;color:#364e5a;line-height:1.6}
 .rxtbl{width:100%;border-collapse:collapse;margin:.3rem 0 .8rem;font-size:.97rem}
-.rxtbl th{text-align:left;color:#6b7299;font-weight:700;padding:.5rem .4rem;border-bottom:2px solid #e3e7fb}
-.rxtbl td{padding:.55rem .4rem;border-bottom:1px solid #eef0fb;vertical-align:top;color:#10163f;line-height:1.5}
-.rxtbl td:first-child{font-weight:800;white-space:nowrap;color:#4f5cf0}
+.rxtbl th{text-align:left;color:#749e9f;font-weight:700;padding:.5rem .4rem;border-bottom:2px solid #d8ebf4}
+.rxtbl td{padding:.55rem .4rem;border-bottom:1px solid #e7f2f8;vertical-align:top;color:#0d2532;line-height:1.5}
+.rxtbl td:first-child{font-weight:800;white-space:nowrap;color:#0ea1a9}
 .rxtbl td:last-child{text-align:right;white-space:nowrap}
 .rxtag{display:inline-block;border-radius:2rem;padding:.2rem .7rem;font-weight:800;font-size:.88rem}
-.rxtag.g{color:#047857;background:#d9f6e6}.rxtag.r{color:#b42318;background:#ffe4e0}.rxtag.b{color:#2563eb;background:#e3eeff}
+.rxtag.g{color:#047857;background:#d9f6e6}.rxtag.r{color:#b42318;background:#ffe4e0}.rxtag.b{color:#0fa19f;background:#e1eff6}
 .rxans{display:inline-block;margin-top:.3rem;border-radius:2rem;padding:.45rem 1.1rem;font-weight:800;font-size:1.05rem;color:#fff;background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 .4rem 1rem rgba(5,150,105,.3)}
-.rxfinal{border-radius:1.4rem;padding:1rem 1.3rem;margin:.2rem 0 1.2rem;color:#fff;background:linear-gradient(115deg,#152a9a 0%,#3a37cf 55%,#5a3bea 100%);box-shadow:0 .857rem 2rem rgba(47,53,200,.28)}
+.rxfinal{border-radius:1.4rem;padding:1rem 1.3rem;margin:.2rem 0 1.2rem;color:#fff;background:linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);box-shadow:0 .857rem 2rem rgba(31,126,133,.28)}
 .rxfinal b.t{display:block;font-size:1.1rem;margin-bottom:.4rem}
 .rxfinal div{font-size:1.15rem;line-height:1.9}.rxfinal div b{font-size:1.3rem;color:#a7f3d0}
 .rxpills span.p0{color:#fff;background:linear-gradient(135deg,#059669,#10b981);box-shadow:0 0.3rem .8rem rgba(5,150,105,.3)}
-.rxpills span.p1{color:#2563eb;background:#e3eeff}.rxpills span.p2{color:#d97706;background:#fff1dc}.rxpills span.p3{color:#d6389b;background:#ffe4f5}.rxpills span.p4{color:#6d4df0;background:#ece8ff}
+.rxpills span.p1{color:#0fa19f;background:#e1eff6}.rxpills span.p2{color:#d97706;background:#fff1dc}.rxpills span.p3{color:#4fa3db;background:#e0edf6}.rxpills span.p4{color:#0f9db3;background:#ddedf5}
 </style>"""
 
 
@@ -2946,7 +2946,7 @@ function fmt(s){{s=Math.max(0,s);return String(Math.floor(s/60)).padStart(2,'0')
 function auto(){{if(fired)return;fired=true;el.textContent='⏱️ Hết giờ, đang nộp bài…';
   try{{const d=window.parent.document;if(d.activeElement)d.activeElement.blur();
   setTimeout(()=>{{const b=[...d.querySelectorAll('button')].find(x=>x.innerText.includes('Nộp bài'));if(b)b.click();}},400);}}catch(e){{}}}}
-function tick(){{el.textContent='⏱️ Còn lại '+fmt(left);el.style.background=left<=60?'#ffd9d9':'#e8edff';el.style.color=left<=60?'#a00':'#223';
+function tick(){{el.textContent='⏱️ Còn lại '+fmt(left);el.style.background=left<=60?'#ffd9d9':'#e2f0f7';el.style.color=left<=60?'#a00':'#232e34';
   if(left<=0){{auto();return;}}left--;setTimeout(tick,1000);}}
 tick();
 </script>""", height=54)
@@ -3302,7 +3302,7 @@ def bench_ui():
 
 
 # ---------------- Sơ đồ tư duy ----------------
-MM_COLORS = ["#e11d48", "#f59e0b", "#16a34a", "#0ea5e9", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"]
+MM_COLORS = ["#e11d48", "#f59e0b", "#16a34a", "#0ccdb5", "#0baaca", "#58aeee", "#14b8a6", "#f97316"]
 MM_FONT = "Arial, Helvetica, sans-serif"
 
 MM_PROMPT = """Bạn là giáo viên Hóa học THPT Việt Nam. Hãy lập SƠ ĐỒ TƯ DUY cho chủ đề được yêu cầu, đúng nội dung SGK Việt Nam.
@@ -3365,7 +3365,7 @@ def mindmap_layout(title, branches):
     W = 2 * (rw / 2 + reach + MARG)
     cx, cy = W / 2, H / 2
     nodes = [{"id": "n0", "kind": "root", "x": cx - rw / 2, "y": cy - rh / 2, "w": rw, "h": rh, "text": title,
-              "lines": root_lines, "color": "#4f46e5", "side": None, "parent": None}]
+              "lines": root_lines, "color": "#16929f", "side": None, "parent": None}]
     edges, k = [], 1
     for side, v in sides.items():
         sgn = 1 if side == "R" else -1
@@ -3396,7 +3396,7 @@ def svg_from_layout(L):
     esc = html.escape
     W, H = L["W"], L["H"]
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W:.0f}" height="{H:.0f}" viewBox="0 0 {W:.0f} {H:.0f}" '
-           f'font-family="{MM_FONT}"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/>'
+           f'font-family="{MM_FONT}"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16929f"/>'
            f'<stop offset="1" stop-color="#14b8a6"/></linearGradient></defs><rect width="100%" height="100%" fill="#ffffff"/>']
     for e in L["edges"]:
         xm = (e["x1"] + e["x2"]) / 2
@@ -3419,7 +3419,7 @@ def svg_from_layout(L):
         else:
             out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="10" fill="{_tint(col)}" stroke="{col}" stroke-width="1.5"/>')
             for j, ln in enumerate(n["lines"]):
-                texts.append(f'<text x="{x + 12:.1f}" y="{y + 7 + 19 * (j + 1) - 5:.1f}" font-size="15" fill="#1f2937">{esc(ln)}</text>')
+                texts.append(f'<text x="{x + 12:.1f}" y="{y + 7 + 19 * (j + 1) - 5:.1f}" font-size="15" fill="#22343d">{esc(ln)}</text>')
     return "".join(out + texts) + "</svg>"
 
 
@@ -3497,12 +3497,12 @@ def mm_drawio(L):
     cells = ['<mxCell id="0"/>', '<mxCell id="1" parent="0"/>']
     for n in L["nodes"]:
         if n["kind"] == "root":
-            st_ = "rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#4f46e5;strokeColor=none;fontColor=#ffffff;fontStyle=1;fontSize=18;"
+            st_ = "rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#16929f;strokeColor=none;fontColor=#ffffff;fontStyle=1;fontSize=18;"
         elif n["kind"] == "branch":
             st_ = f"rounded=1;arcSize=30;whiteSpace=wrap;html=1;fillColor={n['color']};strokeColor=none;fontColor=#ffffff;fontStyle=1;fontSize=13;"
         else:
             st_ = (f"rounded=1;arcSize=20;whiteSpace=wrap;html=1;fillColor=#{_blend(n['color'])};strokeColor={n['color']};"
-                   "fontColor=#1f2937;fontSize=11;align=left;spacingLeft=6;")
+                   "fontColor=#22343d;fontSize=11;align=left;spacingLeft=6;")
         cells.append(f'<mxCell id="{n["id"]}" value="{attr(n["text"])}" style="{st_}" vertex="1" parent="1">'
                      f'<mxGeometry x="{n["x"]:.0f}" y="{n["y"]:.0f}" width="{n["w"]:.0f}" height="{n["h"]:.0f}" as="geometry"/></mxCell>')
     for i, e in enumerate(L["edges"]):
@@ -3542,7 +3542,7 @@ def rows_to_branches(rows):
             order.append(n)
         if y:
             data[n].append(y[:100])
-    return [{"ten": n[:28], "y": data[n], **({"color": "#475569"} if n.startswith("Số liệu (máy tính)") else {})} for n in order[:10]]
+    return [{"ten": n[:28], "y": data[n], **({"color": "#57817f"} if n.startswith("Số liệu (máy tính)") else {})} for n in order[:10]]
 
 
 def mm_outline(title, branches):
@@ -3682,7 +3682,7 @@ def mm_png_bytes(_L, key):
         x, y, w, h, col = n["x"] * sc, n["y"] * sc, n["w"] * sc, n["h"] * sc, n["color"]
         if n["kind"] == "root":
             grad = Image.new("RGB", (max(1, int(w)), max(1, int(h))))
-            gd = ImageDraw.Draw(grad); a, b = rgb("#4f46e5"), rgb("#14b8a6")
+            gd = ImageDraw.Draw(grad); a, b = rgb("#16929f"), rgb("#14b8a6")
             for i in range(int(w + h)):
                 t = i / max(1, w + h - 1); c = tuple(int(a[j] + (b[j] - a[j]) * t) for j in range(3)); gd.line([(i, 0), (i - h, h)], fill=c, width=2)
             mask = Image.new("L", grad.size, 0); ImageDraw.Draw(mask).rounded_rectangle([0, 0, grad.size[0] - 1, grad.size[1] - 1], radius=h / 2, fill=255)
@@ -3691,7 +3691,7 @@ def mm_png_bytes(_L, key):
         elif n["kind"] == "branch":
             d.rounded_rectangle([x, y, x + w, y + h], radius=14 * sc, fill=rgb(col)); fs, bold, tc, lh = 17, True, "white", 22
         else:
-            d.rounded_rectangle([x, y, x + w, y + h], radius=10 * sc, fill=rgb("#" + _blend(col, .12)), outline=rgb(col), width=max(1, int(1.5 * sc))); fs, bold, tc, lh = 15, False, "#1f2937", 19
+            d.rounded_rectangle([x, y, x + w, y + h], radius=10 * sc, fill=rgb("#" + _blend(col, .12)), outline=rgb(col), width=max(1, int(1.5 * sc))); fs, bold, tc, lh = 15, False, "#22343d", 19
         cxn, cyn = x + w / 2, y + h / 2
         for j, ln in enumerate(n["lines"]):
             f = fit(ln, fs, bold, n["w"] - (10 if n["kind"] != "leaf" else 18))
@@ -3810,7 +3810,7 @@ def _mm_topic_inputs(top):
                         if smi and smi.lower() != "null":
                             facts = mm_engine_facts(smi)
                         if facts:
-                            branches.append({"ten": "Số liệu (máy tính)", "y": facts, "color": "#475569"})
+                            branches.append({"ten": "Số liệu (máy tính)", "y": facts, "color": "#57817f"})
                         st.session_state.mm = {"title": str(raw.get("chu_de") or topic)[:60], "branches": branches,
                                                "smiles": smi if facts else "", "rev": int(time.time() * 1000)}
                         add_history(st.session_state.mm['title'], 'Sơ đồ')
@@ -3907,6 +3907,10 @@ def _uri(svg):
 
 # ---------- Bộ biểu tượng nét (24x24) ----------
 ICON_PATHS = {
+    "sparkle": "<path d='M11 3l1.9 5.6L18.5 10.5l-5.6 1.9L11 18l-1.9-5.6L3.5 10.5l5.6-1.9z'/><path d='M19 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z'/>",
+    "chev": "<path d='M9 6l6 6-6 6'/>",
+    "gear": "<circle cx='12' cy='12' r='3'/><path d='M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1'/>",
+    "chevdown": "<path d='M6 9l6 6 6-6'/>",
     "home": "<path d='M3 11l9-8 9 8'/><path d='M5 10v10h5v-6h4v6h5V10'/>",
     "structure": "<circle cx='6' cy='6' r='2'/><circle cx='18' cy='6' r='2'/><circle cx='12' cy='12' r='2'/><circle cx='6' cy='18' r='2'/><circle cx='18' cy='18' r='2'/><path d='M7.5 7.5l3 3M16.5 7.5l-3 3M7.5 16.5l3-3M16.5 16.5l-3-3'/>",
     "flask": "<path d='M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3'/><path d='M7.5 15h9'/>",
@@ -3947,79 +3951,78 @@ def _mask(name):
 
 # ---------- Hình minh họa ----------
 LOGO_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
-<linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset=".55" stop-color="#4f6df5"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+<linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#19e3d0"/><stop offset="1" stop-color="#0a8fb8"/></linearGradient></defs>
 <path d="M32 5 L56 19 V45 L32 59 L8 45 V19 Z" fill="url(#lg)" stroke="url(#lg)" stroke-width="6" stroke-linejoin="round"/>
-<path d="M42 23 C37 16 23 18 23 26 C23 34 41 31 41 40 C41 48 28 48 22 41" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"/>
-<circle cx="45" cy="21" r="3" fill="#fff" opacity=".9"/><circle cx="19" cy="43" r="3" fill="#fff" opacity=".9"/></svg>"""
+<path d="M20 44 V21 L32 35 L44 21 V44" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>"""
 
 HERO_ART = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 290"><defs>
-<linearGradient id="liq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset=".55" stop-color="#3b82f6"/><stop offset="1" stop-color="#4f46e5"/></linearGradient>
-<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#bfdbfe" stop-opacity=".25"/></linearGradient>
+<linearGradient id="liq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset=".55" stop-color="#08b8b2"/><stop offset="1" stop-color="#16929f"/></linearGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#bfddec" stop-opacity=".25"/></linearGradient>
 <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#86efac"/><stop offset="1" stop-color="#16a34a"/></linearGradient>
 <style>.f1{animation:f 5s ease-in-out infinite}.f2{animation:f 6.5s ease-in-out 1s infinite}.f3{animation:f 7.5s ease-in-out .4s infinite}
 @keyframes f{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}</style></defs>
 <path d="M395 250 Q360 190 400 150 Q430 190 395 250Z" fill="url(#leaf)" opacity=".95"/>
 <path d="M410 252 Q420 190 470 170 Q470 220 410 252Z" fill="#22c55e" opacity=".9"/>
-<path d="M340 214 Q388 192 442 206 L442 266 Q388 252 340 272Z" fill="#ece9ff"/>
+<path d="M340 214 Q388 192 442 206 L442 266 Q388 252 340 272Z" fill="#dfeef6"/>
 <path d="M442 206 Q500 190 552 212 L552 270 Q500 252 442 266Z" fill="#fff"/>
-<path d="M442 206 V266" stroke="#c7c9f5" stroke-width="2"/>
-<g stroke="#c4c8ef" stroke-width="2.5" stroke-linecap="round"><path d="M462 232 H520"/><path d="M462 244 H532"/><path d="M356 232 H420"/><path d="M356 244 H410"/></g>
-<text x="466" y="226" font-family="Dancing Script,cursive" font-size="20" fill="#7a86c9" font-style="italic">H₂O</text>
-<polygon points="378,226 388,220 398,226 398,238 388,244 378,238" fill="none" stroke="#7a86c9" stroke-width="2"/>
+<path d="M442 206 V266" stroke="#aad2e6" stroke-width="2"/>
+<g stroke="#a9e5e8" stroke-width="2.5" stroke-linecap="round"><path d="M462 232 H520"/><path d="M462 244 H532"/><path d="M356 232 H420"/><path d="M356 244 H410"/></g>
+<text x="466" y="226" font-family="Dancing Script,cursive" font-size="20" fill="#56b7ba" font-style="italic">H₂O</text>
+<polygon points="378,226 388,220 398,226 398,238 388,244 378,238" fill="none" stroke="#56b7ba" stroke-width="2"/>
 <g class="f1"><path d="M290 34 H322 V98 H290Z" fill="url(#glass)" stroke="#fff" stroke-opacity=".8" stroke-width="2"/>
 <ellipse cx="306" cy="32" rx="24" ry="8" fill="none" stroke="#a5f3fc" stroke-width="6"/>
 <path d="M290 98 H322 L372 196 Q384 230 352 232 H260 Q228 230 240 196Z" fill="url(#glass)" stroke="#fff" stroke-opacity=".85" stroke-width="2"/>
 <path d="M254 170 H358 L372 196 Q384 230 352 232 H260 Q228 230 240 196Z" fill="url(#liq)"/>
-<path d="M254 170 Q306 160 358 170" fill="none" stroke="#e0f2fe" stroke-width="3" opacity=".8"/>
-<circle cx="276" cy="198" r="7" fill="#e0f2fe" opacity=".75"/><circle cx="312" cy="190" r="5" fill="#e0f2fe" opacity=".75"/><circle cx="332" cy="210" r="6" fill="#e0f2fe" opacity=".75"/><circle cx="300" cy="218" r="4" fill="#e0f2fe" opacity=".7"/>
+<path d="M254 170 Q306 160 358 170" fill="none" stroke="#e5f1f7" stroke-width="3" opacity=".8"/>
+<circle cx="276" cy="198" r="7" fill="#e5f1f7" opacity=".75"/><circle cx="312" cy="190" r="5" fill="#e5f1f7" opacity=".75"/><circle cx="332" cy="210" r="6" fill="#e5f1f7" opacity=".75"/><circle cx="300" cy="218" r="4" fill="#e5f1f7" opacity=".7"/>
 <path d="M262 120 Q250 170 252 196" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".55" transform="translate(30 0)"/></g>
-<g class="f2"><g stroke="#cfd8ff" stroke-width="5" stroke-linecap="round"><line x1="70" y1="132" x2="128" y2="88"/><line x1="128" y1="88" x2="190" y2="134"/><line x1="190" y1="134" x2="152" y2="186"/><line x1="128" y1="88" x2="214" y2="66"/><line x1="70" y1="132" x2="98" y2="186"/></g>
-<circle cx="70" cy="132" r="15" fill="#4f6df5"/><circle cx="128" cy="88" r="19" fill="#8b5cf6"/><circle cx="190" cy="134" r="15" fill="#22d3ee"/><circle cx="152" cy="186" r="17" fill="#3b82f6"/><circle cx="214" cy="66" r="11" fill="#f59e0b"/><circle cx="98" cy="186" r="9" fill="#f97316"/>
+<g class="f2"><g stroke="#c0deed" stroke-width="5" stroke-linecap="round"><line x1="70" y1="132" x2="128" y2="88"/><line x1="128" y1="88" x2="190" y2="134"/><line x1="190" y1="134" x2="152" y2="186"/><line x1="128" y1="88" x2="214" y2="66"/><line x1="70" y1="132" x2="98" y2="186"/></g>
+<circle cx="70" cy="132" r="15" fill="#0aacb0"/><circle cx="128" cy="88" r="19" fill="#0baaca"/><circle cx="190" cy="134" r="15" fill="#22d3ee"/><circle cx="152" cy="186" r="17" fill="#08b8b2"/><circle cx="214" cy="66" r="11" fill="#f59e0b"/><circle cx="98" cy="186" r="9" fill="#f97316"/>
 <g fill="#fff" opacity=".6"><circle cx="65" cy="126" r="5"/><circle cx="122" cy="80" r="6"/><circle cx="185" cy="129" r="5"/><circle cx="146" cy="179" r="5"/><circle cx="211" cy="63" r="3.5"/></g></g>
-<g class="f3"><ellipse cx="232" cy="38" rx="30" ry="12" fill="none" stroke="#7dd3fc" stroke-width="7" opacity=".85" transform="rotate(-14 232 38)"/>
-<ellipse cx="452" cy="96" rx="20" ry="8" fill="none" stroke="#c4b5fd" stroke-width="6" opacity=".8" transform="rotate(12 452 96)"/></g>
+<g class="f3"><ellipse cx="232" cy="38" rx="30" ry="12" fill="none" stroke="#06f3d7" stroke-width="7" opacity=".85" transform="rotate(-14 232 38)"/>
+<ellipse cx="452" cy="96" rx="20" ry="8" fill="none" stroke="#54e3fa" stroke-width="6" opacity=".8" transform="rotate(12 452 96)"/></g>
 <g fill="#fff" opacity=".9"><path d="M40 52 l3 9 9 3 -9 3 -3 9 -3-9 -9-3 9-3z"/><path d="M500 40 l2 6 6 2 -6 2 -2 6 -2-6 -6-2 6-2z"/><path d="M360 262 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2z" opacity=".6"/></g></svg>"""
 
 MASCOT_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 250"><defs>
 <linearGradient id="lf" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#15803d"/></linearGradient>
-<linearGradient id="rb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#dbe4ff"/></linearGradient>
+<linearGradient id="rb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#d3e8f2"/></linearGradient>
 <style>.bob{animation:b 4s ease-in-out infinite;transform-origin:150px 200px}@keyframes b{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}</style></defs>
 <path d="M8 232 Q-6 180 40 160 Q52 205 8 232Z" fill="url(#lf)" opacity=".9"/><path d="M40 238 Q40 190 84 176 Q90 220 40 238Z" fill="#22c55e" opacity=".85"/>
 <path d="M290 236 Q306 196 262 176 Q250 214 290 236Z" fill="url(#lf)" opacity=".9"/>
-<rect x="50" y="206" width="200" height="26" rx="6" fill="#3b5bdb"/><rect x="50" y="206" width="200" height="8" rx="4" fill="#6c8cff"/>
-<rect x="64" y="182" width="176" height="26" rx="6" fill="#7c3aed"/><rect x="64" y="182" width="176" height="8" rx="4" fill="#a78bfa"/>
+<rect x="50" y="206" width="200" height="26" rx="6" fill="#1d9a9c"/><rect x="50" y="206" width="200" height="8" rx="4" fill="#05c3c6"/>
+<rect x="64" y="182" width="176" height="26" rx="6" fill="#1197b5"/><rect x="64" y="182" width="176" height="8" rx="4" fill="#0ac9ea"/>
 <rect x="80" y="160" width="150" height="24" rx="6" fill="#0891b2"/><rect x="80" y="160" width="150" height="7" rx="3.5" fill="#67e8f9"/>
-<g class="bob"><line x1="150" y1="30" x2="150" y2="48" stroke="#a5b4fc" stroke-width="4"/><circle cx="150" cy="26" r="7" fill="#22d3ee"/>
-<rect x="104" y="46" width="92" height="70" rx="30" fill="url(#rb)" stroke="#c7d2fe" stroke-width="3"/>
-<rect x="114" y="60" width="72" height="42" rx="20" fill="#16204f"/><ellipse cx="136" cy="80" rx="7" ry="9" fill="#38e1ff"/><ellipse cx="166" cy="80" rx="7" ry="9" fill="#38e1ff"/>
+<g class="bob"><line x1="150" y1="30" x2="150" y2="48" stroke="#08e2e9" stroke-width="4"/><circle cx="150" cy="26" r="7" fill="#22d3ee"/>
+<rect x="104" y="46" width="92" height="70" rx="30" fill="url(#rb)" stroke="#b6d9ea" stroke-width="3"/>
+<rect x="114" y="60" width="72" height="42" rx="20" fill="#123040"/><ellipse cx="136" cy="80" rx="7" ry="9" fill="#38e1ff"/><ellipse cx="166" cy="80" rx="7" ry="9" fill="#38e1ff"/>
 <path d="M143 92 Q151 98 159 92" fill="none" stroke="#38e1ff" stroke-width="3" stroke-linecap="round"/>
-<rect x="98" y="66" width="10" height="28" rx="5" fill="#7c8cff"/><rect x="192" y="66" width="10" height="28" rx="5" fill="#7c8cff"/>
-<rect x="116" y="116" width="68" height="46" rx="20" fill="url(#rb)" stroke="#c7d2fe" stroke-width="3"/>
-<circle cx="150" cy="138" r="6" fill="#6d5bf0"/>
-<path d="M118 126 Q96 140 104 158" fill="none" stroke="#dbe4ff" stroke-width="12" stroke-linecap="round"/>
-<path d="M182 126 Q204 132 208 148" fill="none" stroke="#dbe4ff" stroke-width="12" stroke-linecap="round"/>
+<rect x="98" y="66" width="10" height="28" rx="5" fill="#05c5ce"/><rect x="192" y="66" width="10" height="28" rx="5" fill="#05c5ce"/>
+<rect x="116" y="116" width="68" height="46" rx="20" fill="url(#rb)" stroke="#b6d9ea" stroke-width="3"/>
+<circle cx="150" cy="138" r="6" fill="#11a4b7"/>
+<path d="M118 126 Q96 140 104 158" fill="none" stroke="#d3e8f2" stroke-width="12" stroke-linecap="round"/>
+<path d="M182 126 Q204 132 208 148" fill="none" stroke="#d3e8f2" stroke-width="12" stroke-linecap="round"/>
 <g transform="translate(196 134)"><path d="M10 0 h10 v14 l12 22 q4 10 -6 10 h-22 q-10 0 -6 -10 l12 -22z" fill="#dff7ff" stroke="#fff" stroke-width="2"/><path d="M4 30 h32 l4 8 q3 8 -6 8 h-28 q-9 0 -6 -8z" fill="#4ade80"/></g></g></svg>"""
 
-AI_FACE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="8" y="12" width="48" height="40" rx="18" fill="#fff"/><rect x="14" y="20" width="36" height="24" rx="12" fill="#16204f"/><ellipse cx="25" cy="32" rx="4" ry="5" fill="#38e1ff"/><ellipse cx="39" cy="32" rx="4" ry="5" fill="#38e1ff"/><circle cx="32" cy="8" r="4" fill="#22d3ee"/><rect x="31" y="9" width="2" height="5" fill="#a5b4fc"/></svg>"""
+AI_FACE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="8" y="12" width="48" height="40" rx="18" fill="#fff"/><rect x="14" y="20" width="36" height="24" rx="12" fill="#123040"/><ellipse cx="25" cy="32" rx="4" ry="5" fill="#38e1ff"/><ellipse cx="39" cy="32" rx="4" ry="5" fill="#38e1ff"/><circle cx="32" cy="8" r="4" fill="#22d3ee"/><rect x="31" y="9" width="2" height="5" fill="#08e2e9"/></svg>"""
 
-PAPER_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 130"><defs><filter id="s" x="-10%" y="-10%" width="130%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#1b2150" flood-opacity=".25"/></filter></defs>
+PAPER_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 130"><defs><filter id="s" x="-10%" y="-10%" width="130%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#163240" flood-opacity=".25"/></filter></defs>
 <g transform="rotate(4 75 65)"><rect x="18" y="14" width="112" height="100" rx="3" fill="#dcd5c8" filter="url(#s)"/></g>
 <g transform="rotate(-3 75 65)"><rect x="14" y="10" width="112" height="100" rx="3" fill="#f6f3ec" filter="url(#s)"/>
-<g fill="none" stroke="#5b6075" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+<g fill="none" stroke="#6c8b8b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 <polygon points="52,58 64,51 76,58 76,72 64,79 52,72"/><polyline points="55,60 55,70" stroke-width="1.6"/><polyline points="66,77 74,72" stroke-width="1.6" transform="translate(0 0)"/><polyline points="58,54 64,51 70,54" stroke-width="1.6"/>
 <line x1="76" y1="58" x2="88" y2="51"/><line x1="88" y1="51" x2="88" y2="38"/><line x1="91" y1="51" x2="91" y2="38"/><line x1="88" y1="51" x2="100" y2="58"/></g>
-<text x="86" y="33" font-family="Dancing Script,cursive" font-size="13" fill="#5b6075">O</text><text x="100" y="66" font-family="Dancing Script,cursive" font-size="13" fill="#5b6075">OH</text></g></svg>"""
+<text x="86" y="33" font-family="Dancing Script,cursive" font-size="13" fill="#6c8b8b">O</text><text x="100" y="66" font-family="Dancing Script,cursive" font-size="13" fill="#6c8b8b">OH</text></g></svg>"""
 
 
 # ---------- Tài nguyên giao diện ----------
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap');
-:root{--pri:#4f5cf0;--vio:#7c4dff;--cy:#19c3ff;--ink:#1b2150;--mut:#6b7299;--line:#e3e7fb;--soft:#f3f5ff;--navy:#0a0e30;
---grad:linear-gradient(135deg,#3b6cf6 0%,#6d4df0 100%)}
+:root{--pri:#00a7b5;--vio:#05a2bf;--cy:#19c3ff;--ink:#163240;--mut:#749e9f;--line:#d8ebf4;--soft:#eff7fa;--navy:#081b25;
+--grad:linear-gradient(135deg,#00a7b5 0%,#10b981 100%)}
 html{font-size:__ROOT__!important}
 html,body,.stApp,.stMarkdown,p,label,input,textarea,button,li,h1,h2,h3,h4{font-family:'Be Vietnam Pro',system-ui,sans-serif}
-.stApp{background:radial-gradient(64.286rem 30rem at 78% -8%,#e3e8ff 0%,rgba(227,232,255,0) 70%),#f5f7ff}
+.stApp{background:radial-gradient(64.286rem 30rem at 78% -8%,#e2f3f6 0%,rgba(226,243,246,0) 70%),#f5f9fc}
 [data-testid="stHeader"]{background:transparent}
 [data-testid="stAppDeployButton"]{display:none}
 [class*="st-key-vrow_"] [data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;gap:.5rem!important;align-items:flex-end!important}
@@ -4030,16 +4033,16 @@ html,body,.stApp,.stMarkdown,p,label,input,textarea,button,li,h1,h2,h3,h4{font-f
 [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{gap:.35rem}
 
 /* ---------- Sidebar ---------- */
-[data-testid="stSidebar"]{background:linear-gradient(185deg,#080c2c 0%,#0e1450 52%,#0a0f3a 100%);border-right:0}
+[data-testid="stSidebar"]{background:linear-gradient(185deg,#032536 0%,#012639 55%,#012e42 100%);border-right:0}
 [data-testid="stSidebarContent"]{background:transparent}
 [data-testid="stSidebarUserContent"]{padding:0 .9rem .5rem}
-[data-testid="stSidebar"] *{color:#e6eaff}
-[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] *{color:#c3cbff}
+[data-testid="stSidebar"] *{color:#deedf5}
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] *{color:#add4e7}
 .sb-brand{display:flex;align-items:center;gap:0.857rem;margin:0 0 .6rem}
-.sb-brand img{width:3rem;height:3rem;flex:0 0 auto;filter:drop-shadow(0 0.429rem 1rem rgba(110,90,255,.55))}
+.sb-brand img{width:3rem;height:3rem;flex:0 0 auto;filter:drop-shadow(0 0.429rem 1rem rgba(5,166,187,.55))}
 .sb-brand b{display:block;font-size:1.7rem;font-weight:800;letter-spacing:-.5px;line-height:1.05;color:#fff}
-.sb-brand b i{font-style:normal;background:linear-gradient(90deg,#6cb8ff,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
-.sb-brand span{display:block;white-space:nowrap;font-style:italic;font-size:.72rem;color:#aab4ea;margin-top:0.214rem}
+.sb-brand b i{font-style:normal;background:linear-gradient(90deg,#06e0d0,#0ac9ea);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sb-brand span{display:block;white-space:nowrap;font-style:italic;font-size:.72rem;color:#7adbde;margin-top:0.214rem}
 .st-key-sidenav [role="radiogroup"]{display:flex;flex-direction:column;gap:0.214rem;width:100%}
 .st-key-sidenav [role="radiogroup"]>div{width:100%}
 .st-key-sidenav [data-testid="stRadioOption"]>div{flex:1;min-width:0}
@@ -4048,42 +4051,42 @@ html,body,.stApp,.stMarkdown,p,label,input,textarea,button,li,h1,h2,h3,h4{font-f
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])>div:first-child{display:none}
 .st-key-sidenav [data-testid="stRadioOption"]>div{display:flex;align-items:center;gap:0;width:auto;padding:0}
 .st-key-sidenav [data-testid="stRadioOption"]>div>div:first-child{display:none}
-.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])::before{content:"";flex:0 0 1.571rem;width:1.571rem;height:1.571rem;background-color:#dbe1ff;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
-.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{font-size:1rem;font-weight:500;color:#e6eaff}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])::before{content:"";flex:0 0 1.571rem;width:1.571rem;height:1.571rem;background-color:#cfe6f1;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{font-size:1rem;font-weight:500;color:#deedf5}
 .st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]):hover{background:rgba(255,255,255,.08);transform:translateX(2px)}
-.st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(90deg,#3f63ee,#5b86ff);border-color:rgba(255,255,255,.28);box-shadow:0 0.571rem 1.571rem rgba(63,99,238,.45)}
+.st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(90deg,#00a7b5,#14b8a6);border-color:rgba(255,255,255,.28);box-shadow:0 0.571rem 1.571rem rgba(15,163,166,.45)}
 .st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"])::before{background-color:#fff}
 .st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]) p{color:#fff;font-weight:700}
 __NAVICONS__
-.aicard{display:flex;align-items:center;gap:0.857rem;padding:0.643rem 0.857rem;border-radius:1.143rem;background:linear-gradient(135deg,rgba(63,99,238,.42),rgba(109,77,240,.32));border:1px solid rgba(130,160,255,.5);box-shadow:0 0.714rem 1.857rem rgba(10,14,60,.45);margin-top:0.429rem}
+.aicard{display:flex;align-items:center;gap:0.857rem;padding:0.643rem 0.857rem;border-radius:1.143rem;background:linear-gradient(135deg,rgba(15,163,166,.42),rgba(15,157,179,.32));border:1px solid rgba(5,210,212,.5);box-shadow:0 0.714rem 1.857rem rgba(7,30,42,.45);margin-top:0.429rem}
 .aicard img{width:2.714rem;height:2.714rem;flex:0 0 auto}
-.aicard b{display:block;color:#fff;font-size:1rem}.aicard span{display:block;font-size:.78rem;color:#c9d2ff;line-height:1.35;margin-top:2px}
+.aicard b{display:block;color:#fff;font-size:1rem}.aicard span{display:block;font-size:.78rem;color:#b7d9ea;line-height:1.35;margin-top:2px}
 .aicard .go{margin-left:auto;flex:0 0 auto;width:2.143rem;height:2.143rem;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center;color:#fff;font-weight:700}
 .mascot{position:relative;margin:0 auto;width:72%}.mascot img{width:100%;display:block}
-.mascot .hw{position:absolute;right:0.429rem;top:1rem;font-family:'Dancing Script',cursive;font-size:1.35rem;line-height:1.1;transform:rotate(-8deg);color:#e8ecff;text-align:center}
+.mascot .hw{position:absolute;right:0.429rem;top:1rem;font-family:'Dancing Script',cursive;font-size:1.35rem;line-height:1.1;transform:rotate(-8deg);color:#e1eff6;text-align:center}
 
 /* ---------- Ô bấm phủ lên thẻ (thẻ HTML + nút ẩn) ---------- */
 div[class*="st-key-qk_"],.st-key-aibtn{position:relative;gap:0}
 div[class*="st-key-qk_"] [data-testid="stElementContainer"]:has([data-testid="stButton"]),.st-key-aibtn [data-testid="stElementContainer"]:has([data-testid="stButton"]){position:absolute;inset:0;z-index:3;width:100%!important}
 div[class*="st-key-qk_"] [data-testid="stButton"],.st-key-aibtn [data-testid="stButton"],div[class*="st-key-qk_"] [data-testid="stButton"] button,.st-key-aibtn [data-testid="stButton"] button{width:100%;height:100%;min-height:0}
 div[class*="st-key-qk_"] button,.st-key-aibtn button{opacity:0;cursor:pointer}
-div[class*="st-key-qk_"]:hover .tile{transform:translateY(-3px);box-shadow:0 0.857rem 1.857rem rgba(79,92,240,.2)}
-.st-key-aibtn:hover .aicard{border-color:#9db4ff;transform:translateY(-1px)}.aicard{transition:all .15s}
+div[class*="st-key-qk_"]:hover .tile{transform:translateY(-3px);box-shadow:0 0.857rem 1.857rem rgba(14,161,169,.2)}
+.st-key-aibtn:hover .aicard{border-color:#06e2e4;transform:translateY(-1px)}.aicard{transition:all .15s}
 
 /* ---------- Thanh trên ---------- */
 .st-key-gsearch [data-testid="InputInstructions"]{display:none}
-.st-key-gsearch div[data-baseweb="input"]{background:#fff;border:1px solid var(--line);border-radius:71.357rem;box-shadow:0 0.429rem 1.429rem rgba(79,92,240,.08);height:2.5rem}
+.st-key-gsearch div[data-baseweb="input"]{background:#fff;border:1px solid var(--line);border-radius:71.357rem;box-shadow:0 0.429rem 1.429rem rgba(14,161,169,.08);height:2.5rem}
 .st-key-gsearch input{padding-left:3rem;background:url("__SEARCHIC__") no-repeat 1.1rem center/1.429rem;color:var(--ink)}
-.tb-right{display:flex;justify-content:flex-end;align-items:center;gap:1.143rem;color:#5b6293}
-.tb-right .av{width:2.571rem;height:2.571rem;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:700;box-shadow:0 0.286rem 0.857rem rgba(79,92,240,.4)}
+.tb-right{display:flex;justify-content:flex-end;align-items:center;gap:1.143rem;color:#5c9295}
+.tb-right .av{width:2.571rem;height:2.571rem;border-radius:50%;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:700;box-shadow:0 0.286rem 0.857rem rgba(14,161,169,.4)}
 
 /* ---------- Hero ---------- */
 .hero3{position:relative;display:flex;justify-content:space-between;align-items:center;gap:0.714rem;color:#fff;border-radius:1.714rem;padding:1.143rem 2rem;margin:0 0 0.714rem;overflow:hidden;
-background:radial-gradient(30rem 18.571rem at 88% 18%,rgba(25,195,255,.38),rgba(25,195,255,0) 70%),radial-gradient(27.143rem 18.571rem at 40% 110%,rgba(139,92,246,.5),rgba(139,92,246,0) 70%),linear-gradient(115deg,#152a9a 0%,#2f35c8 48%,#5a3bea 100%);
-box-shadow:0 1.286rem 3.143rem rgba(47,53,200,.32)}
+background:radial-gradient(30rem 18.571rem at 88% 18%,rgba(25,195,255,.38),rgba(25,195,255,0) 70%),radial-gradient(27.143rem 18.571rem at 40% 110%,rgba(11,170,202,.5),rgba(11,170,202,0) 70%),linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);
+box-shadow:0 1.286rem 3.143rem rgba(31,126,133,.32)}
 .hero3 .pill{display:inline-block;font-size:.85rem;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.34);border-radius:71.357rem;padding:0.357rem 1.143rem;font-weight:600;font-size:.95rem;margin-bottom:0.571rem}
 .hero3 h1{margin:0;padding:0;font-size:2.05rem;line-height:1.16;font-weight:800;color:#fff;letter-spacing:-.4px}
-.hero3 h1 em{font-style:normal;font-size:2.6rem;background:linear-gradient(90deg,#22d3ee,#60a5fa 60%,#a5b4fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero3 h1 em{font-style:normal;font-size:2.6rem;background:linear-gradient(90deg,#00dff0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero3 .sub{margin:0.429rem 0 0.714rem;font-size:1rem;font-weight:600;display:flex;gap:1rem;align-items:center;flex-wrap:wrap}.hero3 .sub i{opacity:.7;font-style:normal}
 .hero3 .chips{display:flex;flex-wrap:wrap;gap:0.714rem}
 .hero3 .chips span{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:71.357rem;padding:0.429rem 0.929rem;font-size:.85rem;font-weight:600;backdrop-filter:blur(0.429rem)}
@@ -4093,36 +4096,36 @@ box-shadow:0 1.286rem 3.143rem rgba(47,53,200,.32)}
 
 /* ---------- Banner trang con ---------- */
 .pbanner{display:flex;align-items:center;gap:1rem;color:#fff;border-radius:1.429rem;padding:1rem 1.429rem;margin:0.429rem 0 1.143rem;
-background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rgba(25,195,255,0) 70%),linear-gradient(115deg,#152a9a 0%,#3a37cf 55%,#5a3bea 100%);box-shadow:0 0.857rem 2.143rem rgba(47,53,200,.25);animation:fu .45s ease}
+background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rgba(25,195,255,0) 70%),linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);box-shadow:0 0.857rem 2.143rem rgba(31,126,133,.25);animation:fu .45s ease}
 .pbanner .pb-ic{width:3.857rem;height:3.857rem;border-radius:1.143rem;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);display:grid;place-items:center;flex:0 0 auto}
-.pbanner b{display:block;font-size:1.35rem;font-weight:800;color:#fff}.pbanner span{display:block;color:#dbe3ff;font-size:.95rem;margin-top:2px}
+.pbanner b{display:block;font-size:1.35rem;font-weight:800;color:#fff}.pbanner span{display:block;color:#d2e7f2;font-size:.95rem;margin-top:2px}
 @keyframes fu{from{opacity:0;transform:translateY(0.571rem)}to{opacity:1;transform:none}}
-.st-key-panel{background:#fff;border:1px solid var(--line);border-radius:1.714rem;padding:1.571rem 1.857rem;box-shadow:0 0.714rem 2.143rem rgba(79,92,240,.08)}
+.st-key-panel{background:#fff;border:1px solid var(--line);border-radius:1.714rem;padding:1.571rem 1.857rem;box-shadow:0 0.714rem 2.143rem rgba(14,161,169,.08)}
 .st-key-panel [role="radiogroup"]{gap:0.571rem;flex-wrap:wrap}
 .st-key-panel :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){background:#fff;border:0.107rem solid var(--line);border-radius:1rem;padding:0.571rem 1.143rem;margin:0}
 .st-key-panel :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){border-color:var(--pri);background:var(--soft)}
 
 /* ---------- Thẻ tải ảnh (trang chủ) ---------- */
-.st-key-upcard{background:linear-gradient(135deg,#e7f8f6 0%,#eef1ff 60%,#f1ecff 100%);border:1px solid #dfe5ff;border-radius:1.571rem;padding:0.857rem 1.286rem;box-shadow:0 0.857rem 2.286rem rgba(79,92,240,.1)}
+.st-key-upcard{background:linear-gradient(135deg,#e7f8f6 0%,#e9f3f9 60%,#e4f1f7 100%);border:1px solid #d5e9f3;border-radius:1.571rem;padding:0.857rem 1.286rem;box-shadow:0 0.857rem 2.286rem rgba(14,161,169,.1)}
 .uphead{display:flex;align-items:center;gap:1.143rem;margin-bottom:0.571rem}
-.uphead .hex{flex:0 0 3.714rem;height:3.714rem;display:grid;place-items:center;background:linear-gradient(135deg,#22c1a5,#3b82f6);clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);filter:drop-shadow(0 0.571rem 1rem rgba(34,193,165,.4))}
+.uphead .hex{flex:0 0 3.714rem;height:3.714rem;display:grid;place-items:center;background:linear-gradient(135deg,#22c1a5,#08b8b2);clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);filter:drop-shadow(0 0.571rem 1rem rgba(34,193,165,.4))}
 .uphead h3{margin:0 0 0.286rem;padding:0;font-size:1.25rem;font-weight:800;color:var(--ink)}
-.uphead p{margin:0;color:#59618f;font-size:.98rem;line-height:1.5}
-.uphead .hw{margin-left:auto;font-family:'Dancing Script',cursive;font-size:1.25rem;color:#3a4690;transform:rotate(-5deg);text-align:right;line-height:1.1;flex:0 0 auto}
+.uphead p{margin:0;color:#5b9193;font-size:.98rem;line-height:1.5}
+.uphead .hw{margin-left:auto;font-family:'Dancing Script',cursive;font-size:1.25rem;color:#337d80;transform:rotate(-5deg);text-align:right;line-height:1.1;flex:0 0 auto}
 .demo{position:relative;display:flex;align-items:center;gap:0.714rem;justify-content:flex-end}
 .demo .paper{width:clamp(5rem,8vw,8.571rem);flex:0 1 auto;min-width:0}
-.demo .arrow{color:#6d4df0;flex:0 0 auto}
-.demo .res{position:relative;flex:1;min-width:0;background:#fff;border-radius:1rem;padding:0.714rem 1rem;box-shadow:0 0.714rem 1.857rem rgba(79,92,240,.14);border:1px solid #e6e9ff;min-width:0}
+.demo .arrow{color:#0f9db3;flex:0 0 auto}
+.demo .res{position:relative;flex:1;min-width:0;background:#fff;border-radius:1rem;padding:0.714rem 1rem;box-shadow:0 0.714rem 1.857rem rgba(14,161,169,.14);border:1px solid #dcedf5;min-width:0}
 .demo .res .badge{position:absolute;top:-13px;right:0.714rem;background:#12b886;color:#fff;font-size:.72rem;font-weight:700;border-radius:71.357rem;padding:0.286rem 0.857rem;box-shadow:0 0.429rem 1rem rgba(18,184,134,.35)}
 .demo .res h4{margin:0;padding:0;font-size:1.05rem;color:var(--ink)}.demo .res h4 i{float:right;font-style:normal;color:#12b886}
 .demo .res b{display:block;color:var(--ink);font-size:.9rem;margin:2px 0 0.571rem}
-.demo .res div{font-size:.78rem;color:#4b5380;margin-top:0.286rem;line-height:1.35}
-.demo .res small{display:block;margin-top:0.571rem;font-size:.68rem;color:#98a0c7}
-[data-testid="stFileUploaderDropzone"]{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.571rem;border:2px dashed #8f9dff;background:rgba(255,255,255,.72);border-radius:1.286rem;padding:0.714rem 0.714rem;min-height:11rem}
-[data-testid="stFileUploaderDropzone"]::before{content:"";order:0;width:3.286rem;height:3.286rem;border-radius:1rem;background:#e7ebff url("__IMGIC__") center/1.714rem no-repeat}
+.demo .res div{font-size:.78rem;color:#4e8486;margin-top:0.286rem;line-height:1.35}
+.demo .res small{display:block;margin-top:0.571rem;font-size:.68rem;color:#95c4c5}
+[data-testid="stFileUploaderDropzone"]{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0.571rem;border:2px dashed #06d2db;background:rgba(255,255,255,.72);border-radius:1.286rem;padding:0.714rem 0.714rem;min-height:11rem}
+[data-testid="stFileUploaderDropzone"]::before{content:"";order:0;width:3.286rem;height:3.286rem;border-radius:1rem;background:#dfeef6 url("__IMGIC__") center/1.714rem no-repeat}
 [data-testid="stFileUploaderDropzone"]>span{order:1}
 [data-testid="stFileUploaderDropzone"]>span>button *{font-size:0!important}
-[data-testid="stFileUploaderDropzone"]>span>button{font-size:0;background:var(--grad);color:#fff;border:0;border-radius:71.357rem;padding:0.571rem 2.143rem;box-shadow:0 0.714rem 1.571rem rgba(79,92,240,.35)}
+[data-testid="stFileUploaderDropzone"]>span>button{font-size:0;background:var(--grad);color:#fff;border:0;border-radius:71.357rem;padding:0.571rem 2.143rem;box-shadow:0 0.714rem 1.571rem rgba(14,161,169,.35)}
 [data-testid="stFileUploaderDropzone"]>span>button *{color:#fff}
 [data-testid="stFileUploaderDropzone"]>span>button p{display:none}
 [data-testid="stFileUploaderDropzone"]>span>button::after{content:"Tải ảnh lên";font-size:1rem;font-weight:700;color:#fff}
@@ -4130,7 +4133,7 @@ background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rg
 [data-testid="stFileUploaderDropzoneInstructions"]{order:2;text-align:center}
 [data-testid="stFileUploaderDropzoneInstructions"] *{font-size:0}
 [data-testid="stFileUploaderDropzoneInstructions"] svg,[data-testid="stFileUploaderDropzoneInstructions"] [data-testid="stIconMaterial"]{display:none}
-[data-testid="stFileUploaderDropzoneInstructions"]::before{content:"Kéo thả ảnh hoặc chọn file  |  JPG, PNG, WEBP (tối đa 200MB)";font-size:.78rem;color:#6b7299;line-height:1.4}
+[data-testid="stFileUploaderDropzoneInstructions"]::before{content:"Kéo thả ảnh hoặc chọn file  |  JPG, PNG, WEBP (tối đa 200MB)";font-size:.78rem;color:#749e9f;line-height:1.4}
 
 /* ---------- Khám phá nhanh ---------- */
 .sec-title{display:flex;align-items:center;gap:0.714rem;font-weight:700;font-size:1.02rem;color:var(--ink);margin:0.429rem 0.286rem 0}
@@ -4140,49 +4143,49 @@ background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rg
 .tile .ib{width:2rem;height:2rem;border-radius:50%;background:rgba(255,255,255,.85);display:grid;place-items:center}
 .tile b{font-size:.88rem;font-weight:700;line-height:1.25;white-space:pre-line}
 .tile .ar{align-self:flex-end;opacity:.85}
-.t-pink{background:linear-gradient(135deg,#ffe4f5,#fbd3ee);color:#d6389b}
-.t-blue{background:linear-gradient(135deg,#e3eeff,#d4e4ff);color:#2563eb}
+.t-pink{background:linear-gradient(135deg,#e0edf6,#cbe2f0);color:#4fa3db}
+.t-blue{background:linear-gradient(135deg,#e1eff6,#d0e6f1);color:#0fa19f}
 .t-green{background:linear-gradient(135deg,#dcf7ea,#c8f1dd);color:#059669}
 .t-orange{background:linear-gradient(135deg,#fff1dc,#ffe4bd);color:#d97706}
-.t-violet{background:linear-gradient(135deg,#ece8ff,#ddd6ff);color:#6d4df0}
+.t-violet{background:linear-gradient(135deg,#ddedf5,#c3dfee);color:#0f9db3}
 
 /* ---------- Hành trình + dải tính năng ---------- */
-.st-key-journey{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.571rem 1.286rem;box-shadow:0 0.571rem 1.714rem rgba(79,92,240,.07);margin-top:0}
+.st-key-journey{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.571rem 1.286rem;box-shadow:0 0.571rem 1.714rem rgba(14,161,169,.07);margin-top:0}
 .jr{display:flex;align-items:center;gap:1.143rem}.jr .tr{font-size:1.9rem;line-height:1}
 .jr .tx{flex:1}.jr b{display:block;color:var(--ink);font-size:1.02rem}.jr small{color:var(--mut)}
-.jr .bar{flex:1.2;height:0.643rem;border-radius:7.071rem;background:#e8ebff;overflow:hidden;min-width:8.571rem}.jr .bar i{display:block;height:100%;border-radius:7.071rem;background:var(--grad)}
+.jr .bar{flex:1.2;height:0.643rem;border-radius:7.071rem;background:#dfeef6;overflow:hidden;min-width:8.571rem}.jr .bar i{display:block;height:100%;border-radius:7.071rem;background:var(--grad)}
 .jr .cnt{font-weight:700;font-size:.88rem;color:var(--ink);white-space:nowrap}
-.feat{display:flex;justify-content:space-around;align-items:center;margin:2px 0.286rem 0;color:#4b5380;font-weight:600;font-size:.9rem;flex-wrap:wrap;gap:0.571rem}
-.feat span{display:flex;align-items:center;gap:0.571rem}.feat i{width:1px;height:1.286rem;background:#d9defa;display:inline-block}
+.feat{display:flex;justify-content:space-around;align-items:center;margin:2px 0.286rem 0;color:#4e8486;font-weight:600;font-size:.9rem;flex-wrap:wrap;gap:0.571rem}
+.feat span{display:flex;align-items:center;gap:0.571rem}.feat i{width:1px;height:1.286rem;background:#cae3f0;display:inline-block}
 
 /* ---------- Cột phải ---------- */
-.st-key-quick{background:linear-gradient(135deg,#3b6cf6 0%,#7a52f4 100%);border-radius:1.429rem;padding:0.857rem 1rem 0.714rem;box-shadow:0 1rem 2.143rem rgba(79,92,240,.35)}
+.st-key-quick{background:linear-gradient(135deg,#08aaaa 0%,#0ca2bd 100%);border-radius:1.429rem;padding:0.857rem 1rem 0.714rem;box-shadow:0 1rem 2.143rem rgba(14,161,169,.35)}
 .qhead{display:flex;align-items:center;gap:0.857rem;color:#fff;margin-bottom:0.714rem}
 .qhead .qi{width:2.714rem;height:2.714rem;border-radius:1rem;background:rgba(255,255,255,.2);display:grid;place-items:center;flex:0 0 auto}
-.qhead b{display:block;font-size:1.1rem;color:#fff}.qhead span{font-size:.8rem;color:#e1e6ff}
+.qhead b{display:block;font-size:1.1rem;color:#fff}.qhead span{font-size:.8rem;color:#d7eaf3}
 .st-key-quick [data-testid="stForm"]{border:0;padding:0;background:transparent}
 .st-key-quick [data-testid="InputInstructions"]{display:none}
 .st-key-quick div[data-baseweb="input"]{background:#fff;border:0;border-radius:71.357rem;height:2.9rem}
 .st-key-quick input{color:var(--ink);padding-left:1.1rem}
 .st-key-quick [data-testid="stFormSubmitButton"] button{width:2.7rem;height:2.7rem;min-height:0;padding:0;border-radius:50%;background:var(--grad);border:2px solid #fff;color:#fff;font-size:1.15rem;line-height:1}
 .st-key-quick [data-testid="stFormSubmitButton"] button p{color:#fff;font-size:1.2rem}
-.rcard{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.714rem 1rem;box-shadow:0 0.571rem 1.714rem rgba(79,92,240,.07);margin-top:0}
+.rcard{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.714rem 1rem;box-shadow:0 0.571rem 1.714rem rgba(14,161,169,.07);margin-top:0}
 .rcard .rh{display:flex;align-items:center;gap:0.714rem;margin-bottom:0.286rem}.rcard .rh svg{color:var(--pri)}
 .rcard .rh b{color:var(--ink);font-size:1rem}.rcard .rs{color:var(--mut);font-size:.78rem;margin:0 0 0.429rem 2.429rem}
-.st-key-res{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.714rem 0.857rem 0.286rem;box-shadow:0 0.571rem 1.714rem rgba(79,92,240,.07);margin-top:0}
+.st-key-res{background:#fff;border:1px solid var(--line);border-radius:1.286rem;padding:0.714rem 0.857rem 0.286rem;box-shadow:0 0.571rem 1.714rem rgba(14,161,169,.07);margin-top:0}
 .st-key-res{gap:0!important}
 .st-key-res [data-testid="stElementContainer"],.st-key-res [data-testid="stButton"]{width:100%}
 .st-key-res button>div{width:100%;justify-content:flex-start}
-.st-key-res button::after{content:"›";margin-left:auto;font-size:1.2rem;color:#9aa3d6}
-.st-key-res button{width:100%;justify-content:flex-start;gap:0.714rem;background:transparent;border:0;border-top:1px solid #eef0fb;border-radius:0;padding:.15rem .4rem;min-height:2.1rem;color:var(--ink);box-shadow:none}
+.st-key-res button::after{content:"›";margin-left:auto;font-size:1.2rem;color:#84cacd}
+.st-key-res button{width:100%;justify-content:flex-start;gap:0.714rem;background:transparent;border:0;border-top:1px solid #e7f2f8;border-radius:0;padding:.15rem .4rem;min-height:2.1rem;color:var(--ink);box-shadow:none}
 .st-key-res button:hover{background:var(--soft);transform:none;box-shadow:none}
 .st-key-res button p{font-weight:500;font-size:.9rem;color:var(--ink)}
 .st-key-res button [data-testid="stIconMaterial"]{color:var(--pri)}
-.hrow{display:flex;align-items:center;gap:0.857rem;padding:0.357rem 2px;border-top:1px solid #eef0fb}
+.hrow{display:flex;align-items:center;gap:0.857rem;padding:0.357rem 2px;border-top:1px solid #e7f2f8}
 .hrow:first-of-type{border-top:0}
 .hrow .hc{width:2.286rem;height:2.286rem;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
 .hrow b{display:block;color:var(--ink);font-size:.88rem}.hrow small{color:var(--mut);font-size:.72rem}
-.hrow .hc.c0{background:#d9f7ee;color:#0f9f78}.hrow .hc.c1{background:#ffe0ef;color:#d6389b}.hrow .hc.c2{background:#ffeccd;color:#c2740a}.hrow .hc.c3{background:#e6e0ff;color:#6d4df0}
+.hrow .hc.c0{background:#d9f7ee;color:#0f9f78}.hrow .hc.c1{background:#dceaf5;color:#4fa3db}.hrow .hc.c2{background:#ffeccd;color:#c2740a}.hrow .hc.c3{background:#d2e7f2;color:#0f9db3}
 .rsh{display:flex;align-items:center;gap:0.857rem;color:var(--pri);padding:2px 0.286rem 0.857rem}
 .rsh b{display:block;color:var(--ink);font-size:1rem;line-height:1.3}.rsh span{display:block;color:var(--mut);font-size:.78rem;line-height:1.3;margin-top:2px}
 .hempty{color:var(--mut);font-size:.85rem;padding:0.571rem 2px}
@@ -4192,35 +4195,35 @@ background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rg
 .hrow.act b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow.act .actwhen{flex:0 0 auto;color:var(--mut);font-size:.75rem;white-space:nowrap}
 .st-key-hclear button{border:0;background:transparent;color:var(--pri);font-size:.78rem;padding:0;min-height:0;box-shadow:none}
-.quote{display:flex;align-items:center;gap:1rem;border-radius:1.286rem;padding:0.714rem 1rem;margin-top:0;background:linear-gradient(135deg,#f1ecff,#e6f6ff);border:1px solid #e3e6ff}
-.quote .lf{font-size:2.2rem;line-height:1}.quote p{margin:0;font-style:italic;color:#3a4690;font-size:.85rem;line-height:1.5}.quote em{display:block;text-align:right;color:var(--pri);font-size:.8rem;font-weight:600;margin-top:0.286rem}
+.quote{display:flex;align-items:center;gap:1rem;border-radius:1.286rem;padding:0.714rem 1rem;margin-top:0;background:linear-gradient(135deg,#e4f1f7,#ecf5f9);border:1px solid #d8eaf4}
+.quote .lf{font-size:2.2rem;line-height:1}.quote p{margin:0;font-style:italic;color:#337d80;font-size:.85rem;line-height:1.5}.quote em{display:block;text-align:right;color:var(--pri);font-size:.8rem;font-weight:600;margin-top:0.286rem}
 
 /* ---------- Hộp thoại tài liệu ---------- */
 .ptwrap{overflow-x:auto;padding-bottom:0.429rem}
 .ptgrid{display:grid;grid-template-columns:repeat(18,minmax(3.857rem,1fr));grid-template-rows:repeat(7,auto) 0.857rem auto auto;gap:0.214rem;min-width:71.429rem}
-.ptc{border-radius:0.5rem;padding:0.214rem 0.286rem;text-align:center;line-height:1.15;display:flex;flex-direction:column;align-items:center;min-height:4.429rem;border:1px solid rgba(27,33,80,.08)}
-.ptc i{font-style:normal;font-size:.62rem;align-self:flex-start;color:#4b5380}.ptc b{font-size:1.02rem;color:var(--ink)}
-.ptc span{font-size:.54rem;color:#3a4172;white-space:nowrap}.ptc em{font-style:normal;font-size:.56rem;color:#4b5380;margin-top:auto}
-.ptx{background:#eef0fb;justify-content:center}.ptx b{font-size:.7rem;color:#6b7299}
-.ptleg{display:flex;flex-wrap:wrap;gap:0.429rem 1.143rem;margin:0.714rem 0 0.286rem;font-size:.78rem;color:#4b5380}.ptleg span{display:flex;align-items:center;gap:0.429rem}.ptleg i{width:1rem;height:1rem;border-radius:0.286rem;display:inline-block;border:1px solid rgba(27,33,80,.12)}
-.kl-kiem{background:#ffd6d6}.kl-kt{background:#ffe3c2}.chuyen{background:#fff0a8}.sau-chuyen{background:#d8f0c8}.a-kim-loai{background:#c7eee3}.phi-kim{background:#c9e6ff}.halogen{background:#d9d4ff}.khi-hiem{background:#f1d2f5}.lantan{background:#ffd0e6}.actini{background:#f4c7d9}
+.ptc{border-radius:0.5rem;padding:0.214rem 0.286rem;text-align:center;line-height:1.15;display:flex;flex-direction:column;align-items:center;min-height:4.429rem;border:1px solid rgba(22,50,64,.08)}
+.ptc i{font-style:normal;font-size:.62rem;align-self:flex-start;color:#4e8486}.ptc b{font-size:1.02rem;color:var(--ink)}
+.ptc span{font-size:.54rem;color:#3c7376;white-space:nowrap}.ptc em{font-style:normal;font-size:.56rem;color:#4e8486;margin-top:auto}
+.ptx{background:#e7f2f8;justify-content:center}.ptx b{font-size:.7rem;color:#749e9f}
+.ptleg{display:flex;flex-wrap:wrap;gap:0.429rem 1.143rem;margin:0.714rem 0 0.286rem;font-size:.78rem;color:#4e8486}.ptleg span{display:flex;align-items:center;gap:0.429rem}.ptleg i{width:1rem;height:1rem;border-radius:0.286rem;display:inline-block;border:1px solid rgba(22,50,64,.12)}
+.kl-kiem{background:#ffd6d6}.kl-kt{background:#ffe3c2}.chuyen{background:#fff0a8}.sau-chuyen{background:#d8f0c8}.a-kim-loai{background:#c7eee3}.phi-kim{background:#cfe6f1}.halogen{background:#bfddec}.khi-hiem{background:#c5e0ee}.lantan{background:#cae0f0}.actini{background:#bcd7ec}
 .reftbl{overflow-x:auto}.reftbl table{width:100%;border-collapse:collapse;font-size:.88rem}
-.reftbl th{background:#eef1ff;color:var(--ink);text-align:left;padding:0.571rem 0.714rem;position:sticky;top:0}
-.reftbl td{padding:0.571rem 0.714rem;border-top:1px solid #eef0fb;color:#2c3466;vertical-align:top}
-.rxr{display:flex;gap:0.857rem;align-items:center;padding:0.643rem 2px;border-top:1px solid #eef0fb}.rxr:first-child{border-top:0}
-.rxt{flex:0 0 10.714rem;background:#eef1ff;color:#4f5cf0;border-radius:71.357rem;padding:0.214rem 0.714rem;font-size:.74rem;font-weight:700;text-align:center}
+.reftbl th{background:#e9f3f9;color:var(--ink);text-align:left;padding:0.571rem 0.714rem;position:sticky;top:0}
+.reftbl td{padding:0.571rem 0.714rem;border-top:1px solid #e7f2f8;color:#254656;vertical-align:top}
+.rxr{display:flex;gap:0.857rem;align-items:center;padding:0.643rem 2px;border-top:1px solid #e7f2f8}.rxr:first-child{border-top:0}
+.rxt{flex:0 0 10.714rem;background:#e9f3f9;color:#0ea1a9;border-radius:71.357rem;padding:0.214rem 0.714rem;font-size:.74rem;font-weight:700;text-align:center}
 .rxe{display:flex;align-items:center;flex-wrap:wrap;gap:0.429rem;color:var(--ink);font-weight:600;font-size:.95rem}
-.rxa{display:inline-flex;flex-direction:column;align-items:center;min-width:3.286rem;line-height:1}.rxa small{font-size:.62rem;color:#6b7299;font-weight:500;white-space:nowrap}.rxa i{font-style:normal;font-size:1.2rem;color:#4f5cf0}
+.rxa{display:inline-flex;flex-direction:column;align-items:center;min-width:3.286rem;line-height:1}.rxa small{font-size:.62rem;color:#749e9f;font-weight:500;white-space:nowrap}.rxa i{font-style:normal;font-size:1.2rem;color:#0ea1a9}
 
 /* ---------- Bảng tính tan ---------- */
 .soltbl{overflow-x:auto}.soltbl table{border-collapse:separate;border-spacing:2px;font-size:.78rem;width:100%}
-.soltbl th{background:#eef1ff;color:var(--ink);padding:.3rem .4rem;font-weight:700;white-space:nowrap}
+.soltbl th{background:#e9f3f9;color:var(--ink);padding:.3rem .4rem;font-weight:700;white-space:nowrap}
 .soltbl td{text-align:center;font-weight:700;padding:.32rem .2rem;border-radius:.3rem}
-.sol-t{background:#d7f5e5;color:#087a4a}.sol-i{background:#fff0c2;color:#a96800}.sol-k{background:#ffd9d9;color:#c2272d}.sol-b{background:#d9e8ff;color:#1d5fd1}.sol-x{background:#eceef6;color:#6b7299}.sol-q{background:#f5f6fb;color:#9aa3c4}
-.sol-sel{outline:3px solid #4f5cf0;outline-offset:-1px;box-shadow:0 0 0 4px rgba(79,92,240,.25)}
+.sol-t{background:#d7f5e5;color:#087a4a}.sol-i{background:#fff0c2;color:#a96800}.sol-k{background:#ffd9d9;color:#c2272d}.sol-b{background:#d7eaf3;color:#159995}.sol-x{background:#e7f0f4;color:#749e9f}.sol-q{background:#f2f7fa;color:#9cc5c5}
+.sol-sel{outline:3px solid #0ea1a9;outline-offset:-1px;box-shadow:0 0 0 4px rgba(14,161,169,.25)}
 .solres{display:flex;align-items:center;flex-wrap:wrap;gap:.8rem;margin:.4rem 0 .7rem}.solres b{font-size:1.5rem;color:var(--ink)}
 .solbadge{padding:.3rem .85rem;border-radius:999px;font-weight:700;font-size:.85rem}
-.sollg{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin-top:.6rem;font-size:.78rem;color:#4b5380;align-items:center}.sollg span{padding:.1rem .5rem;border-radius:.3rem;font-weight:700}
+.sollg{display:flex;flex-wrap:wrap;gap:.4rem .9rem;margin-top:.6rem;font-size:.78rem;color:#4e8486;align-items:center}.sollg span{padding:.1rem .5rem;border-radius:.3rem;font-weight:700}
 
 /* ---------- Thành phần chung ---------- */
 [data-testid="stWidgetLabel"] p{font-weight:700;color:var(--ink);border-left:0.286rem solid var(--pri);padding-left:0.643rem}
@@ -4228,13 +4231,13 @@ background:radial-gradient(21.429rem 11.429rem at 92% 0%,rgba(25,195,255,.35),rg
 button[kind="primary"],[data-testid="stBaseButton-primary"],[data-testid="stBaseButton-primary"]{background:var(--grad);border:0;color:#fff;border-radius:0.857rem;font-weight:700;padding:.55rem 1.3rem}
 [data-testid="stBaseButton-secondary"]{border-radius:0.857rem;border-color:var(--line)}
 button{transition:transform .15s ease,box-shadow .15s ease}
-button:hover{transform:translateY(-1px);box-shadow:0 0.429rem 1.143rem rgba(79,92,240,.22)}
+button:hover{transform:translateY(-1px);box-shadow:0 0.429rem 1.143rem rgba(14,161,169,.22)}
 .st-key-jbtn button{border-radius:71.357rem;background:var(--grad);color:#fff;border:0;padding:.6rem 1.4rem;font-weight:700;white-space:nowrap}
 .st-key-jbtn button p{color:#fff}
 div[data-baseweb="input"],div[data-baseweb="textarea"]{border-radius:0.857rem}
 .errtop{color:#d00000;font-weight:800;font-size:1.08rem;line-height:1.5;background:rgba(220,0,0,.08);border:2px solid rgba(220,0,0,.45);border-radius:0.857rem;padding:0.857rem 1.143rem;margin:0.429rem 0 0.857rem}
-button:disabled,[data-testid="stBaseButton-primary"]:disabled{background:#dfe3f7!important;color:#8a90b8!important;box-shadow:none!important;transform:none!important}
-button:disabled p{color:#8a90b8!important}
+button:disabled,[data-testid="stBaseButton-primary"]:disabled{background:#d2e7f2!important;color:#8bb7b9!important;box-shadow:none!important;transform:none!important}
+button:disabled p{color:#8bb7b9!important}
 .usage{display:flex;align-items:center;gap:0.714rem;background:#fff;border:1px solid var(--line);border-radius:1rem;padding:0.429rem 1rem;color:var(--mut);margin-top:0.429rem;font-size:.85rem}
 .usage b{color:var(--pri)}
 .disc{color:var(--mut);font-size:.75rem;margin:0.286rem 0.286rem 0}
@@ -4253,7 +4256,7 @@ html{font-size:14.5px!important}
 .st-key-topbar [data-testid="stColumn"]:last-child{display:none!important}
 .st-key-topbar [data-testid="stColumn"]:first-child{flex:1 1 100%!important;width:100%!important}
 .hero3 .sub{display:none}
-[data-testid="stExpandSidebarButton"]{background:var(--grad)!important;border-radius:999px!important;width:auto!important;height:2.4rem!important;padding:0 .9rem!important;box-shadow:0 6px 16px rgba(79,92,240,.4)!important;display:inline-flex!important;align-items:center;gap:.35rem}
+[data-testid="stExpandSidebarButton"]{background:var(--grad)!important;border-radius:999px!important;width:auto!important;height:2.4rem!important;padding:0 .9rem!important;box-shadow:0 6px 16px rgba(14,161,169,.4)!important;display:inline-flex!important;align-items:center;gap:.35rem}
 [data-testid="stExpandSidebarButton"] *{color:#fff!important;fill:#fff!important}
 [data-testid="stExpandSidebarButton"]::after{content:"Menu";color:#fff;font-weight:700;font-size:.9rem}
 .hero3 h1{margin-bottom:.7rem}
@@ -4275,35 +4278,35 @@ html{font-size:14.5px!important}
 """
 
 # Biểu tượng cho từng mục điều hướng (thứ tự = thứ tự trong thanh bên)
-NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "practice", "test", "search"]
+NAV_ICON_ORDER = ["home", "structure", "flask", "isomer", "equipment", "mind", "practice", "test", "clock", "sparkle"]
 _nav_css = "".join(
     f'.st-key-sidenav label[data-baseweb="radio"]:nth-of-type({i + 1}){{--ic:{_mask(n)}}}.st-key-sidenav [role="radiogroup"]>div:nth-of-type({i + 1}) [data-testid="stRadioOption"]{{--ic:{_mask(n)}}}' for i, n in enumerate(NAV_ICON_ORDER)
 )
 _ROOT = "clamp(9px, 1.6vh, 16px)" if st.session_state.get("nav", "Trang chủ") == "Trang chủ" else "14px"
 CSS = (CSS.replace("__ROOT__", _ROOT).replace("__NAVICONS__", _nav_css)
-          .replace("__SEARCHIC__", _uri(icon_svg("search", "#7a82b8", 20)))
-          .replace("__IMGIC__", _uri(icon_svg("image", "#4f5cf0", 30))))
+          .replace("__SEARCHIC__", _uri(icon_svg("search", "#6fafb2", 20)))
+          .replace("__IMGIC__", _uri(icon_svg("image", "#0ea1a9", 30))))
 st.markdown(CSS, unsafe_allow_html=True)
 _UP_BTN = {"en": "Upload image", "bi": "Tải ảnh lên · Upload image"}
 _UP_HINT = {"en": "Drag and drop an image or choose a file  |  JPG, PNG, WEBP (max 200MB)",
             "bi": "Kéo thả ảnh hoặc chọn file · Drag and drop or choose a file  |  JPG, PNG, WEBP (200MB)"}
 st.markdown("<style>"
             ".st-key-sbacct{margin:.2rem 0 .9rem}"
-            ".acct{background:linear-gradient(135deg,rgba(99,102,241,.28),rgba(139,92,246,.22));border:1px solid rgba(167,139,250,.35);border-radius:16px;padding:.8rem .85rem}"
+            ".acct{background:linear-gradient(135deg,rgba(16,169,181,.28),rgba(11,170,202,.22));border:1px solid rgba(10,201,234,.35);border-radius:16px;padding:.8rem .85rem}"
             ".acct-top{display:flex;align-items:center;gap:.7rem}"
-            ".acct .avt{flex:0 0 auto;width:2.9rem;height:2.9rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;color:#fff;background:linear-gradient(135deg,#4f46e5,#8b5cf6);box-shadow:0 .3rem .9rem rgba(110,90,255,.45)}"
+            ".acct .avt{flex:0 0 auto;width:2.9rem;height:2.9rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;color:#fff;background:linear-gradient(135deg,#16929f,#0baaca);box-shadow:0 .3rem .9rem rgba(5,166,187,.45)}"
             ".acct .avt.guest{background:rgba(255,255,255,.14);box-shadow:none}"
             ".acct .who{min-width:0}.acct .who b{display:block;color:#fff;font-size:1rem;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
-            ".acct .who span{display:block;color:#c7cdf5;font-size:.78rem;margin-top:.1rem}"
+            ".acct .who span{display:block;color:#afd5e8;font-size:.78rem;margin-top:.1rem}"
             ".acct .role{display:inline-block;margin-left:.35rem;padding:0 .4rem;border-radius:99px;background:rgba(255,255,255,.16);font-size:.68rem;color:#fff}"
-            ".acct-st{display:flex;align-items:center;gap:.4rem;margin-top:.6rem;font-size:.74rem;color:#d6dafc}"
-            ".acct-st i{width:.55rem;height:.55rem;border-radius:50%;background:#9ca3af;flex:0 0 auto}.acct-st i.ok{background:#34d399}.acct-st i.warn{background:#fbbf24}.acct-st i.err{background:#f87171}"
+            ".acct-st{display:flex;align-items:center;gap:.4rem;margin-top:.6rem;font-size:.74rem;color:#c5e0ee}"
+            ".acct-st i{width:.55rem;height:.55rem;border-radius:50%;background:#b0bfbf;flex:0 0 auto}.acct-st i.ok{background:#34d399}.acct-st i.warn{background:#fbbf24}.acct-st i.err{background:#f87171}"
             ".acct-kpi{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.65rem}"
             ".acct-kpi div{background:rgba(255,255,255,.09);border-radius:12px;padding:.45rem .3rem;text-align:center}"
-            ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#c7cdf5;font-size:.68rem;margin-top:.15rem}"
-            ".acct-none{margin-top:.6rem;font-size:.76rem;color:#c7cdf5;text-align:center}"
+            ".acct-kpi b{display:block;color:#fff;font-size:1.25rem;line-height:1.1}.acct-kpi span{display:block;color:#afd5e8;font-size:.68rem;margin-top:.15rem}"
+            ".acct-none{margin-top:.6rem;font-size:.76rem;color:#afd5e8;text-align:center}"
             ".st-key-sbacct button{width:100%}"
-            ".tb-right .av.guest{background:#e4e7ff;color:#4f46e5}"
+            ".tb-right .av.guest{background:#d9ebf4;color:#16929f}"
             "@media(max-width:640px){.acct-kpi b{font-size:1.1rem}}"
             "</style>", unsafe_allow_html=True)
 st.markdown("<style>@media(max-width:640px){.block-container{padding-left:.7rem!important;padding-right:.7rem!important}"
@@ -4313,7 +4316,7 @@ if i18n.lang() != "vi":   # nút/dòng chú thích của khung tải ảnh đư�
     st.markdown('<style>[data-testid="stFileUploaderDropzone"]>span>button::after{content:"%s"}'
                 '[data-testid="stFileUploaderDropzoneInstructions"]::before{content:"%s"}</style>'
                 % (_UP_BTN[i18n.lang()], _UP_HINT[i18n.lang()]), unsafe_allow_html=True)
-st.markdown("<style>[data-testid='stSidebar'] [data-testid='stWidgetLabel'] p{color:#dfe5ff!important;font-weight:600}"
+st.markdown("<style>[data-testid='stSidebar'] [data-testid='stWidgetLabel'] p{color:#d5e9f3!important;font-weight:600}"
             "[data-testid='stSidebar'] [data-baseweb='select'] *{color:#fff!important}</style>", unsafe_allow_html=True)
 if i18n.lang() != "vi":   # chữ song ngữ dài hơn: ô công cụ cao tự động, dòng tiếng Anh nhỏ bên dưới
     st.markdown("<style>.tile{height:auto!important;min-height:7.4rem}.tile b small{display:block;font-weight:500;opacity:.8;font-size:.74rem;margin-top:2px}"
@@ -4749,12 +4752,12 @@ SIM_BUILTINS = {
         "kw": [["kem", "hcl"], ["zn", "hcl"], ["kem", "axit clohidric"], ["zn", "axit clohidric"], ["kem", "axit"]],
         "ten": "Kẽm tác dụng với dung dịch axit clohiđric",
         "dung_cu": [{"id": "A", "loai": "binh_tam_giac", "nhan": "Bình tam giác"}],
-        "thu_khi": {"tu": "A", "khi": "H2", "mau": "#e6e9f2"},
+        "thu_khi": {"tu": "A", "khi": "H2", "mau": "#e1ebef"},
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 6, "mo_ta": "Dùng ống nhỏ giọt cho khoảng 10 mL dung dịch HCl loãng vào bình tam giác. Lắp nút cao su có ống dẫn khí, đầu ống dẫn khí đặt dưới miệng ống thu khí úp ngược trong chậu nước.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd HCl", "mau": "#eef3ff", "muc": 0.4}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd HCl", "mau": "#ebf4f9", "muc": 0.4}]},
             {"tieu_de": "Cho kẽm vào", "thoi_gian": 7, "mo_ta": "Thả vài viên kẽm vào bình. Trên bề mặt viên kẽm xuất hiện nhiều bọt khí, viên kẽm nhỏ dần.",
-             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "Zn", "mau": "#9aa4ad", "kieu": "vien"}, {"loai": "sui_bot", "dung_cu": "A", "cuong_do": 0.75},
+             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "Zn", "mau": "#b0bfbe", "kieu": "vien"}, {"loai": "sui_bot", "dung_cu": "A", "cuong_do": 0.75},
                            {"loai": "tan", "dung_cu": "A", "con_lai": 0.35, "thoi_gian": 8, "dong_thoi": True}]},
             {"tieu_de": "Thu khí hiđro", "thoi_gian": 7, "mo_ta": "Khí không màu, không mùi thoát ra theo ống dẫn khí và đẩy nước trong ống thu khí xuống. H2 ít tan trong nước nên thu được bằng cách đẩy nước.",
              "hanh_dong": [{"loai": "thu_khi", "luong": 0.8, "thoi_gian": 6}]},
@@ -4774,11 +4777,11 @@ SIM_BUILTINS = {
         "thu_khi": None,
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 5, "mo_ta": "Cho khoảng 2 mL dung dịch CuSO4 vào ống nghiệm. Dung dịch có màu xanh lam.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd CuSO4", "mau": "#2f7be0", "muc": 0.45}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd CuSO4", "mau": "#1aafa8", "muc": 0.45}]},
             {"tieu_de": "Nhỏ dung dịch NaOH", "thoi_gian": 7, "mo_ta": "Nhỏ từ từ dung dịch NaOH vào ống nghiệm. Xuất hiện kết tủa màu xanh lam lơ lửng rồi lắng xuống đáy ống.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaOH", "mau": "#f3f7ff", "muc": 0.2},
-                           {"loai": "ket_tua", "dung_cu": "A", "chat": "Cu(OH)2", "mau": "#4f93f2", "luong": 0.85, "thoi_gian": 4},
-                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#cfe3fb", "thoi_gian": 4, "dong_thoi": True}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaOH", "mau": "#f1f8fb", "muc": 0.2},
+                           {"loai": "ket_tua", "dung_cu": "A", "chat": "Cu(OH)2", "mau": "#0ec4bc", "luong": 0.85, "thoi_gian": 4},
+                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#cde5f0", "thoi_gian": 4, "dong_thoi": True}]},
             {"tieu_de": "Quan sát", "thoi_gian": 4, "mo_ta": "Kết tủa Cu(OH)2 màu xanh lam không tan, lắng ở đáy ống nghiệm; phần dung dịch phía trên nhạt màu đi.", "hanh_dong": []},
         ],
         "hien_tuong": ["Dung dịch CuSO4 màu xanh lam", "Khi nhỏ NaOH xuất hiện kết tủa màu xanh lam", "Kết tủa lắng xuống đáy ống nghiệm"],
@@ -4795,11 +4798,11 @@ SIM_BUILTINS = {
         "thu_khi": None,
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 5, "mo_ta": "Cho khoảng 2 mL dung dịch AgNO3 vào ống nghiệm. Dung dịch trong suốt, không màu.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd AgNO3", "mau": "#f2f6ff", "muc": 0.45}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd AgNO3", "mau": "#f0f7fb", "muc": 0.45}]},
             {"tieu_de": "Nhỏ dung dịch NaCl", "thoi_gian": 7, "mo_ta": "Nhỏ dung dịch NaCl vào ống nghiệm. Xuất hiện ngay kết tủa màu trắng dạng sữa, vón cục, làm đục dung dịch.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaCl", "mau": "#f3f7ff", "muc": 0.2},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaCl", "mau": "#f1f8fb", "muc": 0.2},
                            {"loai": "ket_tua", "dung_cu": "A", "chat": "AgCl", "mau": "#fbfbf7", "luong": 0.9, "thoi_gian": 3.5},
-                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#e9ecf3", "thoi_gian": 3, "dong_thoi": True}]},
+                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#e5edf1", "thoi_gian": 3, "dong_thoi": True}]},
             {"tieu_de": "Quan sát", "thoi_gian": 4, "mo_ta": "Kết tủa trắng AgCl không tan trong nước và trong axit, lắng dần xuống đáy ống nghiệm.", "hanh_dong": []},
         ],
         "hien_tuong": ["Xuất hiện kết tủa màu trắng", "Kết tủa vón cục, lắng xuống đáy ống nghiệm"],
@@ -4813,10 +4816,10 @@ SIM_BUILTINS = {
         "kw": [["kmno4", "nhiet"], ["kali pemanganat", "nhiet"], ["kmno4", "oxi"], ["kmno4", "o2"], ["thuoc tim", "nhiet"], ["dieu che oxi"], ["dieu che khi oxi"]],
         "ten": "Nhiệt phân kali pemanganat điều chế khí oxi",
         "dung_cu": [{"id": "A", "loai": "ong_nghiem", "nhan": "Ống nghiệm"}],
-        "thu_khi": {"tu": "A", "khi": "O2", "mau": "#dfeaf7"},
+        "thu_khi": {"tu": "A", "khi": "O2", "mau": "#daecf4"},
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 6, "mo_ta": "Cho một ít tinh thể KMnO4 màu tím đen vào ống nghiệm, nhét một nhúm bông ở miệng ống rồi đậy bằng nút cao su có ống dẫn khí. Kẹp ống nghiệm trên giá, đặt ống thu khí đầy nước úp trong chậu nước.",
-             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "KMnO4", "mau": "#5a1b6f", "kieu": "bot"}]},
+             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "KMnO4", "mau": "#174860", "kieu": "bot"}]},
             {"tieu_de": "Đun nóng", "thoi_gian": 8, "mo_ta": "Đốt đèn cồn và đun nóng ống nghiệm. Chất rắn đổi màu, khí oxi thoát ra theo ống dẫn khí.",
              "hanh_dong": [{"loai": "dun_nong", "bat": True, "dung_cu": "A"}, {"loai": "doi_mau_ran", "dung_cu": "A", "mau": "#2b2623", "thoi_gian": 5}]},
             {"tieu_de": "Thu khí oxi", "thoi_gian": 7, "mo_ta": "Khí O2 ít tan trong nước nên thu được bằng cách đẩy nước. Khí đẩy nước trong ống thu khí xuống.",
@@ -4839,9 +4842,9 @@ SIM_BUILTINS = {
         "thu_khi": None,
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 5, "mo_ta": "Cho khoảng 50 mL dung dịch CuSO4 màu xanh lam vào cốc thủy tinh.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd CuSO4", "mau": "#2f7be0", "muc": 0.55}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd CuSO4", "mau": "#1aafa8", "muc": 0.55}]},
             {"tieu_de": "Nhúng đinh sắt", "thoi_gian": 8, "mo_ta": "Nhúng một chiếc đinh sắt đã làm sạch vào dung dịch. Sau một lúc, đinh sắt được phủ một lớp kim loại màu đỏ (đồng), màu xanh của dung dịch nhạt dần.",
-             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "Fe (đinh sắt)", "mau": "#8b9199", "kieu": "dinh"},
+             "hanh_dong": [{"loai": "them_ran", "dung_cu": "A", "chat": "Fe (đinh sắt)", "mau": "#a5b0af", "kieu": "dinh"},
                            {"loai": "doi_mau_ran", "dung_cu": "A", "mau": "#c0642a", "thoi_gian": 6},
                            {"loai": "doi_mau", "dung_cu": "A", "mau": "#bfe6cf", "thoi_gian": 7, "dong_thoi": True}]},
             {"tieu_de": "Quan sát", "thoi_gian": 4, "mo_ta": "Dung dịch chuyển từ xanh lam sang xanh lục nhạt (FeSO4). Trên đinh sắt có lớp đồng màu đỏ bám vào.", "hanh_dong": []},
@@ -4859,10 +4862,10 @@ SIM_BUILTINS = {
         "thu_khi": None,
         "buoc": [
             {"tieu_de": "Chuẩn bị", "thoi_gian": 5, "mo_ta": "Cho khoảng 30 mL dung dịch NaOH loãng vào cốc, nhỏ vài giọt phenolphtalein. Dung dịch chuyển sang màu hồng.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaOH", "mau": "#f4f8ff", "muc": 0.45}, {"loai": "doi_mau", "dung_cu": "A", "mau": "#f07db8", "thoi_gian": 2.5}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd NaOH", "mau": "#f3f9fc", "muc": 0.45}, {"loai": "doi_mau", "dung_cu": "A", "mau": "#85c3f1", "thoi_gian": 2.5}]},
             {"tieu_de": "Nhỏ từ từ dung dịch HCl", "thoi_gian": 8, "mo_ta": "Nhỏ từng giọt dung dịch HCl vào cốc và khuấy đều. Màu hồng nhạt dần rồi mất hẳn khi axit vừa đủ trung hòa hết NaOH.",
-             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd HCl", "mau": "#f4f8ff", "muc": 0.2, "thoi_gian": 4},
-                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#f3f7ff", "thoi_gian": 5, "dong_thoi": True}]},
+             "hanh_dong": [{"loai": "them_long", "dung_cu": "A", "chat": "dd HCl", "mau": "#f3f9fc", "muc": 0.2, "thoi_gian": 4},
+                           {"loai": "doi_mau", "dung_cu": "A", "mau": "#f1f8fb", "thoi_gian": 5, "dong_thoi": True}]},
             {"tieu_de": "Quan sát", "thoi_gian": 4, "mo_ta": "Dung dịch trở về không màu: bazơ đã bị trung hòa hết, tạo muối NaCl và nước.", "hanh_dong": []},
         ],
         "hien_tuong": ["Dung dịch NaOH có phenolphtalein màu hồng", "Nhỏ HCl vào, màu hồng nhạt dần rồi mất hẳn"],
@@ -4902,16 +4905,16 @@ def sim_match_builtin(text):
 SIM_TEMPLATE = r'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Mô phỏng thí nghiệm</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial,"DejaVu Sans",sans-serif;background:#f5f7ff;color:#1b2150}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,"DejaVu Sans",sans-serif;background:#f2f8fb;color:#163240}
 #wrap{max-width:960px;margin:0 auto}
-#cv{width:100%;height:auto;display:block;border-radius:14px;background:#0f1640;box-shadow:0 8px 26px rgba(40,50,160,.25)}
+#cv{width:100%;height:auto;display:block;border-radius:14px;background:#0c2532;box-shadow:0 8px 26px rgba(30,114,118,.25)}
 #bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
-button,select{font:inherit;border:1px solid #d9defa;background:#fff;color:#1b2150;border-radius:10px;padding:7px 12px;cursor:pointer;font-weight:600}
-button.pri{background:linear-gradient(135deg,#3b6cf6,#6d4df0);color:#fff;border:0}
-button:hover{filter:brightness(.97)}button.off{background:#eef0fb;color:#8a90b8}
-#sl{flex:1 1 200px;accent-color:#4f5cf0}
-#tm{font-size:13px;color:#6b7299;min-width:84px;text-align:right}
-#st{font-size:12.5px;color:#6b7299;margin-top:6px;min-height:16px}
+button,select{font:inherit;border:1px solid #cae3f0;background:#fff;color:#163240;border-radius:10px;padding:7px 12px;cursor:pointer;font-weight:600}
+button.pri{background:linear-gradient(135deg,#08aaaa,#0f9db3);color:#fff;border:0}
+button:hover{filter:brightness(.97)}button.off{background:#e7f2f8;color:#8bb7b9}
+#sl{flex:1 1 200px;accent-color:#0ea1a9}
+#tm{font-size:13px;color:#749e9f;min-width:84px;text-align:right}
+#st{font-size:12.5px;color:#749e9f;margin-top:6px;min-height:16px}
 </style></head><body><div id="wrap">
 <canvas id="cv" width="960" height="540"></canvas>
 <div id="bar">
@@ -4920,7 +4923,7 @@ button:hover{filter:brightness(.97)}button.off{background:#eef0fb;color:#8a90b8}
 <button id="bN" title="Bước sau">⏩</button>
 <input id="sl" type="range" min="0" max="1000" value="0">
 <span id="tm">0:00</span>
-<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#6b7299" title="Tốc độ phát tùy ý">⏱ <input id="sp" type="range" min="0.25" max="3" step="0.05" value="1" style="width:110px;accent-color:#4f5cf0"><b id="spl" style="min-width:42px">1,00×</b></span><button id="bVoice" title="Bật hoặc tắt giọng đọc lời dẫn">🗣️ Giọng đọc: Bật</button><button id="bSfx" title="Bật hoặc tắt hiệu ứng âm thanh">🔊 Âm thanh: Bật</button><button id="bTeach" title="Hiện hoặc ẩn cô giáo làm thí nghiệm">👩‍🏫 Cô giáo: Bật</button>
+<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#749e9f" title="Tốc độ phát tùy ý">⏱ <input id="sp" type="range" min="0.25" max="3" step="0.05" value="1" style="width:110px;accent-color:#0ea1a9"><b id="spl" style="min-width:42px">1,00×</b></span><button id="bVoice" title="Bật hoặc tắt giọng đọc lời dẫn">🗣️ Giọng đọc: Bật</button><button id="bSfx" title="Bật hoặc tắt hiệu ứng âm thanh">🔊 Âm thanh: Bật</button><button id="bTeach" title="Hiện hoặc ẩn cô giáo làm thí nghiệm">👩‍🏫 Cô giáo: Bật</button>
 <select id="vsel" style="display:none" title="Chọn giọng đọc của trình duyệt"></select>
 <button id="bRec" title="Ghi lại thành video .mp4">🎬 Tải video (.mp4)</button>
 <button id="bHtml" title="Lưu bản mô phỏng tự chạy được">💾 Tải .html</button>
@@ -4986,13 +4989,13 @@ steps.push(endCard); const TOTAL = endCard.t1;
 // ---------- trạng thái tại thời điểm t ----------
 function stateAt(t) {
   const vs = VS.map(() => ({ vol: 0, col: [235, 240, 255], solid: null, scol: null, ssize: 1, pr: 0, prcol: [255, 255, 255], rate: 0, items: [], prNew: 0, fx: [] }));
-  let lamp = false, gasVol = 0, gasCol = hex2(GAS && GAS.mau || "#d8dde8"), splint = null, gasOn = false, capOn = false, lift = 0;
+  let lamp = false, gasVol = 0, gasCol = hex2(GAS && GAS.mau || "#d3dfe5"), splint = null, gasOn = false, capOn = false, lift = 0;
   for (let ei = 0; ei < events.length; ei++) {
     const e = events[ei]; if (t < e.t0) continue;
     const p = clamp((t - e.t0) / (e.t1 - e.t0)), k = vIndex(e.dung_cu), v = vs[k] || vs[0]; if (!v) continue;
     switch (e.loai) {
       case "them_long": {
-        const dv = clamp(+e.muc || .3, .03, .85) * (TEACH_ON ? dripP(e, t) : p), v0 = v.vol, c1 = hex2(e.mau || "#dfe8ff");
+        const dv = clamp(+e.muc || .3, .03, .85) * (TEACH_ON ? dripP(e, t) : p), v0 = v.vol, c1 = hex2(e.mau || "#d9ebf4");
         v.col = v0 + dv > 0 ? mixc(v.col, c1, v0 < .001 ? 1 : dv / (v0 + dv)) : c1; v.vol = clamp(v0 + dv, 0, .95);
         if (p < 1) v.fx.push({ t: "long", c: c1, p, id: ei }); if (p > .5 && !v.items.includes(e.chat)) v.items.push(e.chat); break; }
       case "them_ran": {
@@ -5027,28 +5030,28 @@ function halfW(v, y) { // nửa bề rộng bên trong tại độ cao y
   if (v.loai === "coc") return G.w / 2 - 6; return G.w / 2 - 6;
 }
 function drawBench() {
-  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, "#1c2670"); gr.addColorStop(.75, "#141b52"); gr.addColorStop(1, "#0d1240");
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, "#143c50"); gr.addColorStop(.75, "#0f2d3d"); gr.addColorStop(1, "#09222f");
   g.fillStyle = gr; g.fillRect(0, 0, W, H);
   g.fillStyle = "rgba(255,255,255,.04)"; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(80 + i * 58, 70 + rnd(i) * 160, 20 + rnd(i + 9) * 40, 0, 7); g.fill(); }
   const wd = g.createLinearGradient(0, 398, 0, 424); wd.addColorStop(0, "#caa270"); wd.addColorStop(1, "#8d6a3f");
   g.fillStyle = wd; g.fillRect(0, 398, W, 26); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(0, 424, W, 6);
 }
 function drawLamp(x, on, t, cap) {
-  g.fillStyle = "#cfd8e8"; g.strokeStyle = "#8aa0c0"; g.lineWidth = 2;
+  g.fillStyle = "#c7dbe4"; g.strokeStyle = "#8ec2c0"; g.lineWidth = 2;
   g.beginPath(); g.moveTo(x - 16, 382); g.lineTo(x - 26, 394); g.quadraticCurveTo(x - 28, 398, x - 20, 398); g.lineTo(x + 20, 398); g.quadraticCurveTo(x + 28, 398, x + 26, 394); g.lineTo(x + 16, 382); g.closePath(); g.fill(); g.stroke();
   g.fillStyle = "rgba(255,210,120,.55)"; g.fillRect(x - 21, 388, 42, 9);
-  g.fillStyle = "#6b7280"; g.fillRect(x - 8, 372, 16, 11); g.fillStyle = "#333"; g.fillRect(x - 1.5, 362, 3, 11);
-  if (cap) { capShape(x, 357); g.fillStyle = "rgba(205,228,250,.62)"; g.fill(); g.strokeStyle = "rgba(140,172,215,.98)"; g.lineWidth = 2; g.stroke(); g.fillStyle = "#cfd8e8"; g.beginPath(); g.arc(x, 344, 3.4, 0, 7); g.fill(); }
+  g.fillStyle = "#849898"; g.fillRect(x - 8, 372, 16, 11); g.fillStyle = "#333"; g.fillRect(x - 1.5, 362, 3, 11);
+  if (cap) { capShape(x, 357); g.fillStyle = "rgba(205,229,241,.62)"; g.fill(); g.strokeStyle = "rgba(120,208,204,.98)"; g.lineWidth = 2; g.stroke(); g.fillStyle = "#c7dbe4"; g.beginPath(); g.arc(x, 344, 3.4, 0, 7); g.fill(); }
   if (on) {
     const sw = Math.sin(t * 11) * 2, hh = 36 + Math.sin(t * 17) * 3;
     const fl = (col, s) => { g.fillStyle = col; g.beginPath(); g.moveTo(x, 366); g.bezierCurveTo(x - 13 * s, 354, x - 8 * s, 366 - hh * s * .6, x + sw, 366 - hh * s); g.bezierCurveTo(x + 8 * s, 366 - hh * s * .6, x + 13 * s, 354, x, 366); g.fill(); };
     const gl = g.createRadialGradient(x, 340, 4, x, 340, 70); gl.addColorStop(0, "rgba(255,170,60,.35)"); gl.addColorStop(1, "rgba(255,170,60,0)"); g.fillStyle = gl; g.fillRect(x - 80, 270, 160, 130);
-    fl("rgba(255,120,20,.75)", 1); fl("rgba(255,210,70,.9)", .68); fl("rgba(120,170,255,.9)", .32);
+    fl("rgba(255,120,20,.75)", 1); fl("rgba(255,210,70,.9)", .68); fl("rgba(6,216,210,.9)", .32);
   }
 }
 function drawStand(v) {
-  const x = v.x - v.geo.w / 2 - 34; g.fillStyle = "#6b7280"; g.fillRect(x - 3, 168, 6, 232); g.fillStyle = "#4b5563"; g.fillRect(x - 24, 396, 48, 6);
-  const y = v.base - v.geo.h + 40; g.fillStyle = "#6b7280"; g.fillRect(x, y - 3, v.x - x, 6); g.fillStyle = "#374151"; g.fillRect(v.x - v.geo.w / 2 - 5, y - 9, v.geo.w + 10, 8);
+  const x = v.x - v.geo.w / 2 - 34; g.fillStyle = "#849898"; g.fillRect(x - 3, 168, 6, 232); g.fillStyle = "#607f7e"; g.fillRect(x - 24, 396, 48, 6);
+  const y = v.base - v.geo.h + 40; g.fillStyle = "#849898"; g.fillRect(x, y - 3, v.x - x, 6); g.fillStyle = "#3b4d57"; g.fillRect(v.x - v.geo.w / 2 - 5, y - 9, v.geo.w + 10, 8);
 }
 function drawGlass(v, st, t) {
   const path = outline(v), G = v.geo, b = v.base, x = v.x;
@@ -5081,20 +5084,20 @@ function drawGlass(v, st, t) {
       g.strokeStyle = "rgba(255,255,255,.85)"; g.fillStyle = "rgba(255,255,255,.28)"; g.lineWidth = 1.2; g.beginPath(); g.arc(bx, b - 8 - ph, r, 0, 7); g.fill(); g.stroke(); }
   }
   g.restore();
-  g.fillStyle = "rgba(210,230,255,.10)"; g.fill(path);
-  g.strokeStyle = "rgba(190,215,250,.95)"; g.lineWidth = 3; g.stroke(path);
+  g.fillStyle = "rgba(210,231,242,.10)"; g.fill(path);
+  g.strokeStyle = "rgba(185,218,235,.95)"; g.lineWidth = 3; g.stroke(path);
   g.strokeStyle = "rgba(255,255,255,.45)"; g.lineWidth = 3; g.beginPath(); g.moveTo(x - G.w / 2 + 9, b - G.h + 22); g.lineTo(x - G.w / 2 + 9, b - 38); g.stroke();
 }
 function drawFx(v, st, t) { // dòng chảy, giọt, vật rơi
   const x = v.x, top = v.base - v.geo.h;
-  if (TEACH_ON) { const dr = POSE && POSE.drip; if (dr && dr.vi === VS.indexOf(v)) { const sy = surfaceY(v, Math.max(st.vol, .02)); g.fillStyle = rgba(dr.c, .95); g.strokeStyle = "rgba(120,150,200,.6)"; g.lineWidth = 1; for (let k = 0; k < 3; k++) { const ph = (t * 1.6 + k / 3) % 1; g.beginPath(); g.ellipse(dr.x, dr.y + 4 + ph * Math.max(2, sy - dr.y - 4), 2.7, 4.3, 0, 0, 7); g.fill(); g.stroke(); } }
+  if (TEACH_ON) { const dr = POSE && POSE.drip; if (dr && dr.vi === VS.indexOf(v)) { const sy = surfaceY(v, Math.max(st.vol, .02)); g.fillStyle = rgba(dr.c, .95); g.strokeStyle = "rgba(100,192,189,.6)"; g.lineWidth = 1; for (let k = 0; k < 3; k++) { const ph = (t * 1.6 + k / 3) % 1; g.beginPath(); g.ellipse(dr.x, dr.y + 4 + ph * Math.max(2, sy - dr.y - 4), 2.7, 4.3, 0, 0, 7); g.fill(); g.stroke(); } }
     st.fx.forEach(f => { if (f.t === "ran" && f.kieu === "bot" && f.p < .6) { g.fillStyle = rgba(f.c, .95); for (let i = 0; i < 16; i++) { const pr = clamp(f.p / .6 * 1.5 - i * .045, 0, 1); if (pr <= 0 || pr >= 1) continue; g.beginPath(); g.arc(x + Math.sin(i * 7.3) * 4 * pr, lerp(top - 26, v.base - 14, pr * pr), 1.7, 0, 7); g.fill(); } } });   // bột chảy từ thìa xuống đáy
     return; }
   st.fx.forEach(f => {
     if (f.t === "long") {
       const sy = surfaceY(v, Math.max(st.vol, .02)), tx = x + 40;
       g.fillStyle = "#8b3a3a"; g.beginPath(); g.arc(tx, top - 78, 11, 0, 7); g.fill();
-      g.fillStyle = "rgba(235,240,255,.85)"; g.strokeStyle = "rgba(150,170,210,.9)"; g.lineWidth = 2; g.fillRect(tx - 6, top - 70, 12, 50); g.strokeRect(tx - 6, top - 70, 12, 50);
+      g.fillStyle = "rgba(230,242,248,.85)"; g.strokeStyle = "rgba(139,205,204,.9)"; g.lineWidth = 2; g.fillRect(tx - 6, top - 70, 12, 50); g.strokeRect(tx - 6, top - 70, 12, 50);
       g.beginPath(); g.moveTo(tx - 6, top - 20); g.lineTo(tx - 2, top - 8); g.lineTo(tx + 2, top - 8); g.lineTo(tx + 6, top - 20); g.closePath(); g.fill(); g.stroke();
       g.fillStyle = rgba(f.c, .95); g.fillRect(tx - 4, top - 62, 8, 38);
       for (let k = 0; k < 4; k++) { const ph = (t * 1.6 + k / 4) % 1, yy = top - 8 + ph * (sy - top + 8); g.beginPath(); g.ellipse(tx + (x - tx) * ph * .98, yy, 3, 5, 0, 0, 7); g.fill(); }
@@ -5108,21 +5111,21 @@ function drawGasKit(st, t) {
   if (!GAS) return; const v = VS[GAS_V], x = v.x, top = v.base - v.geo.h, tx = 690;
   // nút cao su + ống dẫn khí
   g.fillStyle = "#8b5a2b"; g.beginPath(); g.moveTo(x - 17, top - 6); g.lineTo(x + 17, top - 6); g.lineTo(x + 13, top + 18); g.lineTo(x - 13, top + 18); g.closePath(); g.fill();
-  g.strokeStyle = "rgba(210,230,250,.95)"; g.lineWidth = 6; g.lineJoin = "round"; g.beginPath(); g.moveTo(x, top + 6); g.lineTo(x, top - 46); g.lineTo(tx - 40, top - 46); g.lineTo(tx - 40, 372); g.stroke();
-  g.strokeStyle = "rgba(60,80,120,.5)"; g.lineWidth = 1.5; g.stroke();
+  g.strokeStyle = "rgba(210,231,242,.95)"; g.lineWidth = 6; g.lineJoin = "round"; g.beginPath(); g.moveTo(x, top + 6); g.lineTo(x, top - 46); g.lineTo(tx - 40, top - 46); g.lineTo(tx - 40, 372); g.stroke();
+  g.strokeStyle = "rgba(64,128,127,.5)"; g.lineWidth = 1.5; g.stroke();
   // chậu nước
   const bx = tx - 130, by = 340, bw = 260, bh = 58;
-  g.fillStyle = "rgba(90,160,230,.55)"; g.fillRect(bx + 3, by + 14, bw - 6, bh - 17);
-  g.strokeStyle = "rgba(190,215,250,.95)"; g.lineWidth = 4; g.strokeRect(bx, by, bw, bh);
+  g.fillStyle = "rgba(31,204,192,.55)"; g.fillRect(bx + 3, by + 14, bw - 6, bh - 17);
+  g.strokeStyle = "rgba(185,218,235,.95)"; g.lineWidth = 4; g.strokeRect(bx, by, bw, bh);
   g.strokeStyle = "rgba(255,255,255,.5)"; g.lineWidth = 2; g.beginPath(); g.moveTo(bx + 4, by + 14); for (let i = 0; i <= 26; i++) g.lineTo(bx + 4 + i * 9.6, by + 14 + Math.sin(t * 3 + i) * 1.3); g.stroke();
   // ống thu khí úp ngược
   const LF = st.lift || 0, jx = tx - 40, jw = 70, jt = 232 - LIFT_PX * LF, jb = 372 - LIFT_PX * LF, inner = jb - jt;
   const waterTop = lerp(jt + st.gasVol * inner * .95, jb + 6, ease(clamp(LF * 2.4)));   // nhấc lên khỏi chậu thì nước chảy hết
   g.save(); g.beginPath(); g.rect(jx - jw / 2 + 2, jt + 2, jw - 4, inner); g.clip();
-  g.fillStyle = "rgba(90,160,230,.55)"; g.fillRect(jx - jw / 2, waterTop, jw, Math.max(0, jb - waterTop));
+  g.fillStyle = "rgba(31,204,192,.55)"; g.fillRect(jx - jw / 2, waterTop, jw, Math.max(0, jb - waterTop));
   if (st.gasVol > .01) { g.fillStyle = rgba(st.gasCol, .35); g.fillRect(jx - jw / 2, jt, jw, waterTop - jt); }
   g.restore();
-  g.strokeStyle = "rgba(190,215,250,.95)"; g.lineWidth = 3; g.beginPath(); g.moveTo(jx - jw / 2, jb + 8); g.lineTo(jx - jw / 2, jt + 8); g.quadraticCurveTo(jx - jw / 2, jt, jx - jw / 2 + 8, jt); g.lineTo(jx + jw / 2 - 8, jt); g.quadraticCurveTo(jx + jw / 2, jt, jx + jw / 2, jt + 8); g.lineTo(jx + jw / 2, jb + 8); g.stroke();
+  g.strokeStyle = "rgba(185,218,235,.95)"; g.lineWidth = 3; g.beginPath(); g.moveTo(jx - jw / 2, jb + 8); g.lineTo(jx - jw / 2, jt + 8); g.quadraticCurveTo(jx - jw / 2, jt, jx - jw / 2 + 8, jt); g.lineTo(jx + jw / 2 - 8, jt); g.quadraticCurveTo(jx + jw / 2, jt, jx + jw / 2, jt + 8); g.lineTo(jx + jw / 2, jb + 8); g.stroke();
   g.fillStyle = "rgba(255,255,255,.9)"; g.font = `bold 14px ${FONT}`; g.textAlign = "center"; g.fillText(sub(GAS.khi || "Khí"), jx, jt - 8);
   if (st.gasOn) for (let i = 0; i < 9; i++) { const ph = (t * 1.3 + i / 9) % 1, by2 = 372 - ph * 90; g.fillStyle = "rgba(255,255,255,.8)"; g.beginPath(); g.arc(jx + Math.sin(i * 3 + t * 4) * 6, by2, 2.5 + rnd(i) * 2, 0, 7); g.fill(); }
 }
@@ -5142,11 +5145,11 @@ function rrect(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w
 function curStep(t) { for (let i = 0; i < steps.length; i++) if (t < steps[i].t1) return i; return steps.length - 1; }
 function drawHud(t) {
   const si = curStep(t), s = steps[si], n = steps.length - 1;
-  g.fillStyle = "rgba(8,12,40,.7)"; g.fillRect(0, 0, W, 44);
+  g.fillStyle = "rgba(7,24,33,.7)"; g.fillRect(0, 0, W, 44);
   g.fillStyle = "#fff"; g.textAlign = "left"; g.font = `bold 21px ${FONT}`; g.fillText(sub(D.ten || "Mô phỏng thí nghiệm"), 18, 29);
-  g.fillStyle = "#9fb3ff"; g.font = `13px ${FONT}`; g.textAlign = "right"; g.fillText("MolSnap · Mô phỏng thí nghiệm", W - 16, 28);
+  g.fillStyle = "#06e1e5"; g.font = `13px ${FONT}`; g.textAlign = "right"; g.fillText("MolSnap · Mô phỏng thí nghiệm", W - 16, 28);
   if (s.end) return;
-  const x = 20, y = 440, w = W - 40, h = 90; g.fillStyle = "rgba(8,12,40,.86)"; rrect(x, y, w, h, 14); g.fill();
+  const x = 20, y = 440, w = W - 40, h = 90; g.fillStyle = "rgba(7,24,33,.86)"; rrect(x, y, w, h, 14); g.fill();
   g.fillStyle = "#6ee7ff"; g.textAlign = "left"; g.font = `bold 16px ${FONT}`; g.fillText(`Bước ${si + 1}/${n}  ·  ${s.tieu_de || ""}`, x + 16, y + 24);
   const lines = wrap(s.mo_ta, w - 32, `16px ${FONT}`).slice(0, 3); g.fillStyle = "#fff"; g.font = `16px ${FONT}`; lines.forEach((l, i) => g.fillText(l, x + 16, y + 48 + i * 21));
   g.fillStyle = "rgba(255,255,255,.14)"; g.fillRect(x, y + h + 2, w, 3); g.fillStyle = "#6ee7ff"; g.fillRect(x, y + h + 2, w * clamp((t - s.t0) / (s.t1 - s.t0)), 3);
@@ -5155,16 +5158,16 @@ function drawEnd(t) {
   const p = clamp((t - endCard.t0) / 1.2); g.fillStyle = `rgba(8,12,40,${.98 * p})`; g.fillRect(0, 44, W, H - 44);
   g.globalAlpha = p; g.textAlign = "center"; g.fillStyle = "#6ee7ff"; g.font = `bold 20px ${FONT}`; g.fillText("KẾT LUẬN", W / 2, 90);
   g.fillStyle = "#fff"; g.font = `bold 28px ${FONT}`; const eq = wrap(sub(D.phuong_trinh || ""), W - 100, `bold 28px ${FONT}`).slice(0, 2); eq.forEach((l, i) => g.fillText(l, W / 2, 134 + i * 36));
-  let y = 134 + eq.length * 36 + 22; g.textAlign = "left"; g.fillStyle = "#9fb3ff"; g.font = `bold 17px ${FONT}`; g.fillText("Hiện tượng quan sát được:", 70, y); y += 28;
+  let y = 134 + eq.length * 36 + 22; g.textAlign = "left"; g.fillStyle = "#06e1e5"; g.font = `bold 17px ${FONT}`; g.fillText("Hiện tượng quan sát được:", 70, y); y += 28;
   g.fillStyle = "#fff"; g.font = `17px ${FONT}`;
   (D.hien_tuong || []).slice(0, 5).forEach(h => { wrap("• " + h, W - 150, `17px ${FONT}`).slice(0, 2).forEach((l, i) => { g.fillText((i ? "   " : "") + l, 70, y); y += 24; }); y += 4; });
-  if (D.giai_thich && y < H - 70) { g.fillStyle = "#9fb3ff"; g.font = `bold 17px ${FONT}`; y += 6; g.fillText("Giải thích:", 70, y); y += 26; g.fillStyle = "#fff"; g.font = `16px ${FONT}`; wrap(D.giai_thich, W - 150, `16px ${FONT}`).slice(0, 3).forEach(l => { g.fillText(l, 70, y); y += 22; }); }
+  if (D.giai_thich && y < H - 70) { g.fillStyle = "#06e1e5"; g.font = `bold 17px ${FONT}`; y += 6; g.fillText("Giải thích:", 70, y); y += 26; g.fillStyle = "#fff"; g.font = `16px ${FONT}`; wrap(D.giai_thich, W - 150, `16px ${FONT}`).slice(0, 3).forEach(l => { g.fillText(l, 70, y); y += 22; }); }
   g.globalAlpha = 1;
 }
 // ---------- cô giáo làm thí nghiệm ----------
 // Cô đứng sau bàn thí nghiệm, tự đi đến từng dụng cụ, tay làm đúng thao tác, mắt nhìn theo thí nghiệm, miệng cử động theo giọng đọc.
 let TEACH_ON = true, POSE = null, mouthOpen = 0;
-const C_SK = "#f2c8a2", C_SKD = "#d4a07a", C_HAIR = "#2a1c1e", C_COAT = "#f8faff", C_COATD = "#b9c5e4", C_GL = "#7cc3f0", C_GLD = "#3b8fc8";
+const C_SK = "#f2c8a2", C_SKD = "#d4a07a", C_HAIR = "#2a1c1e", C_COAT = "#f7fbfd", C_COATD = "#addfdf", C_GL = "#29e6d4", C_GLD = "#34baad";
 const ARM1 = 106, ARM2 = 106, SH_Y = 172, BENCH = 398, SH_W = 50;
 const MANUAL = { them_long: 1, them_ran: 1, dun_nong: 1, que_dom: 1, thu_khi: 1 };
 const JAR = GAS ? { x: 650, top: 232, bot: 372 } : null;   // ống thu khí (khớp với drawGasKit)
@@ -5265,14 +5268,14 @@ function teacherPose(t, ta) {
       out.tools.push({ k: "bottle", x: bx, y: by, col: e.mau, label: e.chat || "", a: bl });
       out.tools.push({ k: "dropper", tip, u, fill: .95 - .8 * dp, col: e.mau, sq: dripping ? .5 + .5 * Math.cos(t * 1.6 * 6.2832) : 0, a: bl });
       out.hn = { x: lerp(rest.n.x, grip.x, bl), y: lerp(rest.n.y, grip.y, bl) }; out.hf = { x: lerp(rest.f.x, bx, bl), y: lerp(rest.f.y, by + 15, bl) };
-      if (dripping) out.drip = { vi, x: tip.x, y: tip.y, c: hex2(e.mau || "#dfe8ff") };
+      if (dripping) out.drip = { vi, x: tip.x, y: tip.y, c: hex2(e.mau || "#d9ebf4") };
       out.busyV = vi; out.look = { x: tip.x, y: tip.y + 20 };
     } else if (e.loai === "them_ran") {
       const vi = vIndex(e.dung_cu), v = VS[vi], top = v.base - v.geo.h, kind = e.kieu || "vien", tr = relT(e);
       const tip0 = { x: cx + dir * 44, y: 282 }, tip1 = { x: v.x, y: top - 34 }, tip = arc(tip0, tip1, 28);
       const pour = kind === "bot" ? ease(clamp((el - A) / Math.max(.25, tr - A))) * (1 - rt) : 0, al = Math.max(.4, tiltFor(82, tip1.y));
       const u = unit(-dir * (Math.sin(al) + pour * .75), -Math.cos(al) * (1 - pour * .6)), grip = along(tip, u, 44);
-      out.tools.push({ k: kind === "bot" ? "spoon" : "tweezers", tip, u, kind, col: e.mau || "#9aa4ad", carry: el < tr, gap: ease(clamp((el - tr) / .3)), a: bl });
+      out.tools.push({ k: kind === "bot" ? "spoon" : "tweezers", tip, u, kind, col: e.mau || "#b0bfbe", carry: el < tr, gap: ease(clamp((el - tr) / .3)), a: bl });
       out.hn = { x: lerp(rest.n.x, grip.x, bl), y: lerp(rest.n.y, grip.y, bl) };
       out.busyV = vi; out.look = { x: tip.x, y: tip.y + 14 };
     } else if (e.loai === "dun_nong") {
@@ -5311,23 +5314,23 @@ function teacherPose(t, ta) {
 function drawSleeve(a) {
   g.lineCap = "round"; g.lineJoin = "round";
   [[C_COATD, 26], [C_COAT, 22]].forEach(([c, w]) => { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.moveTo(a.sx, a.sy); g.lineTo(a.ex, a.ey); g.lineTo(a.hx, a.hy); g.stroke(); });
-  g.strokeStyle = "#dbe3f6"; g.lineWidth = 3; g.beginPath(); const ux = a.hx - a.ex, uy = a.hy - a.ey, d = Math.hypot(ux, uy) || 1;   // viền tay áo
+  g.strokeStyle = "#d0e6f1"; g.lineWidth = 3; g.beginPath(); const ux = a.hx - a.ex, uy = a.hy - a.ey, d = Math.hypot(ux, uy) || 1;   // viền tay áo
   g.moveTo(a.hx - ux / d * 9 - uy / d * 10, a.hy - uy / d * 9 + ux / d * 10); g.lineTo(a.hx - ux / d * 9 + uy / d * 10, a.hy - uy / d * 9 - ux / d * 10); g.stroke();
 }
 function drawTeacherBack(P, ta) {
   const cx = P.cx, sy = P.sy, blink = (ta * 1000) % 3400 < 130;
   g.save(); g.beginPath(); g.rect(0, 0, W, BENCH); g.clip();
   // thân áo blouse
-  const gr = g.createLinearGradient(cx - 64, 0, cx + 64, 0); gr.addColorStop(0, "#e5ebfa"); gr.addColorStop(.5, "#ffffff"); gr.addColorStop(1, "#e0e7f7");
+  const gr = g.createLinearGradient(cx - 64, 0, cx + 64, 0); gr.addColorStop(0, "#deeef5"); gr.addColorStop(.5, "#ffffff"); gr.addColorStop(1, "#d7eaf3");
   g.fillStyle = gr; g.strokeStyle = C_COATD; g.lineWidth = 2.5; g.beginPath();
   g.moveTo(cx - 22, sy - 16); g.bezierCurveTo(cx - 44, sy - 12, cx - 66, sy - 6, cx - 66, sy + 26); g.lineTo(cx - 70, BENCH + 6); g.lineTo(cx + 70, BENCH + 6); g.lineTo(cx + 66, sy + 26);
   g.bezierCurveTo(cx + 66, sy - 6, cx + 44, sy - 12, cx + 22, sy - 16); g.closePath(); g.fill(); g.stroke();
-  g.fillStyle = "#77a9e6"; g.beginPath(); g.moveTo(cx - 21, sy - 15); g.lineTo(cx, sy + 44); g.lineTo(cx + 21, sy - 15); g.closePath(); g.fill();      // áo trong
+  g.fillStyle = "#27d4cb"; g.beginPath(); g.moveTo(cx - 21, sy - 15); g.lineTo(cx, sy + 44); g.lineTo(cx + 21, sy - 15); g.closePath(); g.fill();      // áo trong
   g.fillStyle = C_SK; g.fillRect(cx - 10, sy - 38, 20, 26); g.fillStyle = "rgba(0,0,0,.10)"; g.fillRect(cx - 10, sy - 18, 20, 5);                    // cổ
   g.fillStyle = C_SK; g.beginPath(); g.moveTo(cx - 12, sy - 14); g.lineTo(cx, sy + 14); g.lineTo(cx + 12, sy - 14); g.closePath(); g.fill();
   g.strokeStyle = C_COATD; g.lineWidth = 2.2; g.beginPath(); g.moveTo(cx - 24, sy - 15); g.lineTo(cx - 4, sy + 52); g.moveTo(cx + 24, sy - 15); g.lineTo(cx + 4, sy + 52); g.moveTo(cx, sy + 52); g.lineTo(cx, BENCH + 6); g.stroke();
-  g.fillStyle = "#c9d3ec"; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(cx + 3, sy + 90 + i * 52, 3, 0, 7); g.fill(); }
-  g.strokeStyle = C_COATD; g.lineWidth = 2; rrect(cx + 24, sy + 100, 32, 34, 5); g.stroke(); g.fillStyle = "#3b6cf6"; g.fillRect(cx + 33, sy + 94, 3.5, 16); g.fillStyle = "#e0457b"; g.fillRect(cx + 40, sy + 96, 3.5, 14);   // túi và bút
+  g.fillStyle = "#bee8e8"; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(cx + 3, sy + 90 + i * 52, 3, 0, 7); g.fill(); }
+  g.strokeStyle = C_COATD; g.lineWidth = 2; rrect(cx + 24, sy + 100, 32, 34, 5); g.stroke(); g.fillStyle = "#08aaaa"; g.fillRect(cx + 33, sy + 94, 3.5, 16); g.fillStyle = "#5ba6e4"; g.fillRect(cx + 40, sy + 96, 3.5, 14);   // túi và bút
   // tay áo
   drawSleeve(P.aF); drawSleeve(P.aN);
   // đầu
@@ -5336,19 +5339,19 @@ function drawTeacherBack(P, ta) {
   const hx = hx0 + turn * 3, hy = hy0;
   g.save(); g.translate(hx, hy + 34); g.rotate(tilt); g.translate(-hx, -(hy + 34));
   g.fillStyle = C_HAIR; g.beginPath(); g.ellipse(hx, hy - 4, 37, 39, 0, 0, 7); g.fill();                                                               // tóc sau
-  g.beginPath(); g.arc(hx + turn * 2, hy - 42, 15, 0, 7); g.fill(); g.strokeStyle = "#e0457b"; g.lineWidth = 3; g.beginPath(); g.arc(hx + turn * 2, hy - 42, 15, 3.5, 5.9); g.stroke();   // búi tóc và dây buộc
+  g.beginPath(); g.arc(hx + turn * 2, hy - 42, 15, 0, 7); g.fill(); g.strokeStyle = "#5ba6e4"; g.lineWidth = 3; g.beginPath(); g.arc(hx + turn * 2, hy - 42, 15, 3.5, 5.9); g.stroke();   // búi tóc và dây buộc
   g.fillStyle = C_SK; g.beginPath(); g.arc(hx - 32, hy + 4, 7, 0, 7); g.arc(hx + 32, hy + 4, 7, 0, 7); g.fill();                                         // tai
   g.beginPath(); g.ellipse(hx, hy + 3, 31, 34, 0, 0, 7); g.fill();                                                                                       // mặt
   g.fillStyle = C_HAIR; g.beginPath(); g.moveTo(hx - 33, hy - 2); g.bezierCurveTo(hx - 37, hy - 42, hx + 37, hy - 42, hx + 33, hy - 2);
   g.bezierCurveTo(hx + 24, hy - 24, hx - 4, hy - 27, hx - 33, hy - 2); g.fill();                                                                         // tóc mái
   const ey = hy - 1, fx = turn * 4;
-  g.strokeStyle = "#1e3a8a"; g.lineWidth = 6; g.lineCap = "butt"; g.beginPath(); g.moveTo(hx - 34, ey); g.lineTo(hx + 34, ey); g.stroke();             // dây kính
+  g.strokeStyle = "#197172"; g.lineWidth = 6; g.lineCap = "butt"; g.beginPath(); g.moveTo(hx - 34, ey); g.lineTo(hx + 34, ey); g.stroke();             // dây kính
   for (const s of [-1, 1]) {                                                                                                                              // mắt
     const ex = hx + s * 14 + fx; g.fillStyle = "#fff"; g.beginPath(); g.ellipse(ex, ey, 7.4, blink ? .9 : 6.4, 0, 0, 7); g.fill();
-    if (!blink) { g.fillStyle = "#2b2233"; g.beginPath(); g.arc(ex + gx * 3.2, ey + gy * 2.4, 3.5, 0, 7); g.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(ex + gx * 3.2 + 1.2, ey + gy * 2.4 - 1.2, 1.1, 0, 7); g.fill(); }
+    if (!blink) { g.fillStyle = "#243137"; g.beginPath(); g.arc(ex + gx * 3.2, ey + gy * 2.4, 3.5, 0, 7); g.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(ex + gx * 3.2 + 1.2, ey + gy * 2.4 - 1.2, 1.1, 0, 7); g.fill(); }
     g.strokeStyle = C_HAIR; g.lineWidth = 2.4; g.lineCap = "round"; g.beginPath(); g.moveTo(ex - 7, ey - 15 - mouthOpen * 1.5); g.quadraticCurveTo(ex, ey - 19 - mouthOpen * 1.5, ex + 7, ey - 15.5 - mouthOpen); g.stroke();   // lông mày
   }
-  g.fillStyle = "rgba(200,235,255,.28)"; g.strokeStyle = "#2554c7"; g.lineWidth = 3; rrect(hx + fx - 30, ey - 12.5, 29, 25, 9); g.fill(); g.stroke(); rrect(hx + fx + 1, ey - 12.5, 29, 25, 9); g.fill(); g.stroke();   // kính bảo hộ
+  g.fillStyle = "rgba(213,233,243,.28)"; g.strokeStyle = "#1b908f"; g.lineWidth = 3; rrect(hx + fx - 30, ey - 12.5, 29, 25, 9); g.fill(); g.stroke(); rrect(hx + fx + 1, ey - 12.5, 29, 25, 9); g.fill(); g.stroke();   // kính bảo hộ
   g.strokeStyle = "rgba(255,255,255,.8)"; g.lineWidth = 2; g.beginPath(); g.moveTo(hx + fx - 25, ey - 6); g.lineTo(hx + fx - 17, ey - 9); g.moveTo(hx + fx + 6, ey - 6); g.lineTo(hx + fx + 14, ey - 9); g.stroke();
   g.fillStyle = "rgba(240,120,130,.28)"; g.beginPath(); g.ellipse(hx + fx - 21, ey + 17, 6, 3.4, 0, 0, 7); g.ellipse(hx + fx + 21, ey + 17, 6, 3.4, 0, 0, 7); g.fill();   // má
   g.strokeStyle = C_SKD; g.lineWidth = 1.8; g.beginPath(); g.moveTo(hx + fx * .8 - 2, ey + 12); g.quadraticCurveTo(hx + fx * .8 + 2, ey + 17, hx + fx * .8 - 1, ey + 18); g.stroke();   // mũi
@@ -5360,28 +5363,28 @@ function drawTeacherBack(P, ta) {
 
 // ---------- dụng cụ cầm trên tay (vẽ phía trước kính) ----------
 function drawBottle(tl) {
-  const { x, y } = tl; g.save(); g.globalAlpha = tl.a; const c = mixc(hex2(tl.col || "#dfe8ff"), [110, 140, 200], .22);
-  g.fillStyle = "rgba(225,235,250,.6)"; g.strokeStyle = "rgba(110,140,195,.95)"; g.lineWidth = 2; rrect(x - 18, y - 22, 36, 48, 8); g.fill(); g.stroke();
+  const { x, y } = tl; g.save(); g.globalAlpha = tl.a; const c = mixc(hex2(tl.col || "#d9ebf4"), [110, 140, 200], .22);
+  g.fillStyle = "rgba(220,237,245,.6)"; g.strokeStyle = "rgba(86,185,183,.95)"; g.lineWidth = 2; rrect(x - 18, y - 22, 36, 48, 8); g.fill(); g.stroke();
   g.save(); rrect(x - 18, y - 22, 36, 48, 8); g.clip(); g.fillStyle = rgba(c, .92); g.fillRect(x - 20, y - 8, 40, 36); g.restore();
-  g.fillStyle = "rgba(225,235,250,.75)"; g.fillRect(x - 8, y - 34, 16, 13); g.strokeRect(x - 8, y - 34, 16, 13);
-  g.fillStyle = "#fff"; rrect(x - 15, y - 18, 30, 17, 3); g.fill(); g.fillStyle = "#1b2150"; g.font = `bold 8px ${FONT}`; g.textAlign = "center"; g.fillText(sub(tl.label).slice(0, 9), x, y - 6);
+  g.fillStyle = "rgba(220,237,245,.75)"; g.fillRect(x - 8, y - 34, 16, 13); g.strokeRect(x - 8, y - 34, 16, 13);
+  g.fillStyle = "#fff"; rrect(x - 15, y - 18, 30, 17, 3); g.fill(); g.fillStyle = "#163240"; g.font = `bold 8px ${FONT}`; g.textAlign = "center"; g.fillText(sub(tl.label).slice(0, 9), x, y - 6);
   g.restore();
 }
 function drawDropper(tl) {
   g.save(); g.globalAlpha = tl.a; g.translate(tl.tip.x, tl.tip.y); g.rotate(rotOf(tl.u));
   const tube = () => { g.beginPath(); g.moveTo(-1.6, 0); g.lineTo(-4.6, -15); g.lineTo(-4.6, -64); g.lineTo(4.6, -64); g.lineTo(4.6, -15); g.lineTo(1.6, 0); g.closePath(); };
-  tube(); g.fillStyle = "rgba(238,245,255,.6)"; g.fill();
-  if (tl.fill > .02) { g.save(); tube(); g.clip(); g.fillStyle = rgba(mixc(hex2(tl.col || "#dfe8ff"), [110, 140, 200], .25), .95); g.fillRect(-6, -2 - tl.fill * 60, 12, tl.fill * 60 + 2); g.restore(); }
-  tube(); g.strokeStyle = "rgba(100,130,185,.95)"; g.lineWidth = 1.6; g.stroke();
-  g.fillStyle = "#222c4f"; g.fillRect(-6.6, -69, 13.2, 6);
+  tube(); g.fillStyle = "rgba(237,246,250,.6)"; g.fill();
+  if (tl.fill > .02) { g.save(); tube(); g.clip(); g.fillStyle = rgba(mixc(hex2(tl.col || "#d9ebf4"), [110, 140, 200], .25), .95); g.fillRect(-6, -2 - tl.fill * 60, 12, tl.fill * 60 + 2); g.restore(); }
+  tube(); g.strokeStyle = "rgba(81,176,174,.95)"; g.lineWidth = 1.6; g.stroke();
+  g.fillStyle = "#1f3b49"; g.fillRect(-6.6, -69, 13.2, 6);
   g.fillStyle = "#c8403a"; g.strokeStyle = "#8f2a27"; g.lineWidth = 1.5; g.beginPath(); g.ellipse(0, -82, 8.4 - tl.sq * 2, 13.5 - tl.sq * 3.6, 0, 0, 7); g.fill(); g.stroke();
   g.fillStyle = "rgba(255,255,255,.38)"; g.beginPath(); g.ellipse(-2.8, -86, 1.8, 5, 0, 0, 7); g.fill();
   g.restore();
 }
 function drawTweezers(tl) {
   g.save(); g.globalAlpha = tl.a; g.translate(tl.tip.x, tl.tip.y); g.rotate(rotOf(tl.u)); const op = tl.gap * 5;
-  g.lineCap = "round"; g.strokeStyle = "#aeb8c8"; g.lineWidth = 3.2; g.beginPath(); g.moveTo(-1.5 - op, 0); g.lineTo(-6.5, -74); g.moveTo(1.5 + op, 0); g.lineTo(6.5, -74); g.stroke();
-  g.strokeStyle = "#7d889b"; g.lineWidth = 1; g.beginPath(); g.moveTo(-1.5 - op, 0); g.lineTo(-6.5, -74); g.moveTo(1.5 + op, 0); g.lineTo(6.5, -74); g.stroke();
+  g.lineCap = "round"; g.strokeStyle = "#bad0d0"; g.lineWidth = 3.2; g.beginPath(); g.moveTo(-1.5 - op, 0); g.lineTo(-6.5, -74); g.moveTo(1.5 + op, 0); g.lineTo(6.5, -74); g.stroke();
+  g.strokeStyle = "#92abab"; g.lineWidth = 1; g.beginPath(); g.moveTo(-1.5 - op, 0); g.lineTo(-6.5, -74); g.moveTo(1.5 + op, 0); g.lineTo(6.5, -74); g.stroke();
   if (tl.carry) { const c = hex2(tl.col); g.fillStyle = rgba(c, 1); g.strokeStyle = rgba(mixc(c, [0, 0, 0], .35), 1); g.lineWidth = 1.3;
     if (tl.kind === "dinh") { rrect(-2.6, 1, 5.2, 46, 2); g.fill(); g.stroke(); g.beginPath(); g.ellipse(0, 1, 5.6, 2.2, 0, 0, 7); g.fill(); g.stroke(); }
     else if (tl.kind === "mieng") { rrect(-10, 1, 20, 5, 1.5); g.fill(); g.stroke(); }
@@ -5390,16 +5393,16 @@ function drawTweezers(tl) {
 }
 function drawSpoon(tl) {
   g.save(); g.globalAlpha = tl.a; g.translate(tl.tip.x, tl.tip.y); g.rotate(rotOf(tl.u));
-  g.lineCap = "round"; g.strokeStyle = "#a9b3c4"; g.lineWidth = 3.4; g.beginPath(); g.moveTo(0, -4); g.lineTo(0, -76); g.stroke();
-  g.fillStyle = "#c6cedb"; g.strokeStyle = "#7d889b"; g.lineWidth = 1.2; g.beginPath(); g.ellipse(0, -7, 5.6, 10, 0, 0, 7); g.fill(); g.stroke();
+  g.lineCap = "round"; g.strokeStyle = "#b6cdcc"; g.lineWidth = 3.4; g.beginPath(); g.moveTo(0, -4); g.lineTo(0, -76); g.stroke();
+  g.fillStyle = "#cee0df"; g.strokeStyle = "#92abab"; g.lineWidth = 1.2; g.beginPath(); g.ellipse(0, -7, 5.6, 10, 0, 0, 7); g.fill(); g.stroke();
   if (tl.carry) { const c = hex2(tl.col); g.fillStyle = rgba(c, 1); g.beginPath(); g.ellipse(0, -7, 4.4, 8, 0, 0, 7); g.fill(); }
   g.restore();
 }
 function flameAt(x, y, s, t, blue) {
   const sw = Math.sin(t * 11) * 2 * s, hh = (36 + Math.sin(t * 17) * 3) * s;
-  const gl = g.createRadialGradient(x, y - 14 * s, 3, x, y - 14 * s, 46 * s); gl.addColorStop(0, blue ? "rgba(120,170,255,.4)" : "rgba(255,170,60,.38)"); gl.addColorStop(1, "rgba(255,170,60,0)"); g.fillStyle = gl; g.fillRect(x - 50 * s, y - 60 * s, 100 * s, 100 * s);
+  const gl = g.createRadialGradient(x, y - 14 * s, 3, x, y - 14 * s, 46 * s); gl.addColorStop(0, blue ? "rgba(6,216,210,.4)" : "rgba(255,170,60,.38)"); gl.addColorStop(1, "rgba(255,170,60,0)"); g.fillStyle = gl; g.fillRect(x - 50 * s, y - 60 * s, 100 * s, 100 * s);
   const fl = (col, k) => { g.fillStyle = col; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x - 13 * k * s, y - 12 * s, x - 8 * k * s, y - hh * k * .6, x + sw, y - hh * k); g.bezierCurveTo(x + 8 * k * s, y - hh * k * .6, x + 13 * k * s, y - 12 * s, x, y); g.fill(); };
-  if (blue) { fl("rgba(110,160,255,.7)", 1); fl("rgba(190,215,255,.9)", .6); } else { fl("rgba(255,120,20,.78)", 1); fl("rgba(255,210,70,.92)", .68); fl("rgba(255,250,200,.9)", .32); }
+  if (blue) { fl("rgba(5,208,204,.7)", 1); fl("rgba(186,218,235,.9)", .6); } else { fl("rgba(255,120,20,.78)", 1); fl("rgba(255,210,70,.92)", .68); fl("rgba(255,250,200,.9)", .32); }
 }
 function drawMatch(tl, ta) {
   g.save(); g.globalAlpha = tl.a; g.translate(tl.tip.x, tl.tip.y); g.rotate(rotOf(tl.u));
@@ -5408,8 +5411,8 @@ function drawMatch(tl, ta) {
 }
 function capShape(x, y) { g.beginPath(); g.moveTo(x - 12, y + 16); g.lineTo(x - 12, y + 2); g.quadraticCurveTo(x - 12, y - 12, x, y - 12); g.quadraticCurveTo(x + 12, y - 12, x + 12, y + 2); g.lineTo(x + 12, y + 16); g.closePath(); }
 function drawCap(tl) {
-  g.save(); g.globalAlpha = tl.a; capShape(tl.x, tl.y); g.fillStyle = "rgba(205,228,250,.62)"; g.fill(); g.strokeStyle = "rgba(140,172,215,.98)"; g.lineWidth = 2; g.stroke();
-  g.fillStyle = "#cfd8e8"; g.beginPath(); g.arc(tl.x, tl.y - 13, 3.4, 0, 7); g.fill(); g.restore();
+  g.save(); g.globalAlpha = tl.a; capShape(tl.x, tl.y); g.fillStyle = "rgba(205,229,241,.62)"; g.fill(); g.strokeStyle = "rgba(120,208,204,.98)"; g.lineWidth = 2; g.stroke();
+  g.fillStyle = "#c7dbe4"; g.beginPath(); g.arc(tl.x, tl.y - 13, 3.4, 0, 7); g.fill(); g.restore();
 }
 function drawSplintStick(tl) {
   g.save(); g.globalAlpha = tl.a; g.translate(tl.tip.x, tl.tip.y); g.rotate(rotOf(tl.u));
@@ -5419,7 +5422,7 @@ function glove(x, y, dir, grip) {
   g.fillStyle = C_GL; g.strokeStyle = C_GLD; g.lineWidth = 2;
   g.beginPath(); g.ellipse(x, y, 11.5, 10.5, 0, 0, 7); g.fill(); g.stroke();
   g.beginPath(); g.ellipse(x + dir * 9, y - 6, 4.6, 6.2, dir * .5, 0, 7); g.fill(); g.stroke();                       // ngón cái
-  if (grip) { g.strokeStyle = "rgba(60,140,200,.7)"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x - 7, y - 3); g.lineTo(x + 7, y - 3); g.moveTo(x - 7, y + 2); g.lineTo(x + 7, y + 2); g.stroke(); }
+  if (grip) { g.strokeStyle = "rgba(52,183,172,.7)"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x - 7, y - 3); g.lineTo(x + 7, y - 3); g.moveTo(x - 7, y + 2); g.lineTo(x + 7, y + 2); g.stroke(); }
 }
 function drawTeacherFront(P, ta) {
   g.save(); g.beginPath(); g.rect(0, 0, W, BENCH); g.clip();
@@ -5439,7 +5442,7 @@ function drawSplintFx(S, t) {
     else { const pp = clamp((eh - .12) / .45);
       if (pp < 1) { g.strokeStyle = `rgba(255,230,120,${1 - pp})`; g.lineWidth = 4; g.beginPath(); g.arc(x, y - 10, pp * 56, 0, 7); g.stroke(); g.fillStyle = `rgba(255,243,190,${1 - pp * .6})`; g.font = `bold 22px ${FONT}`; g.textAlign = "center"; g.fillText("póp!", x, y - 14 - pp * 56); }
       flameAt(x, y, .7, t, true); }
-  } else { if (eh < .1) flameAt(x, y, .7, t, false); else { const k2 = clamp((eh - .1) / .5); g.globalAlpha = S.a * (1 - k2); flameAt(x, y, .7 * (1 - k2 * .7), t, false); g.globalAlpha = S.a; if (k2 > .1) { g.fillStyle = "rgba(200,205,220,.5)"; for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(x + Math.sin(t * 3 + i) * 5, y - 12 - ((t * 24 + i * 11) % 36), 2.5 + i * .6, 0, 7); g.fill(); } } ember(); } }
+  } else { if (eh < .1) flameAt(x, y, .7, t, false); else { const k2 = clamp((eh - .1) / .5); g.globalAlpha = S.a * (1 - k2); flameAt(x, y, .7 * (1 - k2 * .7), t, false); g.globalAlpha = S.a; if (k2 > .1) { g.fillStyle = "rgba(206,224,224,.5)"; for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(x + Math.sin(t * 3 + i) * 5, y - 12 - ((t * 24 + i * 11) % 36), 2.5 + i * .6, 0, 7); g.fill(); } } ember(); } }
   g.restore();
 }
 let an = null, anBuf = null;
@@ -5461,7 +5464,7 @@ function render(t, ta) {
   VS.forEach((v, i) => { g.textAlign = "center"; g.fillStyle = "#3b2a14"; g.font = `bold 13px ${FONT}`; g.fillText(v.nhan || v.id, v.x, 416);
     const its = st.vs[i].items.slice(0, 2).join(" + ");
     if (its && !(POSE && POSE.busyV === i)) { const s = sub(its).slice(0, 38), yy = v.base - v.geo.h - (i === lampV ? 6 : 10) - (!POSE && st.vs[i].fx.length ? 76 : 0); g.font = `12.5px ${FONT}`;
-      if (POSE) { const w = g.measureText(s).width + 16; g.fillStyle = "rgba(8,12,40,.72)"; rrect(v.x - w / 2, yy - 14, w, 21, 8); g.fill(); }
+      if (POSE) { const w = g.measureText(s).width + 16; g.fillStyle = "rgba(7,24,33,.72)"; rrect(v.x - w / 2, yy - 14, w, 21, 8); g.fill(); }
       g.fillStyle = "rgba(255,255,255,.95)"; g.fillText(s, v.x, yy); } });
   if (POSE) drawTeacherFront(POSE, ta);
   if (st.lamp) { g.fillStyle = "rgba(255,200,120,.95)"; g.font = `bold 13px ${FONT}`; g.textAlign = "left"; g.fillText("🔥 Đang đun nóng", 18, 66); }
@@ -5634,10 +5637,10 @@ Các hành động hợp lệ trong "hanh_dong" (mỗi hành động là một �
 Có thể thêm "dong_thoi":true để một hành động chạy cùng lúc với hành động trước.
 Quy tắc:
 - Dùng tối đa 3 dụng cụ, 3-7 bước, mỗi bước 4-8 giây. Mô tả đúng thứ tự thao tác thật trong phòng thí nghiệm.
-- Màu sắc theo hiện tượng thật: Cu2+ xanh lam #2f7be0; Fe2+ xanh lục nhạt #bfe6cf; Fe3+ vàng nâu #c98a2b; dung dịch KMnO4 tím #7b1fa2; I2 nâu #8b4513; Cu(OH)2 xanh lam #4f93f2; Fe(OH)3 nâu đỏ #a0522d; kết tủa trắng (AgCl, BaSO4, CaCO3) #fbfbf7; dung dịch không màu #f3f7ff; phenolphtalein trong bazơ hồng #f07db8; quỳ tím: axit đỏ #e0463a, bazơ xanh #3b6cf6.
+- Màu sắc theo hiện tượng thật: Cu2+ xanh lam #1aafa8; Fe2+ xanh lục nhạt #bfe6cf; Fe3+ vàng nâu #c98a2b; dung dịch KMnO4 tím #1f7da2; I2 nâu #8b4513; Cu(OH)2 xanh lam #0ec4bc; Fe(OH)3 nâu đỏ #a0522d; kết tủa trắng (AgCl, BaSO4, CaCO3) #fbfbf7; dung dịch không màu #f1f8fb; phenolphtalein trong bazơ hồng #85c3f1; quỳ tím: axit đỏ #e0463a, bazơ xanh #08aaaa.
 - Phương trình phải cân bằng; "smiles" của chất vô cơ ion viết dạng như [Na+].[Cl-], khí như [H][H], O=O. Không chắc thì bỏ trống smiles.
 - Chỉ mô phỏng thí nghiệm có trong chương trình hoặc an toàn, quen thuộc. Nếu yêu cầu nguy hiểm (gây nổ, chất độc, ma túy, vũ khí) hoặc không phải thí nghiệm hóa học, trả {"tu_choi":"lý do ngắn bằng tiếng Việt"}.
-- Mọi chất người dùng nêu trong yêu cầu đều phải xuất hiện trong kịch bản, mỗi chất bằng một hành động them_long hoặc them_ran đúng thứ tự thao tác thật, không được bỏ chất nào. Nếu chất đó là dung dịch không màu (ví dụ dung dịch peptit, protein) thì thêm bằng them_long với màu #f3f7ff.\n- Phản ứng màu biure (dung dịch peptit từ 3 gốc amino axit trở lên hoặc protein + NaOH + vài giọt CuSO4) cho dung dịch màu tím #7e3fb0.\n- Không bịa hiện tượng. Nếu thí nghiệm cần điều kiện đặc biệt, nêu rõ trong mo_ta."""
+- Mọi chất người dùng nêu trong yêu cầu đều phải xuất hiện trong kịch bản, mỗi chất bằng một hành động them_long hoặc them_ran đúng thứ tự thao tác thật, không được bỏ chất nào. Nếu chất đó là dung dịch không màu (ví dụ dung dịch peptit, protein) thì thêm bằng them_long với màu #f1f8fb.\n- Phản ứng màu biure (dung dịch peptit từ 3 gốc amino axit trở lên hoặc protein + NaOH + vài giọt CuSO4) cho dung dịch màu tím #3b8ca6.\n- Không bịa hiện tượng. Nếu thí nghiệm cần điều kiện đặc biệt, nêu rõ trong mo_ta."""
 
 SIM_BLOCK = {"them_long": 2.6, "them_ran": 1.8, "dun_nong": 2.6, "doi_mau": 3, "doi_mau_ran": 3, "ket_tua": 2.8, "tan": 3, "thu_khi": 4, "que_dom": 3.2}
 SIM_SAY = [("H2SO4", "a xít sun phu ríc"), ("HCl", "a xít clo hi đríc"), ("Cu(OH)2", "đồng hai hi đrô xít"), ("NaOH", "na tri hi đrô xít"), ("CuSO4", "đồng hai sun phát"), ("FeSO4", "sắt hai sun phát"),
@@ -5814,11 +5817,11 @@ def sim_clean(raw):
             if a.get("thoi_gian") is not None:
                 e["thoi_gian"] = _sim_num(a.get("thoi_gian"), .5, 10, 3)
             if t == "them_long":
-                e.update(mau=_sim_col(a.get("mau"), "#f3f7ff"), muc=_sim_num(a.get("muc"), .05, .8, .3))
+                e.update(mau=_sim_col(a.get("mau"), "#f1f8fb"), muc=_sim_num(a.get("muc"), .05, .8, .3))
             elif t == "them_ran":
-                e.update(mau=_sim_col(a.get("mau"), "#9aa4ad"), kieu=a.get("kieu") if a.get("kieu") in ("vien", "bot", "dinh", "mieng") else "vien")
+                e.update(mau=_sim_col(a.get("mau"), "#b0bfbe"), kieu=a.get("kieu") if a.get("kieu") in ("vien", "bot", "dinh", "mieng") else "vien")
             elif t in ("doi_mau", "doi_mau_ran"):
-                e["mau"] = _sim_col(a.get("mau"), "#f3f7ff")
+                e["mau"] = _sim_col(a.get("mau"), "#f1f8fb")
             elif t == "ket_tua":
                 e.update(mau=_sim_col(a.get("mau"), "#fbfbf7"), luong=_sim_num(a.get("luong"), .2, 1, .7))
             elif t == "sui_bot":
@@ -5830,7 +5833,7 @@ def sim_clean(raw):
             elif t == "thu_khi":
                 e["luong"] = _sim_num(a.get("luong"), .2, .95, .7)
                 if not kit:
-                    kit = {"tu": ids[0], "khi": "Khí", "mau": "#dfe6f2"}
+                    kit = {"tu": ids[0], "khi": "Khí", "mau": "#d9e8f0"}
             elif t == "que_dom":
                 e["ket_qua"] = a.get("ket_qua") if a.get("ket_qua") in ("bung_chay", "no_nho", "tat") else "bung_chay"
             acts.append(e)
@@ -5842,7 +5845,7 @@ def sim_clean(raw):
         for s in steps:
             s["hanh_dong"] = [a for a in s["hanh_dong"] if a["loai"] != "que_dom"]
     else:
-        kit = {"tu": kit.get("tu"), "khi": str(kit.get("khi") or "Khí")[:8], "mau": _sim_col(kit.get("mau"), "#dfe6f2")}
+        kit = {"tu": kit.get("tu"), "khi": str(kit.get("khi") or "Khí")[:8], "mau": _sim_col(kit.get("mau"), "#d9e8f0")}
     out = {"ten": str(raw.get("ten") or "Thí nghiệm")[:90], "dung_cu": vessels, "thu_khi": kit, "buoc": steps,
            "hien_tuong": [str(x)[:140] for x in (raw.get("hien_tuong") or [])[:6]], "phuong_trinh": str(raw.get("phuong_trinh") or "")[:140],
            "giai_thich": str(raw.get("giai_thich") or "")[:300], "an_toan": [str(x)[:140] for x in (raw.get("an_toan") or [])[:4]],
@@ -6022,7 +6025,7 @@ SECTIONS = [
     ("Sơ đồ tư duy", "Sơ đồ tư duy", "Nhập chủ đề hoặc tên chất, máy vẽ sơ đồ để ôn tập, sửa được và tải về PowerPoint, draw.io.", mindmap_ui, "mind"),
 ]
 LABELS = [x[0] for x in SECTIONS]
-NAV_OPTS = [HOME] + LABELS + [PRACTICE_TAB, TEST_TAB, HISTORY_TAB]
+NAV_OPTS = [HOME] + LABELS + [PRACTICE_TAB, TEST_TAB, HISTORY_TAB, ASSIST]
 STRUCT, REACT, ISO, EQUIP, MIND = LABELS[0], LABELS[1], LABELS[2], LABELS[3], LABELS[4]
 
 st.session_state.setdefault("nav", HOME)
@@ -6897,7 +6900,7 @@ def _rx_redox_html(rows):
         side = lambda s_: " + ".join((f"{k} " if k > 1 else "") + html.escape(_sub(f)) for k, f in s_)
         arr = f'<span class="rxa"><small>{html.escape(_sub(cond))}</small><i>{arrow}</i></span>'
         out.append(f'<div class="rxr"><span class="rxt">{html.escape(_sub(typ))}</span><div class="rxe">{side(L)}{arr}{side(R)}</div></div>'
-                   f'<div style="font-size:.86rem;color:#475569;margin:-4px 0 10px 4px;line-height:1.5">{html.escape(_sub(note))}</div>')
+                   f'<div style="font-size:.86rem;color:#57817f;margin:-4px 0 10px 4px;line-height:1.5">{html.escape(_sub(note))}</div>')
     return "".join(out)
 
 
@@ -7019,16 +7022,20 @@ def solubility_dialog():
 # ---------------- Các khối giao diện ----------------
 def topbar():
     nav = st.session_state.get("nav", HOME)
-    hm = icon_svg("home", "currentColor", 20, 1.8)
+    hm = icon_svg("home", "currentColor", 22, 1.8)
     if nav == HOME:
-        bc = f'{hm}<span>{html.escape(APP_NAME)}</span><i>/</i><b>{html.escape(tx("Trang chủ"))}</b>'
+        bc = f'{hm}<i>›</i><span>{html.escape(APP_NAME)}</span><i>/</i><b>{html.escape(tx("Tổng quan", "Overview"))}</b>'
     else:
         grp = tx("Khám phá hóa học", "Explore chemistry") if (nav in LABELS or nav == ASSIST) else tx("Học tập", "Learning")
         bc = f'{hm}<i>›</i><span>{html.escape(grp)}</span><i>›</i><b>{html.escape(tx(nav))}</b>'
     guest = "" if cr.is_student(cur_auth()) or cr.is_teacher(cur_auth()) else " guest"
     with st.container(key="topbar"):
-        st.markdown(f'<div class="tb-row"><div class="tb-bc">{bc}</div><div class="tb-right">{icon_svg("sun", "#5b6293", 22)}{icon_svg("bell", "#5b6293", 22)}'
-                    f'<div class="av{guest}">{html.escape(_initials())}</div></div></div>', unsafe_allow_html=True)
+        c1, c2, c3 = st.columns([1.0, 1.15, 0.7], gap="small", vertical_alignment="center")
+        c1.markdown(f'<div class="tb-bc">{bc}</div>', unsafe_allow_html=True)
+        c2.text_input("Tìm kiếm", key="gsearch", on_change=on_search, label_visibility="collapsed",
+                      placeholder=tx("Tìm kiếm kiến thức, công thức, phản ứng...", "Search knowledge, formulas, reactions..."))
+        c3.markdown(f'<div class="tb-right">{icon_svg("sun", "#2c4a5a", 22)}<span class="bellw">{icon_svg("bell", "#2c4a5a", 22)}<i class="dot"></i></span>'
+                    f'<div class="av{guest}">{html.escape(_initials())}</div>{icon_svg("chevdown", "#2c4a5a", 18, 2)}</div>', unsafe_allow_html=True)
 
 
 def hero():
@@ -7048,16 +7055,16 @@ def hero():
 
 # ================= Giao diện mới: trang tối cho các tab công cụ, trang sáng cho Trang chủ =================
 TOOL_ART = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 170'><defs>
-<linearGradient id='lq' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#33d6ff'/><stop offset='1' stop-color='#5b5cf0'/></linearGradient>
-<linearGradient id='gl' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#fff' stop-opacity='.55'/><stop offset='1' stop-color='#9fb6ff' stop-opacity='.12'/></linearGradient>
-<radialGradient id='gw' cx='.5' cy='.5' r='.5'><stop offset='0' stop-color='#5b6cff' stop-opacity='.6'/><stop offset='1' stop-color='#5b6cff' stop-opacity='0'/></radialGradient></defs>
+<linearGradient id='lq' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#33d6ff'/><stop offset='1' stop-color='#10a2ae'/></linearGradient>
+<linearGradient id='gl' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#fff' stop-opacity='.55'/><stop offset='1' stop-color='#06e3e5' stop-opacity='.12'/></linearGradient>
+<radialGradient id='gw' cx='.5' cy='.5' r='.5'><stop offset='0' stop-color='#05aeb6' stop-opacity='.6'/><stop offset='1' stop-color='#05aeb6' stop-opacity='0'/></radialGradient></defs>
 <ellipse cx='200' cy='150' rx='190' ry='18' fill='url(#gw)'/>
-<g stroke='#6ea8ff' stroke-opacity='.5' fill='none' stroke-width='1.6'><path d='M30 70l16-9 16 9v18l-16 9-16-9z'/><path d='M62 30l12-7 12 7v14l-12 7-12-7z'/><path d='M120 60l14-8 14 8v16l-14 8-14-8z'/></g>
-<path d='M178 14h34v36l36 66c6 12-2 24-15 24h-76c-13 0-21-12-15-24l36-66z' fill='url(#gl)' stroke='#c4d8ff' stroke-width='3'/>
+<g stroke='#05d5ce' stroke-opacity='.5' fill='none' stroke-width='1.6'><path d='M30 70l16-9 16 9v18l-16 9-16-9z'/><path d='M62 30l12-7 12 7v14l-12 7-12-7z'/><path d='M120 60l14-8 14 8v16l-14 8-14-8z'/></g>
+<path d='M178 14h34v36l36 66c6 12-2 24-15 24h-76c-13 0-21-12-15-24l36-66z' fill='url(#gl)' stroke='#bddcec' stroke-width='3'/>
 <path d='M158 108h84l17 28c4 8-1 14-10 14h-98c-9 0-14-6-10-14z' fill='url(#lq)'/>
 <circle cx='190' cy='122' r='4.5' fill='#fff' fill-opacity='.75'/><circle cx='214' cy='132' r='3' fill='#fff' fill-opacity='.75'/><circle cx='200' cy='96' r='2.6' fill='#7fe3ff'/>
-<g fill='none' stroke='#c4d8ff' stroke-width='3'><rect x='292' y='78' width='17' height='70' rx='8'/><rect x='318' y='78' width='17' height='70' rx='8'/><rect x='344' y='78' width='17' height='70' rx='8'/></g>
-<rect x='296' y='108' width='9' height='36' rx='4.5' fill='#33d6ff'/><rect x='322' y='116' width='9' height='28' rx='4.5' fill='#8b5cff'/><rect x='348' y='98' width='9' height='46' rx='4.5' fill='#33d6ff'/></svg>"""
+<g fill='none' stroke='#bddcec' stroke-width='3'><rect x='292' y='78' width='17' height='70' rx='8'/><rect x='318' y='78' width='17' height='70' rx='8'/><rect x='344' y='78' width='17' height='70' rx='8'/></g>
+<rect x='296' y='108' width='9' height='36' rx='4.5' fill='#33d6ff'/><rect x='322' y='116' width='9' height='28' rx='4.5' fill='#05accc'/><rect x='348' y='98' width='9' height='46' rx='4.5' fill='#33d6ff'/></svg>"""
 
 CLOUD_ICON = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 48' fill='none' stroke='#5fe0ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='M18 38a12 12 0 0 1-1-24 16 16 0 0 1 31 4 10 10 0 0 1-2 20'/><path d='M32 44V24M24 31l8-8 8 8'/></svg>"""
 
@@ -7075,9 +7082,9 @@ def _dna_svg():
         a.append(f"{x1:.1f},{y:.1f}")
         b.append(f"{x2:.1f},{y:.1f}")
         if i % 3 == 0:
-            rungs.append(f"<line x1='{x1:.1f}' y1='{y:.1f}' x2='{x2:.1f}' y2='{y:.1f}' stroke='#5fb4ff' stroke-opacity='.45' stroke-width='2'/>")
+            rungs.append(f"<line x1='{x1:.1f}' y1='{y:.1f}' x2='{x2:.1f}' y2='{y:.1f}' stroke='#06dccc' stroke-opacity='.45' stroke-width='2'/>")
     return (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {w} {h}'><defs><linearGradient id='dg' x1='0' y1='0' x2='1' y2='1'>"
-            "<stop offset='0' stop-color='#37d9ff'/><stop offset='1' stop-color='#8b5cff'/></linearGradient></defs>"
+            "<stop offset='0' stop-color='#37d9ff'/><stop offset='1' stop-color='#05accc'/></linearGradient></defs>"
             + "".join(rungs)
             + f"<polyline points='{' '.join(a)}' fill='none' stroke='url(#dg)' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/>"
             + f"<polyline points='{' '.join(b)}' fill='none' stroke='url(#dg)' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' opacity='.75'/></svg>")
@@ -7231,150 +7238,150 @@ def structure_result(r, from_img):
 
 
 DARK_CSS = """
-.stApp{background:radial-gradient(60rem 28rem at 78% -8%,rgba(92,74,255,.40),transparent 62%),radial-gradient(48rem 26rem at 6% 108%,rgba(0,170,255,.22),transparent 60%),linear-gradient(160deg,#050929 0%,#0a1040 52%,#070c34 100%)}
-.block-container [data-testid="stMarkdownContainer"]>:is(p,ul,ol,blockquote){color:#dfe5ff}
-.block-container [data-testid="stMarkdownContainer"]>:is(ul,ol) li{color:#dfe5ff}
+.stApp{background:radial-gradient(60rem 28rem at 78% -8%,rgba(4,156,174,.40),transparent 62%),radial-gradient(48rem 26rem at 6% 108%,rgba(5,210,187,.22),transparent 60%),linear-gradient(160deg,#04161e 0%,#07212d 52%,#051b25 100%)}
+.block-container [data-testid="stMarkdownContainer"]>:is(p,ul,ol,blockquote){color:#d5e9f3}
+.block-container [data-testid="stMarkdownContainer"]>:is(ul,ol) li{color:#d5e9f3}
 .block-container [data-testid="stMarkdownContainer"]>:is(h1,h2,h3,h4,h5,h6){color:#fff}
 .block-container [data-testid="stMarkdownContainer"]>p strong,.block-container [data-testid="stMarkdownContainer"]>ul strong{color:#fff}
-.block-container [data-testid="stWidgetLabel"] *{color:#cfd8ff}
-.block-container [data-testid="stCaptionContainer"] *{color:#9fb0ee}
-.block-container :is([data-testid="stCheckbox"],[data-testid="stToggle"]) label *{color:#dfe5ff}
-.block-container [data-testid="stExpander"] details{background:rgba(255,255,255,.04);border:1px solid rgba(120,160,255,.32);border-radius:1rem}
-.block-container [data-testid="stExpander"] summary *{color:#e8ecff}
-.block-container [data-testid="stTabs"] button p{color:#b9c4ff}
+.block-container [data-testid="stWidgetLabel"] *{color:#c0deed}
+.block-container [data-testid="stCaptionContainer"] *{color:#47dcde}
+.block-container :is([data-testid="stCheckbox"],[data-testid="stToggle"]) label *{color:#d5e9f3}
+.block-container [data-testid="stExpander"] details{background:rgba(255,255,255,.04);border:1px solid rgba(5,209,208,.32);border-radius:1rem}
+.block-container [data-testid="stExpander"] summary *{color:#e1eff6}
+.block-container [data-testid="stTabs"] button p{color:#a1cde4}
 .block-container [data-testid="stTabs"] button[aria-selected="true"] p{color:#fff}
 .block-container [data-testid="stMetricValue"],.block-container [data-testid="stMetricLabel"] *{color:#fff}
-.block-container [data-testid="stAlert"]{background:rgba(110,140,255,.14);border:1px solid rgba(120,160,255,.35);border-radius:1rem}
-.block-container [data-testid="stAlert"] *{color:#e8ecff}
+.block-container [data-testid="stAlert"]{background:rgba(5,195,199,.14);border:1px solid rgba(5,209,208,.35);border-radius:1rem}
+.block-container [data-testid="stAlert"] *{color:#e1eff6}
 .block-container [data-testid="stDataFrame"]{filter:invert(.92) hue-rotate(180deg);border-radius:.8rem}
-.block-container [data-testid="stVerticalBlockBorderWrapper"]{border-color:rgba(120,160,255,.35)!important}
-.block-container :is([data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div){background:rgba(255,255,255,.07)!important;border:1px solid rgba(120,160,255,.42)!important;border-radius:.9rem}
+.block-container [data-testid="stVerticalBlockBorderWrapper"]{border-color:rgba(5,209,208,.35)!important}
+.block-container :is([data-baseweb="input"],[data-baseweb="textarea"],[data-baseweb="select"]>div){background:rgba(255,255,255,.07)!important;border:1px solid rgba(5,209,208,.42)!important;border-radius:.9rem}
 .block-container :is(input,textarea){color:#fff!important;-webkit-text-fill-color:#fff}
-.block-container ::placeholder{color:#8e9bd8!important;opacity:1;-webkit-text-fill-color:#8e9bd8}
+.block-container ::placeholder{color:#66c7ca!important;opacity:1;-webkit-text-fill-color:#66c7ca}
 .block-container [data-baseweb="select"] *{color:#fff}
-.block-container .tb-bc,.block-container .tb-bc *{color:#b9c4ff}
+.block-container .tb-bc,.block-container .tb-bc *{color:#a1cde4}
 .block-container .tb-bc b{color:#7fe3ff}
-.block-container .tb-right svg{stroke:#cfd8ff}
+.block-container .tb-right svg{stroke:#c0deed}
 
 /* khung hai bên */
-.block-container .st-key-panel:not(:has(.st-key-pl)){background:linear-gradient(180deg,rgba(18,28,92,.74),rgba(10,16,64,.78));border:1px solid rgba(110,150,255,.38);box-shadow:0 1.2rem 3rem rgba(0,0,0,.35)}
+.block-container .st-key-panel:not(:has(.st-key-pl)){background:linear-gradient(180deg,rgba(13,48,66,.74),rgba(7,33,45,.78));border:1px solid rgba(5,202,202,.38);box-shadow:0 1.2rem 3rem rgba(0,0,0,.35)}
 .block-container .st-key-panel:has(.st-key-pl){background:transparent;border:0;box-shadow:none;padding:0}
-.block-container :is(.st-key-pl,.st-key-pr){background:linear-gradient(180deg,rgba(18,28,96,.80),rgba(9,14,60,.84));border:1.5px solid rgba(90,140,255,.55);border-radius:1.5rem;padding:1.3rem 1.5rem 1.5rem;box-shadow:0 0 1.8rem rgba(70,110,255,.24),0 0 0 1px rgba(255,255,255,.04) inset;min-height:32rem}
+.block-container :is(.st-key-pl,.st-key-pr){background:linear-gradient(180deg,rgba(13,49,67,.80),rgba(6,30,42,.84));border:1.5px solid rgba(5,194,192,.55);border-radius:1.5rem;padding:1.3rem 1.5rem 1.5rem;box-shadow:0 0 1.8rem rgba(5,173,176,.24),0 0 0 1px rgba(255,255,255,.04) inset;min-height:32rem}
 .block-container :is(.st-key-pl,.st-key-pr) [data-testid="stElementContainer"]{width:100%}
 
 /* tiêu đề trang */
 .thead{display:flex;align-items:center;gap:1.1rem;margin:.2rem 0 .9rem;position:relative}
-.thead .tic{flex:0 0 auto;width:4.6rem;height:4.6rem;border-radius:1.2rem;display:grid;place-items:center;background:linear-gradient(145deg,rgba(60,90,230,.55),rgba(20,30,110,.8));border:1.5px solid rgba(110,160,255,.65);box-shadow:0 0 1.4rem rgba(70,120,255,.45)}
+.thead .tic{flex:0 0 auto;width:4.6rem;height:4.6rem;border-radius:1.2rem;display:grid;place-items:center;background:linear-gradient(145deg,rgba(20,155,159,.55),rgba(14,54,74,.8));border:1.5px solid rgba(5,208,204,.65);box-shadow:0 0 1.4rem rgba(5,179,179,.45)}
 .thead .ttx{flex:1 1 auto;min-width:0}
 .block-container .thead h1{margin:0;padding:0;color:#fff;font-size:2.35rem;font-weight:800;line-height:1.1;letter-spacing:-.01em}
-.block-container .thead h1 em{font-style:normal;background:linear-gradient(90deg,#3de0ff,#9d7bff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.block-container .thead p{margin:.35rem 0 0;color:#c4cdf5;font-size:1rem}
+.block-container .thead h1 em{font-style:normal;background:linear-gradient(90deg,#3de0ff,#06bfe0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.block-container .thead p{margin:.35rem 0 0;color:#aed4e7;font-size:1rem}
 .thead .tart{flex:0 0 auto;position:relative;width:27rem;height:7.2rem}
 .thead .tart img{position:absolute;left:0;top:-.4rem;height:8.2rem}
 .thead .els{position:absolute;right:0;top:.2rem;display:flex;gap:.7rem}
-.thead .el{position:relative;width:3.7rem;height:4.3rem;border-radius:.8rem;border:1.5px solid rgba(110,160,255,.7);background:rgba(15,25,90,.7);box-shadow:0 0 1rem rgba(70,120,255,.35);color:#fff;font-weight:700;font-size:1.7rem;text-align:center;padding-top:.5rem;line-height:1.5rem}
-.thead .el sup{position:absolute;left:.35rem;top:.2rem;font-size:.6rem;color:#9fb4ff}
-.thead .el small{display:block;font-size:.62rem;font-weight:500;color:#9fb4ff;margin-top:.3rem}
+.thead .el{position:relative;width:3.7rem;height:4.3rem;border-radius:.8rem;border:1.5px solid rgba(5,208,204,.7);background:rgba(10,45,63,.7);box-shadow:0 0 1rem rgba(5,179,179,.35);color:#fff;font-weight:700;font-size:1.7rem;text-align:center;padding-top:.5rem;line-height:1.5rem}
+.thead .el sup{position:absolute;left:.35rem;top:.2rem;font-size:.6rem;color:#06e2e5}
+.thead .el small{display:block;font-size:.62rem;font-weight:500;color:#06e2e5;margin-top:.3rem}
 
 /* các bước */
-.stepper{display:flex;align-items:center;justify-content:space-between;gap:.6rem;background:rgba(15,25,95,.55);border:1.5px solid rgba(90,140,255,.45);border-radius:1.2rem;padding:.7rem 1rem;margin:0 0 1rem;box-shadow:0 0 1.4rem rgba(70,110,255,.18)}
-.stepper u{flex:1 1 2rem;text-align:center;text-decoration:none;color:#33c8ff;font-size:1.3rem}
-.stp{flex:0 1 auto;display:flex;align-items:center;gap:.7rem;border-radius:99px;padding:.35rem 1.4rem .35rem .4rem;background:rgba(255,255,255,.05);border:1px solid rgba(110,150,255,.4);color:#cfd8ff;font-weight:600;font-size:1.05rem;white-space:nowrap}
-.stp i{font-style:normal;display:grid;place-items:center;width:2.4rem;height:2.4rem;border-radius:50%;background:rgba(80,110,230,.55);color:#fff;font-weight:700;font-size:.95rem}
-.stp.on{background:linear-gradient(90deg,rgba(0,190,255,.32),rgba(110,90,255,.28));border-color:#3cd0ff;box-shadow:0 0 1.2rem rgba(60,200,255,.4);color:#fff}
-.stp.on i{background:linear-gradient(135deg,#22d3ee,#4f8cff);box-shadow:0 0 .9rem rgba(60,210,255,.7)}
+.stepper{display:flex;align-items:center;justify-content:space-between;gap:.6rem;background:rgba(10,47,65,.55);border:1.5px solid rgba(5,194,192,.45);border-radius:1.2rem;padding:.7rem 1rem;margin:0 0 1rem;box-shadow:0 0 1.4rem rgba(5,173,176,.18)}
+.stepper u{flex:1 1 2rem;text-align:center;text-decoration:none;color:#06e8ca;font-size:1.3rem}
+.stp{flex:0 1 auto;display:flex;align-items:center;gap:.7rem;border-radius:99px;padding:.35rem 1.4rem .35rem .4rem;background:rgba(255,255,255,.05);border:1px solid rgba(5,202,202,.4);color:#c0deed;font-weight:600;font-size:1.05rem;white-space:nowrap}
+.stp i{font-style:normal;display:grid;place-items:center;width:2.4rem;height:2.4rem;border-radius:50%;background:rgba(25,170,173,.55);color:#fff;font-weight:700;font-size:.95rem}
+.stp.on{background:linear-gradient(90deg,rgba(0,190,255,.32),rgba(5,166,187,.28));border-color:#3cd0ff;box-shadow:0 0 1.2rem rgba(6,232,203,.4);color:#fff}
+.stp.on i{background:linear-gradient(135deg,#22d3ee,#05c1bd);box-shadow:0 0 .9rem rgba(60,210,255,.7)}
 .stp.ok i{background:#16c784}
 
 /* đầu khung */
 .ph{display:flex;flex-direction:column;gap:.15rem;margin:0 0 .9rem;padding-left:.9rem;border-left:4px solid #22d3ee;line-height:1.2}
 .ph b{color:#fff;font-size:1.55rem;font-weight:800}
-.ph span{color:#c4cdf5;font-size:.92rem}
+.ph span{color:#aed4e7;font-size:.92rem}
 .ph.r{flex-direction:row;align-items:center;gap:.8rem;border-left:0;padding-left:0}
 .ph.r b{font-size:1.6rem}
 
 /* ô nhập: cách nhập dạng nút phân đoạn */
-.block-container .st-key-pl [role="radiogroup"]{gap:0;flex-wrap:nowrap;background:rgba(255,255,255,.05);border:1.5px solid rgba(110,160,255,.5);border-radius:1rem;padding:.2rem;margin-bottom:.4rem}
+.block-container .st-key-pl [role="radiogroup"]{gap:0;flex-wrap:nowrap;background:rgba(255,255,255,.05);border:1.5px solid rgba(5,208,204,.5);border-radius:1rem;padding:.2rem;margin-bottom:.4rem}
 .block-container .st-key-pl :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]){flex:1 1 0;justify-content:center;background:transparent;border:0;border-radius:.8rem;padding:.5rem .4rem;box-shadow:none}
-.block-container .st-key-pl :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#cfd8ff;font-weight:600;font-size:.92rem}
-.block-container .st-key-pl :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(135deg,rgba(0,200,255,.28),rgba(120,90,255,.34));box-shadow:0 0 0 1.5px #3cd0ff inset,0 0 1rem rgba(60,200,255,.35)}
+.block-container .st-key-pl :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#c0deed;font-weight:600;font-size:.92rem}
+.block-container .st-key-pl :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(135deg,rgba(0,200,255,.28),rgba(5,168,192,.34));box-shadow:0 0 0 1.5px #3cd0ff inset,0 0 1rem rgba(6,232,203,.35)}
 .block-container .st-key-pl :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]) p{color:#fff}
 .block-container .st-key-pl [data-testid="stRadio"] label>div:first-child{display:none}
-.block-container [data-testid="stFileUploaderDropzone"]{background:rgba(8,18,72,.62);border:2px dashed rgba(90,210,255,.85);border-radius:1.2rem;min-height:13rem}
+.block-container [data-testid="stFileUploaderDropzone"]{background:rgba(6,36,51,.62);border:2px dashed rgba(6,240,209,.85);border-radius:1.2rem;min-height:13rem}
 .block-container [data-testid="stFileUploaderDropzone"]::before{width:5.2rem;height:4rem;border-radius:0;background:url("__CLOUD__") center/contain no-repeat}
-.block-container [data-testid="stFileUploaderDropzone"]>span>button{background:rgba(60,200,255,.16);border:1px solid rgba(90,210,255,.7);box-shadow:none}
-.block-container [data-testid="stFileUploaderDropzoneInstructions"]::before{color:#a9b6f5}
-.block-container [data-testid="stFileUploader"] section+div *{color:#cfd8ff}
-.block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"]){background:linear-gradient(90deg,#12b8ff 0%,#5a5cf0 55%,#a04cf6 100%);border:0;color:#fff;border-radius:.95rem;min-height:3.1rem;font-size:1.05rem;box-shadow:0 0 1.5rem rgba(60,160,255,.45)}
+.block-container [data-testid="stFileUploaderDropzone"]>span>button{background:rgba(6,232,203,.16);border:1px solid rgba(6,240,209,.7);box-shadow:none}
+.block-container [data-testid="stFileUploaderDropzoneInstructions"]::before{color:#35e2e7}
+.block-container [data-testid="stFileUploader"] section+div *{color:#c0deed}
+.block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"]){background:linear-gradient(90deg,#06dcc1 0%,#10a2ae 55%,#0ba8d4 100%);border:0;color:#fff;border-radius:.95rem;min-height:3.1rem;font-size:1.05rem;box-shadow:0 0 1.5rem rgba(5,205,191,.45)}
 .block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"]) *{color:#fff}
-.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"],[data-testid="stBaseButton-secondaryFormSubmit"]){background:rgba(255,255,255,.04);border:1.5px solid rgba(110,160,255,.7);color:#e8ecff;border-radius:.95rem;min-height:3rem}
-.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]) *{color:#e8ecff}
-.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]):hover{background:rgba(110,160,255,.16);border-color:#3cd0ff}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"],[data-testid="stBaseButton-secondaryFormSubmit"]){background:rgba(255,255,255,.04);border:1.5px solid rgba(5,208,204,.7);color:#e1eff6;border-radius:.95rem;min-height:3rem}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]) *{color:#e1eff6}
+.block-container :is(button[kind="secondary"],[data-testid="stBaseButton-secondary"]):hover{background:rgba(5,208,204,.16);border-color:#3cd0ff}
 .block-container :is(button[kind="primary"],[data-testid="stBaseButton-primary"])[disabled]{opacity:.45}
 .block-container :is(.st-key-pl,.st-key-pr) [data-testid="stButton"] button,.block-container :is(.st-key-pl,.st-key-pr) [data-testid="stDownloadButton"] button{width:100%}
 
 /* khung trống bên phải */
 .empty{text-align:center;padding:.4rem .4rem 0}
-.empty .eglow{width:10rem;height:10rem;margin:.6rem auto .2rem;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,rgba(70,130,255,.45),rgba(70,130,255,0) 68%)}
+.empty .eglow{width:10rem;height:10rem;margin:.6rem auto .2rem;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,rgba(5,186,183,.45),rgba(5,186,183,0) 68%)}
 .block-container .empty h4{color:#fff;font-size:1.35rem;margin:.2rem 0}
-.block-container .empty p{color:#b9c4f2;font-size:.95rem;margin:0 auto 1rem;max-width:26rem}
+.block-container .empty p{color:#85e6e8;font-size:.95rem;margin:0 auto 1rem;max-width:26rem}
 .etiles{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;text-align:left}
-.etile{border:1px solid rgba(110,160,255,.4);background:rgba(255,255,255,.04);border-radius:.9rem;padding:.6rem .9rem}
-.etile small{display:block;color:#9fb0ee;font-size:.8rem}.etile b{color:#fff;font-size:1.05rem}
+.etile{border:1px solid rgba(5,208,204,.4);background:rgba(255,255,255,.04);border-radius:.9rem;padding:.6rem .9rem}
+.etile small{display:block;color:#47dcde;font-size:.8rem}.etile b{color:#fff;font-size:1.05rem}
 .etile:last-child:nth-child(odd){grid-column:1/-1}
 
 /* thẻ kết quả cấu trúc */
-.molbox{background:radial-gradient(circle at 50% 55%,rgba(60,120,255,.28),transparent 70%);border-radius:1.2rem;padding:.4rem}
-.rescard{border:1.5px solid rgba(90,140,255,.55);background:rgba(10,18,80,.6);border-radius:1.2rem;padding:1rem 1.2rem;box-shadow:0 0 1.2rem rgba(70,110,255,.22)}
+.molbox{background:radial-gradient(circle at 50% 55%,rgba(5,179,177,.28),transparent 70%);border-radius:1.2rem;padding:.4rem}
+.rescard{border:1.5px solid rgba(5,194,192,.55);background:rgba(7,38,54,.6);border-radius:1.2rem;padding:1rem 1.2rem;box-shadow:0 0 1.2rem rgba(5,173,176,.22)}
 .rescard .rt{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
 .block-container .rescard h3{margin:0;color:#fff;font-size:1.5rem}
-.kind{font-size:.78rem;color:#cfd8ff;border:1px solid rgba(120,160,255,.5);border-radius:99px;padding:.15rem .7rem;white-space:nowrap}
-.rescard .chip{display:inline-block;margin:.4rem 0 .5rem;background:rgba(110,140,255,.25);color:#e8ecff;border-radius:.6rem;padding:.1rem .7rem;font-weight:700;font-size:.9rem}
-.irow{display:flex;align-items:center;gap:.8rem;padding:.55rem 0;border-top:1px solid rgba(120,160,255,.22)}
-.irow span{color:#cfd8ff;display:grid;place-items:center;flex:0 0 auto}
-.irow em{font-style:normal;color:#c4cdf5;font-size:.88rem;flex:0 0 7.5rem}
+.kind{font-size:.78rem;color:#c0deed;border:1px solid rgba(5,209,208,.5);border-radius:99px;padding:.15rem .7rem;white-space:nowrap}
+.rescard .chip{display:inline-block;margin:.4rem 0 .5rem;background:rgba(5,195,199,.25);color:#e1eff6;border-radius:.6rem;padding:.1rem .7rem;font-weight:700;font-size:.9rem}
+.irow{display:flex;align-items:center;gap:.8rem;padding:.55rem 0;border-top:1px solid rgba(5,209,208,.22)}
+.irow span{color:#c0deed;display:grid;place-items:center;flex:0 0 auto}
+.irow em{font-style:normal;color:#aed4e7;font-size:.88rem;flex:0 0 7.5rem}
 .irow b{color:#fff;font-size:.95rem;word-break:break-all}
-.verify{margin-top:1rem;border:1.5px solid rgba(60,200,255,.6);background:linear-gradient(180deg,rgba(10,30,100,.55),rgba(8,16,70,.6));border-radius:1.2rem;padding:.9rem 1.2rem;box-shadow:0 0 1.5rem rgba(50,190,255,.25)}
+.verify{margin-top:1rem;border:1.5px solid rgba(6,232,203,.6);background:linear-gradient(180deg,rgba(7,51,72,.55),rgba(6,34,48,.6));border-radius:1.2rem;padding:.9rem 1.2rem;box-shadow:0 0 1.5rem rgba(6,225,199,.25)}
 .vh{display:flex;align-items:center;gap:.7rem;margin-bottom:.4rem}
 .vh b{color:#fff;font-size:1.3rem;font-weight:800}
 .vbadge{margin-left:auto;background:rgba(22,199,132,.2);border:1px solid #16c784;color:#7bf0c0;border-radius:99px;padding:.2rem .8rem;font-size:.85rem;font-weight:700}
 .chk{display:grid;grid-template-columns:1.6rem 11rem 1fr;gap:.6rem;align-items:center;padding:.4rem 0}
 .chk i{font-style:normal;display:grid;place-items:center;width:1.4rem;height:1.4rem;border-radius:50%;background:#16c784;color:#fff;font-size:.8rem;font-weight:800}
-.chk.no i{background:#6b739f}
-.chk b{color:#fff;font-size:.9rem}.chk span{color:#b9c4f2;font-size:.82rem}
-.conf{margin-top:.4rem;color:#b9c4f2;font-size:.85rem}.conf b{color:#7fe3ff}
+.chk.no i{background:#6fa0a2}
+.chk b{color:#fff;font-size:.9rem}.chk span{color:#85e6e8;font-size:.82rem}
+.conf{margin-top:.4rem;color:#85e6e8;font-size:.85rem}.conf b{color:#7fe3ff}
 @media(max-width:900px){.thead .tart{display:none}.thead h1{font-size:1.6rem}.stepper{overflow-x:auto}.chk{grid-template-columns:1.6rem 1fr}.chk span{grid-column:2}}
 """
 
 HOME_CSS = """
-.stApp{background:radial-gradient(50rem 24rem at 88% -12%,rgba(150,130,255,.34),transparent 62%),radial-gradient(42rem 24rem at 0% 104%,rgba(110,200,255,.30),transparent 60%),linear-gradient(135deg,#eef1ff 0%,#e5eaff 46%,#f2edff 100%)}
-.block-container .st-key-hero{position:relative;overflow:hidden;border-radius:1.7rem;padding:1.5rem 2.2rem;background:linear-gradient(110deg,#17269f 0%,#3338d8 46%,#7b4cf0 100%);box-shadow:0 1.1rem 2.6rem rgba(70,80,230,.30);min-height:13rem}
+.stApp{background:radial-gradient(50rem 24rem at 88% -12%,rgba(0,223,240,.16),transparent 62%),radial-gradient(42rem 24rem at 0% 104%,rgba(16,185,129,.12),transparent 60%),linear-gradient(135deg,#f5f9fc 0%,#eef5fa 50%,#f2f8fb 100%)}
+.block-container .st-key-hero{position:relative;overflow:hidden;border-radius:1.7rem;padding:1.5rem 2.2rem;background:linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);box-shadow:0 1.1rem 2.6rem rgba(21,151,159,.30);min-height:13rem}
 .hero-t{color:#fff;font-style:italic;font-weight:800;font-size:2.45rem;line-height:1.15;margin:.2rem 0 0}
-.hero-t em{font-style:italic;background:linear-gradient(90deg,#43e0ff,#b79bff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero-s{color:#e4e9ff;font-style:italic;font-size:1.08rem;margin:.55rem 0 1rem}
-.hero-art img{width:100%;max-height:13rem;object-fit:contain;filter:drop-shadow(0 0 1.2rem rgba(120,200,255,.5))}
+.hero-t em{font-style:italic;background:linear-gradient(90deg,#00dff0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-s{color:#dcecf5;font-style:italic;font-size:1.08rem;margin:.55rem 0 1rem}
+.hero-art img{width:100%;max-height:13rem;object-fit:contain;filter:drop-shadow(0 0 1.2rem rgba(6,235,214,.5))}
 .block-container .st-key-hero [data-testid="stButton"] button{border-radius:99px;min-height:2.9rem;font-weight:700;padding:0 1.5rem;width:auto}
-.block-container .st-key-hero_go button{background:#fff;border:0;color:#2a37c9}
-.block-container .st-key-hero_go button *{color:#2a37c9}
-.block-container .st-key-hero_ai button{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.75);color:#fff}
+.block-container .st-key-hero_go button{background:linear-gradient(135deg,#10b981,#059669);border:0;color:#fff;box-shadow:0 .5rem 1.2rem rgba(16,185,129,.35)}
+.block-container .st-key-hero_go button *{color:#fff}
+.block-container .st-key-hero_ai button{background:rgba(0,89,144,.55);border:1.5px solid rgba(255,255,255,.75);color:#fff}
 .block-container .st-key-hero_ai button *{color:#fff}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:.2rem 0 .3rem}
-.stat{display:flex;align-items:center;gap:.9rem;background:rgba(255,255,255,.82);border:1px solid #e3e7fb;border-radius:1.2rem;padding:.9rem 1.1rem;box-shadow:0 .5rem 1.4rem rgba(79,92,240,.08)}
-.stat .si{flex:0 0 auto;width:3rem;height:3rem;border-radius:.9rem;background:#e7e3ff;color:#6d4df0;display:grid;place-items:center}
-.stat small{display:block;color:#4b5380;font-size:.82rem}.stat b{font-size:1.9rem;color:#1b2150;line-height:1.1}
-.sec-h{display:flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.25rem;color:#1b2150;margin:.5rem 0 .1rem}
-.sec-h svg{color:#6d4df0}
-.tcard{display:flex;align-items:center;gap:1rem;min-height:6.6rem;border-radius:1.3rem;padding:.8rem 1.1rem;border:1px solid rgba(255,255,255,.85);box-shadow:0 .6rem 1.5rem rgba(79,92,240,.12);transition:transform .15s,box-shadow .15s}
-div[class*="st-key-qk_tc"]:hover .tcard,div[class*="st-key-qk_lib"]:hover .libt{transform:translateY(-3px);box-shadow:0 .9rem 1.9rem rgba(79,92,240,.22)}
+.stat{display:flex;align-items:center;gap:.9rem;background:rgba(255,255,255,.82);border:1px solid #d8ebf4;border-radius:1.2rem;padding:.9rem 1.1rem;box-shadow:0 .5rem 1.4rem rgba(14,161,169,.08)}
+.stat .si{flex:0 0 auto;width:3rem;height:3rem;border-radius:.9rem;background:#d6e9f3;color:#0f9db3;display:grid;place-items:center}
+.stat small{display:block;color:#4e8486;font-size:.82rem}.stat b{font-size:1.9rem;color:#163240;line-height:1.1}
+.sec-h{display:flex;align-items:center;gap:.6rem;font-weight:800;font-size:1.25rem;color:#163240;margin:.5rem 0 .1rem}
+.sec-h svg{color:#0f9db3}
+.tcard{display:flex;align-items:center;gap:1rem;min-height:6.6rem;border-radius:1.3rem;padding:.8rem 1.1rem;border:1px solid rgba(255,255,255,.85);box-shadow:0 .6rem 1.5rem rgba(14,161,169,.12);transition:transform .15s,box-shadow .15s}
+div[class*="st-key-qk_tc"]:hover .tcard,div[class*="st-key-qk_lib"]:hover .libt{transform:translateY(-3px);box-shadow:0 .9rem 1.9rem rgba(14,161,169,.22)}
 .tcard .ti{flex:0 0 auto;width:3.9rem;height:3.9rem;border-radius:1.1rem;background:rgba(255,255,255,.72);display:grid;place-items:center}
-.tcard b{display:block;font-size:1.08rem;color:#1b2150;line-height:1.2}
-.tcard span.d{display:block;color:#4b5380;font-size:.82rem;margin-top:.2rem;line-height:1.35}
+.tcard b{display:block;font-size:1.08rem;color:#163240;line-height:1.2}
+.tcard span.d{display:block;color:#4e8486;font-size:.82rem;margin-top:.2rem;line-height:1.35}
 .tcard .go{margin-left:auto;flex:0 0 auto;width:2.2rem;height:2.2rem;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
-.tc1{background:linear-gradient(120deg,#e0d9ff,#c9dbff);color:#6d4df0}.tc2{background:linear-gradient(120deg,#cfe3ff,#bfe9ff);color:#2563eb}
-.tc3{background:linear-gradient(120deg,#d4f6e6,#c4f0f3);color:#0f9f78}.tc4{background:linear-gradient(120deg,#ffe6cf,#ffefd8);color:#c2740a}
-.tc5{background:linear-gradient(120deg,#ffd9ee,#f1dcff);color:#d6389b}.tc6{background:linear-gradient(120deg,#cdeeff,#d8e6ff);color:#0e8fc4}
-.libt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;height:6.6rem;border-radius:1rem;border:1px solid #dfe4fb;background:rgba(255,255,255,.85);text-align:center;font-weight:600;font-size:.82rem;color:#1b2150;transition:transform .15s,box-shadow .15s;padding:.4rem}
-.libt svg{color:#6d4df0}
-.libpanel{background:rgba(255,255,255,.6);border:1px solid #e3e7fb;border-radius:1.4rem;padding:.8rem 1rem .9rem;box-shadow:0 .5rem 1.4rem rgba(79,92,240,.07)}
+.tc1{background:linear-gradient(120deg,#c7e2ef,#c2dfed);color:#0f9db3}.tc2{background:linear-gradient(120deg,#cee5f1,#d0e6f1);color:#0fa19f}
+.tc3{background:linear-gradient(120deg,#d4f6e6,#c4f0f3);color:#0f9f78}.tc4{background:linear-gradient(120deg,#d3f3ee,#e0f6ef);color:#0a8f86}
+.tc5{background:linear-gradient(120deg,#d4e6f3,#d1e7f2);color:#4fa3db}.tc6{background:linear-gradient(120deg,#daecf4,#d4e8f3);color:#0db9a4}
+.libt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem;height:6.6rem;border-radius:1rem;border:1px solid #d4e8f2;background:rgba(255,255,255,.85);text-align:center;font-weight:600;font-size:.82rem;color:#163240;transition:transform .15s,box-shadow .15s;padding:.4rem}
+.libt svg{color:#0f9db3}
+.libpanel{background:rgba(255,255,255,.6);border:1px solid #d8ebf4;border-radius:1.4rem;padding:.8rem 1rem .9rem;box-shadow:0 .5rem 1.4rem rgba(14,161,169,.07)}
 .block-container .actcard{margin-top:0}
 @media(max-width:900px){.stats{grid-template-columns:1fr 1fr}.hero-t{font-size:1.7rem}.hero-art{display:none}}
 """
@@ -7382,78 +7389,177 @@ div[class*="st-key-qk_tc"]:hover .tcard,div[class*="st-key-qk_lib"]:hover .libt{
 BASE_CSS = """
 .block-container .st-key-topbar{margin:0}
 .tb-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 .3rem}
-.tb-bc{display:flex;align-items:center;gap:.55rem;color:#6b7299;font-size:.95rem}
-.tb-bc b{color:#4f3bd8;font-weight:700}.tb-bc i{font-style:normal;opacity:.55}.tb-bc svg{color:#4f3bd8}
+.tb-bc{display:flex;align-items:center;gap:.55rem;color:#749e9f;font-size:.95rem}
+.tb-bc b{color:#1e8997;font-weight:700}.tb-bc i{font-style:normal;opacity:.55}.tb-bc svg{color:#1e8997}
 .tb-row .tb-right{display:flex;align-items:center;gap:1rem}
 .sb-brand span{letter-spacing:.02em}
 .st-key-sidenav [role="radiogroup"]>*:nth-child(7){margin-top:.9rem;position:relative}
-.st-key-sidenav [role="radiogroup"]>*:nth-child(7)::before{content:"";position:absolute;left:.4rem;right:.4rem;top:-.55rem;height:1px;background:rgba(110,150,255,.4)}
-.dna{width:62%;margin:.2rem auto 0}.dna img{width:100%;display:block;filter:drop-shadow(0 0 .8rem rgba(80,170,255,.55))}
+.st-key-sidenav [role="radiogroup"]>*:nth-child(7)::before{content:"";position:absolute;left:.4rem;right:.4rem;top:-.55rem;height:1px;background:rgba(5,202,202,.4)}
+.dna{width:62%;margin:.2rem auto 0}.dna img{width:100%;display:block;filter:drop-shadow(0 0 .8rem rgba(5,213,198,.55))}
 """
 DNA_ART = _dna_svg()
 DARK_CSS = DARK_CSS.replace("__CLOUD__", _uri(CLOUD_ICON))
 
+def _img_uri(name):
+    import base64, pathlib
+    p = pathlib.Path(__file__).parent / "assets" / name
+    return "data:image/png;base64," + base64.b64encode(p.read_bytes()).decode()
 
-def _stat_card(ic, label, value):
-    return (f'<div class="stat"><div class="si">{icon_svg(ic, "currentColor", 26, 1.7)}</div>'
-            f'<div><small>{html.escape(label)}</small><b>{value}</b></div></div>')
+
+MATCH_BASE_CSS = """
+/* ===== Sidebar giống mẫu ===== */
+[data-testid="stSidebar"]{width:19.5rem!important}
+.sb-brand img{filter:drop-shadow(0 .3rem .8rem rgba(25,227,208,.35))}
+.sb-brand b i{background:linear-gradient(90deg,#19e3d0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sb-brand span{color:#cfe6f0;font-size:.72rem}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"])::before{background-color:#fff}
+.st-key-sidenav :is(label[data-baseweb="radio"],[data-testid="stRadioOption"]) p{color:#fff}
+.st-key-sidenav :is(label[data-baseweb="radio"]:has(input:checked),[data-testid="stRadioOption"][data-selected="true"]){background:linear-gradient(90deg,#00a7b5,#14b8a6);border-color:rgba(255,255,255,.2);box-shadow:0 .4rem 1.2rem rgba(0,167,181,.35)}
+.dna{width:100%;margin:.4rem 0 .2rem}.dna img{width:100%;display:block;filter:none;opacity:.9;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
+.st-key-sbacct{margin:.3rem 0 .4rem}
+.st-key-sbacct .acct{margin-bottom:.7rem}
+.acct{position:relative;background:rgba(255,255,255,.04);border:1px solid rgba(150,205,225,.32);border-radius:1rem;padding:.65rem .85rem}
+.acct .acct-st,.acct .acct-kpi,.acct .acct-none{display:none}
+.acct .acct-top{display:flex;align-items:center;gap:.75rem}
+.acct .avt{position:relative;width:2.8rem;height:2.8rem;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#fff;background:linear-gradient(135deg,#19b5d6,#0a8fb8);flex:0 0 auto}
+.acct .avt::after{content:"";position:absolute;right:0;bottom:0;width:.7rem;height:.7rem;border-radius:50%;background:#22c55e;border:2px solid #05293a}
+.acct .who b{display:block;color:#fff;font-size:1rem}.acct .who span{color:#bcd6e2;font-size:.85rem}
+.acct::after{content:"";position:absolute;right:1rem;top:50%;width:1.5rem;height:1.5rem;margin-top:-.75rem;background:#e6f4fa;-webkit-mask:url("__GEARIC__") center/contain no-repeat;mask:url("__GEARIC__") center/contain no-repeat}
+.st-key-sbacct button{min-height:2rem;font-size:.8rem}
+.st-key-sbacct [data-testid="stVerticalBlock"]{gap:.6rem}
+[data-testid="stSidebarHeader"]{height:2rem;min-height:0}
+.st-key-sidenav{margin-top:.2rem}
+
+/* ===== Thanh trên giống mẫu ===== */
+.block-container .st-key-topbar{margin:0 0 .2rem}
+.tb-bc{gap:.65rem;font-size:1rem;color:#2c4a5a}
+.tb-bc b{color:#0c2a3a;font-weight:700}.tb-bc svg{color:#0c2a3a}.tb-bc i{opacity:.6}
+.st-key-gsearch div[data-baseweb="input"]{background:#fff;border:1px solid #dbe8ef;border-radius:99px;height:2.7rem;box-shadow:0 .3rem 1rem rgba(3,37,54,.06)}
+.st-key-gsearch input{font-size:.92rem}
+.tb-right{display:flex;justify-content:flex-end;align-items:center;gap:1.3rem}
+.tb-right .bellw{position:relative;display:inline-flex}.tb-right .bellw .dot{position:absolute;right:-1px;top:-2px;width:.55rem;height:.55rem;border-radius:50%;background:#22c55e;border:2px solid #f5f9fc}
+.tb-right .av{width:2.7rem;height:2.7rem;border-radius:50%;background:linear-gradient(135deg,#2f9bf0,#1b7fd6);color:#fff;display:grid;place-items:center;font-weight:700;box-shadow:none}
+"""
+MATCH_BASE_CSS = MATCH_BASE_CSS.replace("__GEARIC__", _uri(icon_svg("gear", "black", 24, 1.7)))
+
+MATCH_HOME_CSS = """
+/* ===== Hero ===== */
+.block-container .st-key-hero{border-radius:1.2rem;padding:1.6rem 2.4rem 1.5rem;min-height:12.8rem;background:linear-gradient(115deg,#002b43 0%,#014454 48%,#016689 100%);box-shadow:0 1rem 2.4rem rgba(1,68,84,.28)}
+.block-container .st-key-hero::after{content:"";position:absolute;top:0;right:0;bottom:0;width:48%;background:url("__HEROIMG__") right center/cover no-repeat;-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 28%);mask-image:linear-gradient(90deg,transparent 0,#000 28%);pointer-events:none}
+.block-container .st-key-hero>div{position:relative;z-index:1}
+.hero-t{font-style:normal;font-size:2.6rem;font-weight:800;letter-spacing:-.5px;margin:.1rem 0 0}
+.hero-t em{font-style:normal;background:linear-gradient(90deg,#00dff0,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero-s{font-style:normal;color:#e6f4fa;font-size:1.15rem;margin:.5rem 0 .3rem}
+.hero-bar{width:3.4rem;height:.28rem;border-radius:99px;background:#19d3e8;margin:0 0 1.1rem}
+.block-container .st-key-hero [data-testid="stButton"] button{border-radius:.8rem;min-height:3rem;padding:0 1.4rem;font-weight:700;font-size:1.02rem}
+.block-container .st-key-hero_go button{background:linear-gradient(135deg,#10b981,#059669);border:1px solid rgba(255,255,255,.3)}
+.block-container .st-key-hero_ai button{background:linear-gradient(135deg,#0b4f7e,#005990);border:1.5px solid rgba(255,255,255,.8)}
+/* ===== Thẻ thống kê ===== */
+.stats{gap:1rem;margin:.9rem 0 .6rem}
+div[class*="st-key-qk_tc"]{margin-bottom:.35rem}
+.stat{background:#fff;border:1px solid #e3eef3;border-radius:1rem;padding:.95rem 1.1rem;box-shadow:0 .4rem 1.2rem rgba(3,37,54,.06);gap:1rem}
+.stat .si{width:3.4rem;height:3.4rem;border-radius:.9rem}
+.stat .s1{background:#ccf8fe;color:#0aa5b5}.stat .s2{background:#d9e5fd;color:#4a78e0}.stat .s3{background:#dff6e6;color:#16a05a}.stat .s4{background:#cff8ef;color:#0ea58a}
+.stat .sv{flex:1;min-width:0}.stat .sv b{display:block;font-size:2rem;color:#0c2a3a;line-height:1.1}.stat .sv small{display:block;color:#476273;font-size:.88rem;margin-top:.15rem}
+.pbar{height:.4rem;border-radius:99px;background:#d5dfe6;margin-top:.45rem;overflow:hidden}.pbar i{display:block;height:100%;background:#00a45d;border-radius:99px}
+/* ===== Tiêu đề mục ===== */
+.sec-h.bar{margin:.7rem 0 .2rem}
+.sec-h.bar::before{content:"";width:.28rem;height:1.5rem;border-radius:99px;background:#00a7b5;display:inline-block}
+.sec-h{color:#0c2a3a}.sec-h svg{color:#0c2a3a}
+/* ===== Thẻ công cụ ===== */
+.tcard,.tcard.tc1,.tcard.tc2,.tcard.tc3,.tcard.tc4,.tcard.tc5,.tcard.tc6{position:relative;overflow:hidden;background:linear-gradient(120deg,#fff 40%,#f3f9fb);color:#0c2a3a;border:1px solid #e3eef3;border-radius:1rem;min-height:6.4rem;padding:.85rem 1.1rem;box-shadow:0 .4rem 1.2rem rgba(3,37,54,.06)}
+.tcard .ti{width:3.5rem;height:3.5rem;border-radius:.9rem;color:#fff;box-shadow:0 .3rem .8rem rgba(0,0,0,.12)}
+.tcard.tc1 .ti{background:linear-gradient(135deg,#10b981,#059669)}.tcard.tc2 .ti{background:linear-gradient(135deg,#0aa5b5,#0e8c96)}
+.tcard.tc3 .ti{background:linear-gradient(135deg,#0b8f90,#0a6f78)}.tcard.tc4 .ti{background:linear-gradient(135deg,#10b981,#0f9f78)}
+.tcard.tc5 .ti{background:linear-gradient(135deg,#0ea5a0,#0b8f8a)}.tcard.tc6 .ti{background:linear-gradient(135deg,#2f9bf0,#1b7fd6)}
+.tcard .tt{position:relative;z-index:1;max-width:62%}.tcard b{color:#0c2a3a;font-size:1.05rem}.tcard span.d{color:#476273;font-size:.82rem}
+.tcard .wm{position:absolute;right:.8rem;top:50%;margin-top:-46px;opacity:.16;pointer-events:none}
+.tcard .go{position:absolute;right:.9rem;bottom:.7rem;margin:0;width:2.1rem;height:2.1rem;background:linear-gradient(135deg,#0fb5a0,#0a9aa8);color:#fff;box-shadow:0 .25rem .7rem rgba(10,154,168,.35);z-index:2}
+/* ===== Hoạt động gần đây ===== */
+.st-key-actpanel{position:relative}
+.st-key-actpanel .rcard{background:#fff;border:1px solid #e3eef3;border-radius:1rem;padding:.9rem 1.2rem .6rem;box-shadow:0 .4rem 1.2rem rgba(3,37,54,.06)}
+.st-key-actpanel .rcard .rh{margin-bottom:.5rem;padding-bottom:.6rem;border-bottom:1px solid #e3eef3}.st-key-actpanel .rcard .rh svg{color:#0aa5b5;width:1.7rem;height:1.7rem}.st-key-actpanel .rcard .rh b{font-size:1.25rem;color:#0c2a3a}
+.hrow.act{padding:.5rem 2px;border-top:1px solid #edf3f6}.hrow .hc{border-radius:.7rem;background:#d2f1f4!important;color:#0aa5b5!important}
+.hrow.act b{color:#0c2a3a;font-weight:600}
+.donep{flex:0 0 auto;background:#dcf5e4;color:#1d7a3b;border-radius:99px;padding:.15rem .65rem;font-size:.75rem;font-weight:700;white-space:nowrap}
+.hrow .chv{flex:0 0 auto;color:#476273;display:inline-flex}
+.st-key-act_all,.st-key-lib_all{position:absolute;top:1rem;right:1.2rem;z-index:5;width:auto!important}
+.st-key-act_all button,.st-key-lib_all button{border:0;background:transparent;color:#0a8fb8;font-weight:600;font-size:.88rem;padding:0;min-height:0;box-shadow:none;width:auto}
+.st-key-act_all button:hover,.st-key-lib_all button:hover{background:transparent;color:#00a7b5}
+/* ===== Thư viện kiến thức ===== */
+.block-container .st-key-libpanel{position:relative;background:#fff;border:1px solid #e3eef3;border-radius:1rem;padding:.9rem 1.1rem 1rem;box-shadow:0 .4rem 1.2rem rgba(3,37,54,.06)}
+.libpanel{background:#fff}
+.libt{background:#fff;border:1px solid #e3eef3;border-radius:.9rem;height:7.2rem;color:#0c2a3a;font-weight:600;font-size:.76rem;line-height:1.25;padding:.4rem .3rem;box-shadow:0 .25rem .8rem rgba(3,37,54,.05)}
+.libt svg{color:#0a9a8a}.libt:nth-child(n){}
+"""
+MATCH_HOME_CSS = MATCH_HOME_CSS.replace("__HEROIMG__", _img_uri("hero_art.png"))
+BASE_CSS += MATCH_BASE_CSS
+HOME_CSS += MATCH_HOME_CSS
+
+
+def _stat_card(ic, label, value, cls="", extra=""):
+    return (f'<div class="stat"><div class="si {cls}">{icon_svg(ic, "currentColor", 28, 1.7)}</div>'
+            f'<div class="sv"><b>{value}</b><small>{html.escape(label)}</small>{extra}</div></div>')
 
 
 HOME_CARDS = [
-    (STRUCT, "structure", "tc1", ("Nhận dạng, phân tích và kiểm chứng cấu trúc phân tử", "Recognise, analyse and verify molecular structures")),
-    (REACT, "flask", "tc2", ("Nhận dạng, phân loại và kiểm tra cân bằng phản ứng", "Recognise, classify and check the balance of reactions")),
-    (ISO, "isomer", "tc3", ("Đếm, liệt kê và so sánh các đồng phân", "Count, list and compare isomers")),
-    (EQUIP, "equipment", "tc4", ("Nhận diện, gọi tên và nêu công dụng dụng cụ", "Identify, name and explain lab equipment")),
-    (MIND, "mind", "tc5", ("Hệ thống hóa kiến thức hóa học trực quan", "Organise chemistry knowledge visually")),
-    (ASSIST, "chat", "tc6", ("Giải thích, hướng dẫn và hỗ trợ học tập hóa học", "Explain, guide and support your chemistry study")),
+    (STRUCT, "structure", "tc1", ("Phân tích công thức cấu tạo", "Structure analysis"), ("Nhận dạng, phân tích và kiểm chứng cấu trúc phân tử.", "Recognise, analyse and verify molecular structures.")),
+    (REACT, "flask", "tc2", ("Phương trình phản ứng", "Reaction equations"), ("Cân bằng, dự đoán và kiểm tra tính khả thi của phản ứng.", "Balance, predict and check the feasibility of reactions.")),
+    (ISO, "isomer", "tc3", ("Khám phá đồng phân", "Explore isomers"), ("Phân tích, liệt kê và so sánh các đồng phân.", "Analyse, list and compare isomers.")),
+    (EQUIP, "equipment", "tc4", ("Nhận diện dụng cụ hóa học", "Lab equipment recognition"), ("Nhận dạng dụng cụ, nêu tên, công dụng và cách sử dụng.", "Identify equipment, its name, purpose and use.")),
+    (MIND, "mind", "tc5", ("Sơ đồ tư duy", "Mind map"), ("Tổng hợp, hệ thống hóa kiến thức Hóa học theo chủ đề.", "Summarise and organise chemistry knowledge by topic.")),
+    (ASSIST, "chat", "tc6", ("Trợ lý AI Hóa học", "Chemistry AI assistant"), ("Giải đáp, giải thích và hỗ trợ học tập Hóa học THPT.", "Answer, explain and support high-school chemistry study.")),
 ]
 
 
 def home_page():
     with st.container(key="hero"):
-        c1, c2 = st.columns([1.55, 1], gap="large")
-        with c1:
-            st.markdown(f'<div class="hero-t">{html.escape(_one("Khám phá Hóa học cùng", "Explore Chemistry with"))} <em>{html.escape(APP_NAME)}</em></div>'
-                        f'<div class="hero-s">{html.escape(_one("Học tập trực quan – Phân tích thông minh – Kiểm chứng khoa học", "Visual learning – Smart analysis – Scientific verification"))}</div>',
-                        unsafe_allow_html=True)
-            b1, b2, _sp = st.columns([1, 1, 0.7], gap="small")
-            with b1, st.container(key="hero_go"):
-                st.button(_one("Bắt đầu khám phá", "Start exploring"), key="hero_go_b", icon=":material/rocket_launch:", on_click=go, args=(STRUCT,))
-            with b2, st.container(key="hero_ai"):
-                st.button(_one("Hỏi Trợ lý AI", "Ask the AI assistant"), key="hero_ai_b", icon=":material/auto_awesome:", on_click=go, args=(ASSIST,))
-        with c2:
-            st.markdown(f'<div class="hero-art"><img src="{_uri(HERO_ART)}"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="hero-t">{html.escape(_one("Khám phá Hóa học cùng", "Explore Chemistry with"))} <em>{html.escape(APP_NAME)}</em></div>'
+                    f'<div class="hero-s">{html.escape(_one("Học tập trực quan – Phân tích thông minh – Kiểm chứng khoa học", "Visual learning – Smart analysis – Scientific verification"))}</div>'
+                    '<div class="hero-bar"></div>', unsafe_allow_html=True)
+        b1, b2, _sp = st.columns([1, 1, 2.2], gap="small")
+        with b1, st.container(key="hero_go"):
+            st.button(_one("Bắt đầu khám phá", "Start exploring"), key="hero_go_b", icon=":material/play_arrow:", on_click=go, args=(STRUCT,))
+        with b2, st.container(key="hero_ai"):
+            st.button(_one("Hỏi trợ lý AI", "Ask the AI assistant"), key="hero_ai_b", icon=":material/auto_awesome:", on_click=go, args=(ASSIST,))
 
-    prof = my_profile()
-    if prof is not None:
+    prof = my_profile() or {"attempts": 0, "done": 0, "finished": 0, "accuracy": None}
+    if True:
+        prog = round(100 * prof["finished"] / prof["done"]) if prof["done"] else 0
+        bar = f'<div class="pbar"><i style="width:{prog}%"></i></div>'
         st.markdown('<div class="stats">'
-                    + _stat_card("flask", tx("Lượt tra cứu", "Lookups"), len(st.session_state.hist))
-                    + _stat_card("practice", tx("Bài đã làm", "Attempts"), prof["attempts"])
-                    + _stat_card("stats", tx("Độ chính xác", "Accuracy"), f'{prof["accuracy"]}%' if prof["attempts"] else "—")
-                    + _stat_card("test", tx("Bài hoàn thành", "Finished"), prof["finished"]) + "</div>", unsafe_allow_html=True)
+                    + _stat_card("flask", tx("Lượt phân tích", "Lookups"), len(st.session_state.hist), "s1")
+                    + _stat_card("practice", tx("Bài luyện tập đã hoàn thành", "Exercises finished"), prof["finished"], "s2")
+                    + _stat_card("stats", tx("Độ chính xác luyện tập", "Practice accuracy"), f'{prof["accuracy"]}%' if prof["attempts"] else "—", "s3")
+                    + _stat_card("test", tx("Tiến độ học tập", "Learning progress"), f"{prog}%", "s4", bar) + "</div>", unsafe_allow_html=True)
 
-    st.markdown(f'<div class="sec-h">{icon_svg("flask", "currentColor", 26, 1.7)}{html.escape(tx("Công cụ hóa học thông minh", "Smart chemistry tools"))}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="sec-h bar">{html.escape(tx("Công cụ hóa học thông minh", "Smart chemistry tools"))}</div>', unsafe_allow_html=True)
     for row in (HOME_CARDS[:3], HOME_CARDS[3:]):
-        for col, (target, ic, cls, desc) in zip(st.columns(3, gap="medium"), row):
-            i = HOME_CARDS.index((target, ic, cls, desc))
+        for col, (target, ic, cls, ttl, desc) in zip(st.columns(3, gap="medium"), row):
+            i = [c[0] for c in HOME_CARDS].index(target)
             with col, st.container(key=f"qk_tc{i}"):
-                st.markdown(f'<div class="tcard {cls}"><div class="ti">{icon_svg(ic, "currentColor", 34, 1.5)}</div><div><b>{html.escape(tx(target))}</b>'
-                            f'<span class="d">{html.escape(tx(*desc, sep=" | "))}</span></div><span class="go">{icon_svg("arrow", "currentColor", 18, 2.2)}</span></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tcard {cls}"><div class="ti">{icon_svg(ic, "currentColor", 30, 1.7)}</div><div class="tt"><b>{html.escape(tx(*ttl))}</b>'
+                            f'<span class="d">{html.escape(tx(*desc))}</span></div><span class="wm">{icon_svg(ic, "#0aa5b5", 92, 0.9)}</span>'
+                            f'<span class="go">{icon_svg("arrow", "currentColor", 18, 2.4)}</span></div>', unsafe_allow_html=True)
                 st.button("Mở", key=f"tcb_{i}", on_click=go, args=(target,))
 
-    left, right = st.columns([1, 1.3], gap="large")
+    left, right = st.columns([1.02, 1], gap="large")
     with left:
-        home_activity()
+        with st.container(key="actpanel"):
+            home_activity()
+            st.button(tx("Xem tất cả →", "View all →"), key="act_all", on_click=go, args=(HISTORY_TAB,))
     with right:
         with st.container(key="libpanel"):
-            st.markdown(f'<div class="sec-h" style="margin-top:0">{icon_svg("book", "currentColor", 26, 1.7)}{html.escape(tx("Thư viện kiến thức", "Knowledge library"))}</div>', unsafe_allow_html=True)
-            lib = [("Bảng tuần hoàn", "grid", periodic_dialog), ("Bảng tính tan", "drop", solubility_dialog), ("Công thức hữu cơ", "structure", organic_dialog),
-                   ("Phương trình phản ứng", "flask", reactions_dialog), ("Mẹo & lưu ý", "bulb", tips_dialog)]
+            st.markdown(f'<div class="sec-h" style="margin-top:0">{icon_svg("layers", "currentColor", 26, 1.7)}{html.escape(tx("Thư viện kiến thức", "Knowledge library"))}</div>', unsafe_allow_html=True)
+            lib = [(("Bảng tuần hoàn các nguyên tố", "Periodic table"), "grid", periodic_dialog), (("Bảng tính tan các chất", "Solubility table"), "flask", solubility_dialog),
+                   (("Công thức hữu cơ thường gặp", "Common organic formulas"), "isomer", organic_dialog),
+                   (("Phương trình phản ứng quan trọng", "Key reaction equations"), "book", reactions_dialog), (("Mẹo & lưu ý Hóa học THPT", "High-school chemistry tips"), "bulb", tips_dialog)]
             for j, (col, (lab, ic, dlg)) in enumerate(zip(st.columns(5, gap="small"), lib)):
                 with col, st.container(key=f"qk_lib{j}"):
-                    st.markdown(f'<div class="libt">{icon_svg(ic, "currentColor", 28, 1.6)}<span>{html.escape(tx(lab))}</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="libt">{icon_svg(ic, "currentColor", 34, 1.5)}<span>{html.escape(tx(*lab))}</span></div>', unsafe_allow_html=True)
                     if st.button("Mở", key=f"libb_{j}"):
                         dlg() if is_logged_in() else auth_dialog()
+            st.button(tx("Xem tất cả →", "View all →"), key="lib_all", on_click=lambda: periodic_dialog() if is_logged_in() else auth_dialog())
 
 
 def page_banner(icon, title, desc):
@@ -7519,7 +7625,8 @@ def home_activity():
             badge = '<div class="hc c0">🔑</div>'
         name_html = f'<span class="actname">{who}</span>' if who else ""
         rows += (f'<div class="hrow act">{badge}<div class="actbody">{name_html}<b>{what}</b>'
-                 f'<small>{tab}</small></div><div class="actwhen">{html.escape(_when(e["ts"]))}</div></div>')
+                 f'<small>{tab}</small></div>' + ('<span class="donep">✔ ' + html.escape(tx("Đã hoàn thành", "Completed")) + '</span>' if e["k"] else '')
+                 + f'<div class="actwhen">{html.escape(_when(e["ts"]))}</div><span class="chv">{icon_svg("chev", "currentColor", 16, 2)}</span></div>')
     if not rows:
         rows = f'<div class="hempty">{html.escape(tx("Chưa có lượt tra cứu nào. Hãy dùng một công cụ ở menu bên trái.", "No lookups yet. Use one of the tools in the left menu.", sep=" | "))}</div>' \
             if not teacher else f'<div class="hempty">{html.escape(tx("Chưa có học sinh nào truy cập hoặc tra cứu.", "No student activity yet."))}</div>'
@@ -7696,8 +7803,8 @@ def profile_dialog():
     if not cr.is_student(au):
         st.info(tx("Cần đăng nhập học sinh.", "Student login required."))
         return
-    st.markdown(f'<div class="acct" style="background:#eef0ff;border-color:#dcdfff"><div class="acct-top"><div class="avt">{html.escape(_initials())}</div>'
-                f'<div class="who"><b style="color:#1d2a8a">{html.escape(au["name"])}</b><span style="color:#4b5280">{html.escape(tx("Lớp", "Class"))} {html.escape(au["cls"])}'
+    st.markdown(f'<div class="acct" style="background:#e7f3f8;border-color:#cde5f1"><div class="acct-top"><div class="avt">{html.escape(_initials())}</div>'
+                f'<div class="who"><b style="color:#16666a">{html.escape(au["name"])}</b><span style="color:#4e8385">{html.escape(tx("Lớp", "Class"))} {html.escape(au["cls"])}'
                 f' · {html.escape(tx("Mã định danh", "ID"))}: {html.escape(au["uid"])}</span></div></div></div>', unsafe_allow_html=True)
     prof = my_profile(force=True)
     c1, c2, c3, c4 = st.columns(4)
@@ -7795,19 +7902,15 @@ def sidebar_account():
 _ACCT_SLOT = None
 with st.sidebar:
     st.markdown(f'<div class="sb-brand"><img src="{_uri(LOGO_SVG)}"><div><b>{html.escape(APP_NAME[:3])}<i>{html.escape(APP_NAME[3:])}</i></b>'
-                f'<span>AI Chemistry Platform</span></div></div>', unsafe_allow_html=True)
-    st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
-    _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
+                f'<span>Premium AI Chemistry Platform</span></div></div>', unsafe_allow_html=True)
     with st.container(key="sidenav"):
         _cur_nav = st.session_state.get("nav", HOME)
         st.session_state[_nav_key()] = _nav_disp(_cur_nav) if _cur_nav in NAV_OPTS else None
         st.radio("Điều hướng", [_nav_disp(o) for o in NAV_OPTS], index=None, key=_nav_key(), on_change=on_side,
                  label_visibility="collapsed", format_func=str)
-    with st.container(key="aibtn"):
-        st.markdown(f'<div class="aicard"><img src="{_uri(AI_FACE)}"><div><b>{tx("Trợ lý AI")}</b><span>{tx("Hỏi bất cứ điều gì về")}<br>{tx("hóa học, mình luôn ở đây!")}</span></div>'
-                    '<div class="go">›</div></div>', unsafe_allow_html=True)
-        st.button("Mở trợ lý AI", key="aibtn_b", on_click=go, args=(ASSIST,))
-    st.markdown(f'<div class="dna"><img src="{_uri(DNA_ART)}"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="dna"><img src="{_img_uri("side_hex.png")}"></div>', unsafe_allow_html=True)
+    _ACCT_SLOT = st.container(key="sbacct")   # điền ở cuối trang để số liệu phản ánh cả bài vừa nộp
+    st.selectbox("🌐 Ngôn ngữ · Language", i18n.LANGS, format_func=i18n.LANG_NAMES.get, key="lang", on_change=on_lang)
 
 # Trên điện thoại: tự đóng thanh bên sau khi chọn một mục (mã chạy trong trang chính để không bị hủy khi làm mới)
 components.html("""<script>
