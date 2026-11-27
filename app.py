@@ -2725,7 +2725,7 @@ def file_rows_ui(files, prefix, can_delete=False, show_student=False):
             preview_ui(m, st.session_state[ck])
 
 
-def upload_ui(aid, kind, key, label, multiple):
+def upload_ui(aid, kind, key, label, multiple, act=None):
     """Chọn tệp và bấm nút để lưu. Trả về số tệp đã lưu (0 nếu chưa có)."""
     exts = sorted(cr.ALLOWED_EXT)
     ups = st.file_uploader(label, type=exts, accept_multiple_files=True, key=f"{key}_{st.session_state.get('_up_n', 0)}",
@@ -2737,7 +2737,7 @@ def upload_ui(aid, kind, key, label, multiple):
         n = 0
         for f in ups[:cr.MAX_ATT]:
             try:
-                cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
+                cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"), act=act)
                 n += 1
             except cr.Denied as e:
                 st.error(f"{f.name}: {e}")
@@ -3353,6 +3353,16 @@ def student_activities_ui(a):
         if x["auto"] == cr.AUTO_QUIZ and not lock:
             with st.expander(tx("📝 Làm bài trắc nghiệm"), expanded=c["st"] in ("chua", "lai")):
                 student_quiz_ui(a, x)
+        if x["auto"] == cr.AUTO_FILE and not lock:
+            try:
+                mine_f = [m for m in cr.list_files(au, a["id"], kind=cr.SUBF)
+                          if m["name"].startswith(f"[HĐ{x['n']}] ") or not m["name"].startswith("[HĐ")]
+            except OSError:
+                mine_f = []
+            with st.expander(tx(f"📤 Nộp bài cho hoạt động {x['n']}", f"📤 Submit for activity {x['n']}"), expanded=not mine_f or c["st"] == "lai"):
+                if mine_f:
+                    file_rows_ui(mine_f, f"smf_{a['id']}_{x['n']}", can_delete=True)
+                upload_ui(a["id"], cr.SUBF, f"suf_{a['id']}_{x['n']}", tx("Chọn tệp bài làm (ảnh, PDF, Word…)", "Choose your file (photo, PDF, Word…)"), True, act=x["n"])
         if x["auto"] == cr.AUTO_NONE:
             new = c2.toggle(tx("Đã xong", "Done"), value=c["st"] == "xong", key=f"act_{a['id']}_{x['n']}", disabled=lock)
             if new != (c["st"] == "xong"):
@@ -3362,7 +3372,7 @@ def student_activities_ui(a):
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         else:
-            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm bài ngay bên dưới" if x["auto"] == cr.AUTO_QUIZ else "Làm ở phiếu/nộp tệp bên dưới", "Use the sheet/upload below"))
+            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm bài ngay bên dưới" if x["auto"] == cr.AUTO_QUIZ else "Nộp tệp ngay bên dưới" if x["auto"] == cr.AUTO_FILE else "Làm ở phiếu bên dưới", "Use the sheet/upload below"))
         blocked = blocked or (x["req"] and c["st"] != "xong")
     student_ai_help(a, acts, cells)
     recs = cr.recommend(acts, cells, seq)

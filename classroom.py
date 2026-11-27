@@ -517,14 +517,16 @@ def activity_states(auth, aid, force=False):
         for x in sorted(sheet_results(auth, aid, force=force), key=lambda x: x["ts"]):
             sheet.setdefault(hs.slug(x["student"]), []).append(100 * x["score"] / x["max"] if x["max"] else 0)
     if any(a["auto"] == AUTO_FILE for a in acts):
-        files = {(hs.slug(m["student"])) for m in list_files(auth, aid, kind=SUBF, force=force)}
+        for m in list_files(auth, aid, kind=SUBF, force=force):
+            tag = re.match(r"\[HĐ(\d+)\] ", m["name"])
+            files.add((hs.slug(m["student"]), int(tag.group(1)) if tag else None))   # None = tệp cũ, tính cho mọi hoạt động nộp tệp
     quiz = {}
     if any(a["auto"] == AUTO_QUIZ for a in acts):
         for r in hs.tbl_read("activity_attempts", ATTEMPT_H, force=force):
             r = r + [""] * (10 - len(r))
             if r[0] == aid and r[1].isdigit() and mine(r[3]):
                 quiz.setdefault((hs.slug(r[3]), int(r[1])), []).append(_f(r[7], 0))
-    who = set(manual) | {k for k, _ in grades} | set(sheet) | files | {k for k, _ in quiz}
+    who = set(manual) | {k for k, _ in grades} | set(sheet) | {k for k, _ in files} | {k for k, _ in quiz}
     out = {}
     for k in who:
         out[k] = {}
@@ -538,7 +540,7 @@ def activity_states(auth, aid, force=False):
             elif a["auto"] == AUTO_QUIZ and quiz.get((k, n)):
                 sc = quiz[(k, n)]
                 cell.update(pct=max(sc), tries=len(sc), st="xong" if max(sc) >= a["pass_pct"] else "lai")
-            elif a["auto"] == AUTO_FILE and k in files:
+            elif a["auto"] == AUTO_FILE and ((k, n) in files or (k, None) in files):
                 g = grades.get((k, n))
                 cell.update(pct=g, tries=1, st="cho" if g is None else "xong" if g >= a["pass_pct"] else "lai")
             out[k][n] = cell
@@ -672,7 +674,7 @@ def _can_see(auth, m):
     return m["kind"] == ATT or hs.slug(m["student"]) == hs.slug(auth["key"])
 
 
-def add_file(auth, aid, kind, name, mime, data, now):
+def add_file(auth, aid, kind, name, mime, data, now, act=None):
     """Giáo viên đính kèm đề (kind=att) hoặc học sinh nộp bài làm (kind=sub). Trả về id tệp."""
     if kind == ATT:
         _need_teacher(auth)
@@ -700,6 +702,8 @@ def add_file(auth, aid, kind, name, mime, data, now):
         raise Denied(f"Tệp quá lớn (tối đa {size_limit(name) // 1_000_000 if ext_of(name) in IMG_EXT else MAX_FILE // 1000} {'MB' if ext_of(name) in IMG_EXT else 'KB'}).")
     if ext_of(name) in IMG_EXT and len(data) > MAX_FILE // 2:
         name, data, mime = shrink_image(name, data)
+    if kind == SUBF and act:
+        name = f"[HĐ{int(act)}] " + name      # gắn tệp nộp với hoạt động cụ thể
     fid = secrets.token_hex(5)
     b64 = base64.b64encode(data).decode("ascii")
     chunks = [[fid, i, b64[o:o + CHUNK]] for i, o in enumerate(range(0, len(b64), CHUNK))]
