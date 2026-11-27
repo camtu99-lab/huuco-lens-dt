@@ -65,3 +65,8 @@ Học sinh luôn thấy **nguyên đề** (Phần I, II, III, từng câu hỏi)
 - **Giáo viên:** khi giao bài (cả Luyện tập và Kiểm tra) đặt **Thời gian làm bài (phút)**; 0 là không giới hạn.
 - **Học sinh:** bài có giờ sẽ hiện nút **Bắt đầu làm bài**. Đồng hồ đếm ngược dính ở đầu trang, giờ bắt đầu lưu ở máy chủ nên tải lại trang không làm lại đồng hồ. Hết giờ bài tự nộp (nộp muộn quá 2 phút bị từ chối).
 - **Phải làm đủ mọi ô** (phần I, II, III) mới nộp được; thiếu ô nào app báo rõ câu nào. Khi đã hết giờ thì được nộp dù còn thiếu. Việc kiểm tra làm ở cả máy chủ nên không lách được.
+
+## Chia bài thành hoạt động và theo dõi tiến độ
+- **Giáo viên:** khi giao bài, mở mục "🧩 Chia bài thành các hoạt động", mỗi dòng là một hoạt động (VD: Hoạt động 1: Xem video). Cột "Hoàn thành khi": học sinh tự bấm xong, tự xong khi nộp phiếu trả lời, hoặc tự xong khi nộp tệp bài làm. Bài đã giao thì sửa ở mục "🧩 Hoạt động".
+- **Học sinh:** trong bài thấy danh sách hoạt động, thanh tiến độ (đã xong x/y, %) và hoạt động nào "chưa học"; hoạt động tự bấm thì gạt công tắc "Đã xong".
+- **Kết quả (tab Kết quả kiểm tra / luyện tập):** mục "🧩 Tiến độ theo hoạt động" cho % cả lớp đã xong từng hoạt động, danh sách em chưa làm, bảng % của từng học sinh và nút tải CSV.

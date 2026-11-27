@@ -3135,6 +3135,79 @@ def sheet_results_ui(a):
             st.dataframe(sorted(qrows, key=lambda r: -list(r.values())[2])[:12], use_container_width=True, hide_index=True)
 
 
+_AUTO_LABEL = {cr.AUTO_NONE: "Học sinh tự bấm xong", cr.AUTO_SHEET: "Tự xong khi nộp phiếu trả lời", cr.AUTO_FILE: "Tự xong khi nộp tệp bài làm"}
+
+
+def activities_editor_ui(key, existing=None):
+    """Bảng nhập các hoạt động của một bài (thêm/xóa dòng tự do). Trả về danh sách {'name','desc','auto'}."""
+    rows = [{"Hoạt động": a["name"], "Mô tả": a["desc"], "Hoàn thành khi": _AUTO_LABEL[a["auto"]]} for a in existing or []]
+    ed = st.data_editor(rows or [{"Hoạt động": "", "Mô tả": "", "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}], num_rows="dynamic", hide_index=True, width="stretch", key=key,
+                        column_config={"Hoạt động": st.column_config.TextColumn(max_chars=80, help=tx("VD: Hoạt động 1: Xem video bài giảng", "e.g. Activity 1: Watch the lecture video")),
+                                       "Mô tả": st.column_config.TextColumn(max_chars=300),
+                                       "Hoàn thành khi": st.column_config.SelectboxColumn(options=list(_AUTO_LABEL.values()), required=True)})
+    back = {v: k for k, v in _AUTO_LABEL.items()}
+    return [{"name": r.get("Hoạt động") or "", "desc": r.get("Mô tả") or "", "auto": back.get(r.get("Hoàn thành khi"), cr.AUTO_NONE)} for r in ed]
+
+
+def student_activities_ui(a):
+    """Học sinh: danh sách hoạt động của bài, tick xong từng hoạt động, thanh tiến độ, hoạt động nào chưa học."""
+    au = cur_auth()
+    try:
+        acts = cr.activities(au, a["id"])
+        if not acts:
+            return
+        done = cr.activity_status(au, a["id"]).get(hs.slug(au["key"]), set())
+    except (OSError, cr.Denied) as e:
+        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        return
+    n_ok = sum(1 for x in acts if x["n"] in done)
+    st.markdown("#### " + tx("🧩 Các hoạt động của bài", "🧩 Activities in this assignment"))
+    st.progress(n_ok / len(acts), text=tx(f"Đã xong {n_ok}/{len(acts)} hoạt động ({round(100 * n_ok / len(acts))}%)", f"Done {n_ok}/{len(acts)} activities ({round(100 * n_ok / len(acts))}%)"))
+    for x in acts:
+        manual = x["auto"] == cr.AUTO_NONE
+        label = f"{'✅' if x['n'] in done else '⬜'} {x['name']}" + ("" if x["n"] in done else tx("  · chưa học", "  · not done yet"))
+        c1, c2 = st.columns([5, 2], vertical_alignment="center")
+        c1.markdown(label + (f"  \n<span style='opacity:.7'>{html.escape(x['desc'])}</span>" if x["desc"] else ""), unsafe_allow_html=True)
+        if manual:
+            new = c2.toggle(tx("Đã xong", "Done"), value=x["n"] in done, key=f"act_{a['id']}_{x['n']}")
+            if new != (x["n"] in done):
+                try:
+                    cr.mark_activity(au, a["id"], x["n"], new, _now().strftime("%Y-%m-%d %H:%M"))
+                    st.rerun()
+                except (OSError, cr.Denied) as e:
+                    st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        else:
+            c2.caption(tx(_AUTO_LABEL[x["auto"]], "Auto-complete on submit"))
+
+
+def teacher_activity_progress_ui(a, stu):
+    """Giáo viên: % học sinh đã xong từng hoạt động, ai chưa làm; % hoàn thành của từng học sinh."""
+    try:
+        acts = cr.activities(cur_auth(), a["id"], force=True)
+        if not acts:
+            return
+        status = cr.activity_status(cur_auth(), a["id"], force=True)
+    except (OSError, cr.Denied) as e:
+        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        return
+    per_act, per_stu = cr.activity_summary(acts, status, stu)
+    names = {hs.slug(k): k.rsplit(" [", 1)[0] for k in stu}
+    st.markdown("#### " + tx("🧩 Tiến độ theo hoạt động", "🧩 Progress by activity"))
+    for x in per_act:
+        st.progress(x["pct"] / 100, text=tx(f"{x['name']}: {x['done']}/{x['total']} học sinh đã xong ({x['pct']}%)", f"{x['name']}: {x['done']}/{x['total']} students done ({x['pct']}%)"))
+        if x["missing"]:
+            with st.expander(tx(f"Chưa làm ({len(x['missing'])})", f"Not done ({len(x['missing'])})")):
+                st.write(", ".join(sorted(names.get(k, k) for k in x["missing"])))
+    rows = [{tx("Học sinh", "Student"): names[k], tx("Đã xong", "Done"): f"{v['done']}/{v['total']}", "%": v["pct"],
+             tx("Chưa làm", "Not done"): ", ".join(x["name"] for x in acts if x["n"] not in status.get(k, set()))} for k, v in per_stu.items()]
+    st.dataframe(sorted(rows, key=lambda r: (r["%"], r[tx("Học sinh", "Student")].lower())), hide_index=True, width="stretch")
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()) if rows else ["-"])
+    w.writeheader()
+    w.writerows(rows)
+    st.download_button(tx("⬇️ Tải tiến độ hoạt động (CSV)", "⬇️ Download activity progress (CSV)"), buf.getvalue().encode("utf-8-sig"), file_name=f"tien_do_{a['id']}.csv", mime="text/csv", key=f"act_dl_{a['id']}")
+
+
 def student_files_ui(a):
     """Tệp giáo viên đính kèm (tải về) và khu nộp tệp bài làm của học sinh."""
     au = cur_auth()
@@ -3185,6 +3258,7 @@ def practice_assign_ui(cat=None):
         return
     a = st.selectbox(tx("Chọn bài", "Choose an assignment"), asgs, key=f"asg_pick_{cat}",
                      format_func=lambda x: (f"[{x['kind']}] " if x["kind"] else "") + x["title"] + (f" · ⏱️ {x['mins']} {tx('phút', 'min')}" if x["mins"] else "") + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else ""))
+    student_activities_ui(a)
     student_files_ui(a)
     if not a["questions"]:
         st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
@@ -6517,6 +6591,9 @@ def teacher_assign_ui():
         st.caption(tx("Bài kiểm tra: không có gợi ý từng bước.", "Test: no step-by-step hints."))
     else:
         hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
+    with st.expander(tx("🧩 Chia bài thành các hoạt động (tùy chọn)", "🧩 Split into activities (optional)")):
+        new_acts = activities_editor_ui("ta_acts")
+        st.caption(tx("Mỗi dòng là một hoạt động. Học sinh tick xong từng hoạt động; giáo viên xem % cả lớp đã làm và ai chưa làm ở tab Kết quả.", "One row per activity. Students tick each one; you see class % and who has not done it under Results."))
     exts = sorted(cr.ALLOWED_EXT)
     files = st.file_uploader(tx("📎 Đính kèm tệp cho học sinh tải về (đề, phiếu bài tập, tài liệu…)", "📎 Attach files for students to download (worksheet, handout…)"),
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
@@ -6563,6 +6640,8 @@ def teacher_assign_ui():
             else:
                 try:
                     aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind, cat, int(minutes))
+                    if any(x["name"].strip() for x in new_acts):
+                        cr.set_activities(cur_auth(), aid, new_acts)
                     up = 0
                     for f in files or []:
                         info = infos.get(f.name)
@@ -6616,6 +6695,19 @@ def teacher_assign_ui():
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
             st.caption(tx("Chỉ áp dụng cho bài làm trên phiếu trả lời. Học sinh phải bấm Bắt đầu thì đồng hồ mới chạy.", "Applies to the online answer sheet only. The clock starts when the student presses Start."))
+        try:
+            ex_acts = cr.activities(cur_auth(), a["id"], force=True)
+        except (OSError, cr.Denied):
+            ex_acts = []
+        with st.expander(tx(f"🧩 Hoạt động ({len(ex_acts)})", f"🧩 Activities ({len(ex_acts)})")):
+            edited = activities_editor_ui(f"tact_{a['id']}", ex_acts)
+            if st.button(tx("💾 Lưu hoạt động", "💾 Save activities"), key=f"tact_save_{a['id']}", type="primary"):
+                try:
+                    cr.set_activities(cur_auth(), a["id"], edited)
+                    st.session_state["_toast"] = tx("Đã lưu hoạt động.", "Activities saved.")
+                    st.rerun()
+                except (OSError, cr.Denied) as e:
+                    st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         try:
             atts = cr.list_files(cur_auth(), a["id"], kind=cr.ATT)
         except OSError:
@@ -6722,6 +6814,7 @@ def teacher_results_ui(cat=cr.TEST):
             file_rows_ui(subf, f"tf_{a['id']}", can_delete=True, show_student=True)
         else:
             st.caption(tx("Chưa có học sinh nào nộp tệp.", "No student has submitted a file yet."))
+    teacher_activity_progress_ui(a, stu)
     sheet_results_ui(a)
     if not a["questions"]:
         return
