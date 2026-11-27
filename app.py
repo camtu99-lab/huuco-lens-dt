@@ -3135,7 +3135,7 @@ def sheet_results_ui(a):
             st.dataframe(sorted(qrows, key=lambda r: -list(r.values())[2])[:12], use_container_width=True, hide_index=True)
 
 
-_AUTO_LABEL = {cr.AUTO_NONE: "Học sinh tự bấm xong", cr.AUTO_SHEET: "Nộp phiếu trả lời (tự chấm)", cr.AUTO_FILE: "Nộp tệp (giáo viên chấm)"}
+_AUTO_LABEL = {cr.AUTO_NONE: "Học sinh tự bấm xong", cr.AUTO_SHEET: "Nộp phiếu trả lời (tự chấm)", cr.AUTO_FILE: "Nộp tệp (giáo viên chấm)", cr.AUTO_QUIZ: "Làm trắc nghiệm trong app (tự chấm)"}
 _ACT_TYPES = ["Đọc tài liệu", "Xem video", "Trắc nghiệm", "Tự luận", "Điền khuyết", "Cân bằng phương trình", "Phân tích cấu trúc phân tử", "Nhận diện chất",
               "Bài tập vận dụng", "Báo cáo thí nghiệm", "Sản phẩm học tập", "Kiểm tra cuối bài"]
 _ACT_ICON = {"Đọc tài liệu": "📖", "Xem video": "🎬", "Trắc nghiệm": "✅", "Tự luận": "✍️", "Điền khuyết": "🧩", "Cân bằng phương trình": "⚖️", "Phân tích cấu trúc phân tử": "🧬",
@@ -3149,16 +3149,167 @@ def activities_editor_ui(key, existing=None):
     inv = {v: k for k, v in _AUTO_LABEL.items()}
     lv_inv = {v: k for k, v in _LV.items()}
     rows = [{"Hoạt động": x["name"], "Loại": x["type"] or _ACT_TYPES[0], "Mục tiêu": x["goal"], "Hướng dẫn": x["desc"], "Phút": x["mins"], "Điểm tối đa": x["max"], "Trọng số": x["weight"],
-             "Ngưỡng đạt %": x["pass_pct"], "Số lần (0 = không giới hạn)": x["tries"], "Chủ đề": x["topic"], "Mức": _LV[x["level"]], "Bắt buộc": x["req"],
+             "Ngưỡng đạt %": x["pass_pct"], "Số lần (0 = không giới hạn)": x["tries"], "Chủ đề": x["topic"], "Mức": _LV[x["level"]], "Bắt buộc": x["req"], "Hạn (YYYY-MM-DD)": x["due"],
              "Hoàn thành khi": _AUTO_LABEL[x["auto"]]} for x in existing or []]
     blank = {"Hoạt động": "", "Loại": _ACT_TYPES[0], "Mục tiêu": "", "Hướng dẫn": "", "Phút": 10, "Điểm tối đa": 10.0, "Trọng số": 1.0, "Ngưỡng đạt %": 50.0, "Số lần (0 = không giới hạn)": 0,
-             "Chủ đề": "", "Mức": _LV["th"], "Bắt buộc": True, "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}
+             "Chủ đề": "", "Mức": _LV["th"], "Bắt buộc": True, "Hạn (YYYY-MM-DD)": "", "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}
     ed = st.data_editor(rows or [blank], num_rows="dynamic", hide_index=True, width="stretch", key=key, column_config={
         "Loại": st.column_config.SelectboxColumn(options=_ACT_TYPES, required=True), "Mức": st.column_config.SelectboxColumn(options=list(_LV.values()), required=True),
         "Hoàn thành khi": st.column_config.SelectboxColumn(options=list(_AUTO_LABEL.values()), required=True), "Bắt buộc": st.column_config.CheckboxColumn()})
     return [{"name": r.get("Hoạt động") or "", "type": r.get("Loại"), "goal": r.get("Mục tiêu") or "", "desc": r.get("Hướng dẫn") or "", "mins": r.get("Phút"), "max": r.get("Điểm tối đa"),
              "weight": r.get("Trọng số"), "pass_pct": r.get("Ngưỡng đạt %"), "tries": r.get("Số lần (0 = không giới hạn)"), "topic": r.get("Chủ đề") or "",
-             "level": lv_inv.get(r.get("Mức"), "th"), "req": bool(r.get("Bắt buộc", True)), "auto": inv.get(r.get("Hoàn thành khi"), cr.AUTO_NONE)} for r in ed]
+             "level": lv_inv.get(r.get("Mức"), "th"), "req": bool(r.get("Bắt buộc", True)), "due": (r.get("Hạn (YYYY-MM-DD)") or "").strip(), "auto": inv.get(r.get("Hoàn thành khi"), cr.AUTO_NONE)} for r in ed]
+
+
+def student_quiz_ui(a, x):
+    """Học sinh làm trắc nghiệm / trả lời ngắn của một hoạt động; chấm ở máy chủ, chỉ hiện đúng/sai từng câu, không lộ đáp án."""
+    au, k = cur_auth(), f"qz_{a['id']}_{x['n']}"
+    try:
+        qs = cr.questions(au, a["id"], x["n"], force=True)
+    except (OSError, cr.Denied) as e:
+        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+        return
+    if not qs:
+        st.caption(tx("Giáo viên chưa thêm câu hỏi cho hoạt động này."))
+        return
+    ans = []
+    for i, q in enumerate(qs):
+        if q["options"]:
+            v = st.radio(f"{i + 1}. {q['q']}", q["options"], index=None, key=f"{k}_{i}")
+            ans.append((v or "")[:1])
+        else:
+            ans.append(st.text_input(f"{i + 1}. {q['q']}", key=f"{k}_{i}", max_chars=60))
+    if st.button(tx("Nộp bài"), key=f"{k}_go", type="primary"):
+        try:
+            st.session_state[k + "_res"] = cr.submit_quiz(au, a["id"], x["n"], ans, _now().strftime("%Y-%m-%d %H:%M"))
+            st.rerun()
+        except (OSError, cr.Denied) as e:
+            st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+    res = st.session_state.get(k + "_res")
+    if res:
+        st.info(tx(f"Lần nộp vừa rồi: {res['pct']}% · " + " ".join(f"{i + 1}{'✅' if ok else '❌'}" for i, ok in enumerate(res["right"]))))
+
+
+def quiz_editor_ui(a, x):
+    """Giáo viên soạn câu hỏi cho hoạt động trắc nghiệm: để trống A-D thì là câu trả lời ngắn (đáp án nhiều cách viết cách nhau ;)."""
+    strip = lambda o: re.sub(r"^[A-F][\.\):]\s*", "", o)
+    ex = cr.questions(cur_auth(), a["id"], x["n"], force=True)
+    rows = [{"Câu hỏi": q["q"], **{c: strip(q["options"][i]) if i < len(q["options"]) else "" for i, c in enumerate("ABCD")}, "Đáp án": q["answer"], "Mức": _LV[q["level"]]} for q in ex]
+    ed = st.data_editor(rows or [{"Câu hỏi": "", "A": "", "B": "", "C": "", "D": "", "Đáp án": "", "Mức": _LV["th"]}], num_rows="dynamic", hide_index=True, width="stretch", key=f"qe_{a['id']}_{x['n']}",
+                        column_config={"Mức": st.column_config.SelectboxColumn(options=list(_LV.values()), required=True)})
+    inv = {v: k for k, v in _LV.items()}
+    qs = [{"q": r.get("Câu hỏi") or "", "options": [f"{c}. {r.get(c)}" for c in "ABCD" if r.get(c)], "answer": r.get("Đáp án") or "", "level": inv.get(r.get("Mức"), "th")} for r in ed]
+    if st.button(tx("💾 Lưu câu hỏi"), key=f"qe_save_{a['id']}_{x['n']}", type="primary"):
+        try:
+            st.session_state["_toast"] = tx(f"Đã lưu {cr.set_questions(cur_auth(), a['id'], x['n'], qs)} câu hỏi.")
+            st.rerun()
+        except (OSError, cr.Denied) as e:
+            st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+
+
+def activity_files_editor_ui(a, acts):
+    """Chọn tài liệu (trong các tệp đã đính kèm của bài) thuộc từng hoạt động."""
+    try:
+        atts = cr.list_files(cur_auth(), a["id"], kind=cr.ATT)
+    except OSError:
+        return
+    if not atts:
+        st.caption(tx("Đính kèm tệp cho bài trước, rồi chọn tệp thuộc từng hoạt động ở đây."))
+        return
+    names = {m["id"]: m["name"] for m in atts}
+    pick = {x["n"]: st.multiselect(tx(f"Tài liệu của hoạt động {x['n']}. {x['name']}"), list(names), default=[i for i in cr.activity_files(a["id"], x["n"]) if i in names], format_func=names.get,
+                                    key=f"af_{a['id']}_{x['n']}") for x in acts}
+    if st.button(tx("💾 Lưu tài liệu theo hoạt động"), key=f"af_save_{a['id']}"):
+        for n, ids in pick.items():
+            cr.set_activity_files(cur_auth(), a["id"], n, ids)
+        st.session_state["_toast"] = tx("Đã lưu.")
+        st.rerun()
+
+
+def _gemini_json(prompt):
+    models = [MODEL] + ([st.secrets.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")] if st.secrets.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite") != MODEL else [])
+    for m in models:
+        for i in range(2):
+            try:
+                t = get_client().models.generate_content(model=m, contents=prompt, config=types.GenerateContentConfig(response_mime_type="application/json")).text or ""
+                return json.loads(t[t.index("{"): t.rindex("}") + 1])
+            except ValueError:
+                pass
+            except (errors.ServerError, errors.ClientError):
+                time.sleep(2 * (i + 1))
+    raise ValueError("Không gọi được AI lúc này, hãy thử lại sau.")
+
+
+def student_ai_help(a, acts, cells):
+    """AI phân tích lỗi (chỉ dựa trên bài làm thật của em) và tạo bài luyện thêm. Bài luyện thêm do AI tạo, chưa duyệt, KHÔNG tính vào tiến độ hay thành thạo."""
+    au, kk = cur_auth(), f"ai_help_{a['id']}"
+    ev = []
+    for x in acts:
+        c = cells.get(x["n"]) or {}
+        if c.get("pct") is not None and c["pct"] < x["pass_pct"]:
+            line = f"- Hoạt động \"{x['name']}\" (chủ đề {x['topic'] or 'chưa ghi'}, mức {_LV[x['level']]}): điểm {c['pct']:.0f}%, ngưỡng {x['pass_pct']:.0f}%"
+            if x["auto"] == cr.AUTO_QUIZ:
+                try:
+                    qs, last = cr.questions(au, a["id"], x["n"]), [r for r in cr.attempts(au, a["id"]) if True]
+                    last = [r for r in last if r["wrong"].get("q") is not None][-1:]
+                    for r in last:
+                        line += "; câu sai: " + " | ".join(f"{qs[i - 1]['q']} (em chọn: {r['wrong'].get('a', [''] * 99)[i - 1]})" for i in r["wrong"]["q"] if i - 1 < len(qs))
+                except (OSError, cr.Denied, IndexError):
+                    pass
+            ev.append(line)
+    if not ev:
+        return
+    if st.button(tx("🤖 AI phân tích lỗi và gợi ý ôn tập"), key=kk + "_b"):
+        if st.session_state.get("_ai_help", 0) >= 3:
+            st.error(tx("Đã dùng 3 lần gợi ý AI trong phiên này."))
+        else:
+            st.session_state["_ai_help"] = st.session_state.get("_ai_help", 0) + 1
+            try:
+                st.session_state[kk] = _gemini_json("Bạn là gia sư Hóa học phổ thông. Dữ liệu bài làm THẬT của học sinh:\n" + "\n".join(ev) + "\nChỉ dựa vào dữ liệu này, không suy diễn thêm. Trả về DUY NHẤT JSON: "
+                    '{"nguyen_nhan": ["nguyên nhân CÓ THỂ, nói rõ dựa trên câu/điểm nào"], "ly_do_de_xuat": "vì sao nên ôn nội dung này trước", "bai_cung_co": [{"q": "câu hỏi", "options": ["A. ..", "B. .."], "answer": "chữ cái", "giai_thich": "giải thích ngắn"}]} '
+                    "với 3 câu củng cố dễ hơn một chút, cùng chủ đề.")
+            except ValueError as e:
+                st.error(str(e))
+    d = st.session_state.get(kk)
+    if d:
+        st.warning(tx("Nội dung do AI tạo, chưa được giáo viên duyệt, chỉ để ôn tập và không tính vào tiến độ hay điểm thành thạo."))
+        for t in d.get("nguyen_nhan", [])[:4]:
+            st.markdown("- " + tx("Có thể: ") + str(t))
+        if d.get("ly_do_de_xuat"):
+            st.caption(str(d["ly_do_de_xuat"]))
+        for i, q in enumerate(d.get("bai_cung_co", [])[:3]):
+            v = st.radio(f"{i + 1}. {q.get('q', '')}", q.get("options", []), index=None, key=f"{kk}_q{i}")
+            if v:
+                st.markdown(("✅ " if v[:1].upper() == str(q.get("answer", ""))[:1].upper() else "❌ ") + tx("Đáp án AI đề xuất: ") + str(q.get("answer", "")) + " · " + str(q.get("giai_thich", "")))
+
+
+def _xlsx_report(a, acts, states, rows):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    wb, ws = Workbook(), None
+    ws = wb.active
+    ws.title = "Ma trận"
+    ws.append(["Học sinh"] + [f"HĐ{x['n']} {x['name']}" for x in acts] + ["Tiến độ %", "Thành thạo %"])
+    lab = {"xong": ("Hoàn thành", "16A34A"), "dang": ("Đang làm", "EAB308"), "chua": ("Chưa bắt đầu", "9CA3AF"), "qua_han": ("Quá hạn", "DC2626")}
+    for r in rows:
+        ws.append([r["key"].rsplit(" [", 1)[0]] + [lab[r["cells"][x["n"]]][0] for x in acts] + [r["progress"], "" if r["mastery"] is None else r["mastery"]])
+        for j, x in enumerate(acts, 2):
+            ws.cell(ws.max_row, j).fill = PatternFill("solid", fgColor=lab[r["cells"][x["n"]]][1])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    topics = sorted({x["topic"] for x in acts if x["topic"]})
+    w2 = wb.create_sheet("Thành thạo theo chủ đề")
+    w2.append(["Học sinh"] + topics)
+    for r in rows:
+        m = cr.mastery(acts, states.get(hs.slug(r["key"]), {}))[0]
+        w2.append([r["key"].rsplit(" [", 1)[0]] + [("chưa đủ dữ liệu" if m[t]["pct"] is None else m[t]["pct"]) if t in m else "" for t in topics])
+    w3 = wb.create_sheet("Lịch sử làm bài")
+    w3.append(["Học sinh", "Nộp lúc", "Thời gian (phút)", "Điểm %", "Câu sai", "Nộp muộn"])
+    for r in cr.attempts(cur_auth(), a["id"], force=True):
+        w3.append([r["student"].rsplit(" [", 1)[0], r["ts"], round(r["sec"] / 60, 1) if r["sec"] else "", r["pct"], "; ".join(f"{k.upper()}: {', '.join(map(str, v))}" for k, v in r["wrong"].items() if v and k != "a"), "Muộn" if r["late"] else ""])
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
 
 
 def student_activities_ui(a):
@@ -3182,6 +3333,10 @@ def student_activities_ui(a):
     m2.metric(tx("Mức thành thạo", "Mastery"), f"{overall}%" if overall is not None else "–", tx("chưa đủ dữ liệu", "not enough data") if overall is None else None, delta_color="off")
     m3.metric(tx("Hạn nộp", "Due"), a["due"] or "–")
     st.progress((prog or 0) / 100)
+    try:
+        atts = cr.list_files(au, a["id"], kind=cr.ATT)
+    except OSError:
+        atts = []
     blocked = False
     for x in acts:
         c = cells.get(x["n"]) or {"st": "chua", "pct": None, "tries": 0}
@@ -3189,8 +3344,14 @@ def student_activities_ui(a):
         extra = (f" · {c['pct']:.0f}%" if c["pct"] is not None else "") + (f" · {c['tries']}/{x['tries']} " + tx("lần", "tries") if x["tries"] and c["tries"] else "")
         c1, c2 = st.columns([6, 2], vertical_alignment="center")
         c1.markdown(f"{ic} {_ACT_ICON.get(x['type'], '📌')} **{x['n']}. {html.escape(x['name'])}** · {lab}{extra}" + ("  ← " + tx("tiếp theo", "next") if nxt and nxt["n"] == x["n"] else "")
-                    + f"  \n<span style='opacity:.7'>{html.escape(x['type'])} · {x['mins']} {tx('phút', 'min')} · {tx('đạt từ', 'pass at')} {x['pass_pct']:.0f}%" + (f" · {html.escape(x['desc'])}" if x["desc"] else "") + "</span>", unsafe_allow_html=True)
+                    + f"  \n<span style='opacity:.7'>{html.escape(x['type'])} · {x['mins']} {tx('phút', 'min')} · {tx('đạt từ', 'pass at')} {x['pass_pct']:.0f}%" + (f" · {tx('hạn', 'due')} {x['due']}" if x["due"] else "") + (f" · {html.escape(x['desc'])}" if x["desc"] else "") + "</span>", unsafe_allow_html=True)
         lock = seq and blocked
+        linked = cr.activity_files(a["id"], x["n"])
+        if linked and not lock:
+            file_rows_ui([m for m in atts if m["id"] in linked], f"saf_{a['id']}_{x['n']}")
+        if x["auto"] == cr.AUTO_QUIZ and not lock:
+            with st.expander(tx("📝 Làm bài trắc nghiệm"), expanded=c["st"] in ("chua", "lai")):
+                student_quiz_ui(a, x)
         if x["auto"] == cr.AUTO_NONE:
             new = c2.toggle(tx("Đã xong", "Done"), value=c["st"] == "xong", key=f"act_{a['id']}_{x['n']}", disabled=lock)
             if new != (c["st"] == "xong"):
@@ -3200,8 +3361,9 @@ def student_activities_ui(a):
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         else:
-            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm ở phiếu/nộp tệp bên dưới", "Use the sheet/upload below"))
+            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm bài ngay bên dưới" if x["auto"] == cr.AUTO_QUIZ else "Làm ở phiếu/nộp tệp bên dưới", "Use the sheet/upload below"))
         blocked = blocked or (x["req"] and c["st"] != "xong")
+    student_ai_help(a, acts, cells)
     recs = cr.recommend(acts, cells, seq)
     if recs:
         with st.expander(tx("💡 Gợi ý học tiếp (và lý do)", "💡 What to do next (and why)"), expanded=True):
@@ -3261,6 +3423,15 @@ def teacher_activity_progress_ui(a, stu):
         mast, overall = cr.mastery(acts, cells)
         st.dataframe([{tx("Hoạt động"): f"{x['n']}. {x['name']}", tx("Trạng thái"): _ST[(cells.get(x['n']) or {}).get('st', 'chua')][1], tx("Điểm %"): (cells.get(x['n']) or {}).get("pct"),
                        tx("Số lần"): (cells.get(x['n']) or {}).get("tries", 0), tx("Chủ đề"): x["topic"], tx("Mức"): _LV[x["level"]]} for x in acts], hide_index=True, width="stretch")
+        att = cr.attempts(cur_auth(), a["id"], who, force=True)
+        if att:
+            st.markdown("**" + tx("Lịch sử làm bài") + "**")
+            st.dataframe([{tx("Lần"): i + 1, tx("Nộp lúc"): r["ts"], tx("Thời gian (phút)"): round(r["sec"] / 60, 1) if r["sec"] else "–", tx("Điểm %"): r["pct"],
+                           tx("Câu sai"): "; ".join(f"{k.upper()}: {', '.join(map(str, v))}" for k, v in r["wrong"].items() if v and k != "a") or "–", tx("Nộp muộn"): "✔" if r["late"] else ""} for i, r in enumerate(att)],
+                         hide_index=True, width="stretch")
+            if st.button(tx("🔁 Cho học sinh làm lại phiếu"), key=f"rs_{a['id']}_{hs.slug(who)}"):
+                cr.reset_attempts(cur_auth(), a["id"], who)
+                st.rerun()
         for t, v in mast.items():
             st.write(f"**{t}**: " + (f"{v['pct']}% ({v['n']} " + tx("hoạt động đã chấm)") if v["pct"] is not None else tx(f"chưa đủ dữ liệu ({v['n']} kết quả)")))
         for r in cr.recommend(acts, cells, seq):
@@ -3270,6 +3441,10 @@ def teacher_activity_progress_ui(a, stu):
     w.writerow(["Học sinh"] + [f"HĐ{x['n']} {x['name']}" for x in acts] + ["Tiến độ %", "Thành thạo %"])
     for r in rows:
         w.writerow([name(r["key"])] + [{"xong": "Hoàn thành", "dang": "Đang làm", "chua": "Chưa bắt đầu", "qua_han": "Quá hạn"}[r["cells"][x["n"]]] for x in acts] + [r["progress"], "" if r["mastery"] is None else r["mastery"]])
+    try:
+        st.download_button(tx("⬇️ Xuất báo cáo Excel (.xlsx)"), _xlsx_report(a, acts, states, rows), file_name=f"tien_do_{a['id']}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key=f"act_xl_{a['id']}")
+    except ImportError:
+        st.caption(tx("Chưa cài openpyxl nên chỉ xuất được CSV."))
     st.download_button(tx("⬇️ Xuất báo cáo (CSV, mở bằng Excel)"), buf.getvalue().encode("utf-8-sig"), file_name=f"tien_do_{a['id']}.csv", mime="text/csv", key=f"act_dl_{a['id']}")
 
 
@@ -6636,6 +6811,75 @@ def teacher_classes_ui():
                     st.error(hs.last_error)
 
 
+def ai_draft_activities(files):
+    """Gemini đọc tệp Word/PDF đã chọn và đề xuất hoạt động (bản nháp). Giới hạn 5 lần mỗi phiên để giữ hạn mức."""
+    parts = []
+    for f in files or []:
+        e = cr.ext_of(f.name)
+        try:
+            t = cr.docx_text(f.getvalue()) if e == "docx" else cr.pdf_text(f.getvalue()) if e == "pdf" else f.getvalue().decode("utf-8", "ignore") if e == "txt" else ""
+        except Exception:
+            t = ""
+        if t and t.strip():
+            parts.append(f"[{f.name}]\n{t}")
+    if not parts:
+        raise ValueError("Chưa đọc được văn bản: hãy chọn tệp Word (.docx), PDF có chữ hoặc .txt.")
+    if st.session_state.get("_ai_drafts", 0) >= 5:
+        raise ValueError("Đã dùng 5 lần gợi ý AI trong phiên này. Hãy chỉnh tay hoặc tải lại trang.")
+    st.session_state["_ai_drafts"] = st.session_state.get("_ai_drafts", 0) + 1
+    models = [MODEL] + ([st.secrets.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite")] if st.secrets.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash-lite") != MODEL else [])
+    last = None
+    for m in models:
+        for i in range(2):
+            try:
+                r = get_client().models.generate_content(model=m, contents=cr.ai_prompt("\n\n".join(parts)), config=types.GenerateContentConfig(response_mime_type="application/json"))
+                return cr.parse_ai_activities(r.text)
+            except ValueError as e:
+                last = e
+            except (errors.ServerError, errors.ClientError) as e:
+                last = e
+                time.sleep(2 * (i + 1))
+    raise ValueError("Không gọi được AI lúc này, hãy thử lại sau." if not isinstance(last, ValueError) else str(last))
+
+
+def ai_activities_block(files):
+    """Khối soạn hoạt động khi giao bài: giáo viên chỉnh tay hoặc nhờ AI đề xuất, rồi xác nhận trước khi giao. Trả về danh sách hoạt động."""
+    with st.expander(tx("🧩 Chia bài thành các hoạt động (tùy chọn)", "🧩 Split into activities (optional)"), expanded=bool(st.session_state.get("ta_ai_draft"))):
+        if st.button(tx("🤖 AI đề xuất hoạt động từ tệp đã chọn"), key="ta_ai_go", disabled=not files):
+            with st.spinner(tx("AI đang đọc tài liệu…")):
+                try:
+                    acts, qs = ai_draft_activities(files)
+                    st.session_state["ta_ai_draft"], st.session_state["ta_ai_qs"] = acts, qs
+                    st.session_state["_ta_ai_n"] = st.session_state.get("_ta_ai_n", 0) + 1
+                    st.session_state["ta_ai_ok"] = False
+                except ValueError as e:
+                    st.error(str(e))
+        if not files:
+            st.caption(tx("Chọn tệp Word/PDF ở trên để nhờ AI đề xuất, hoặc nhập tay bên dưới."))
+        draft = st.session_state.get("ta_ai_draft")
+        if draft:
+            st.warning(tx("Đây là BẢN NHÁP do AI đề xuất, chưa giao cho học sinh. Hãy sửa lại bảng bên dưới rồi tick xác nhận."))
+        acts = activities_editor_ui(f"ta_acts_{st.session_state.get('_ta_ai_n', 0)}", draft)
+        if draft:
+            st.checkbox(tx("Tôi đã xem lại và đồng ý với các hoạt động này"), key="ta_ai_ok")
+            st.checkbox(tx("Dùng câu hỏi AI làm bài trắc nghiệm trong app cho các hoạt động có câu hỏi (tôi đã kiểm tra đáp án)"), key="ta_ai_useq")
+            qs = st.session_state.get("ta_ai_qs", {})
+            if any(qs.values()):
+                with st.expander(tx("📝 Câu hỏi AI đề xuất (bản nháp, cần kiểm tra đáp án)")):
+                    lines = []
+                    for n, items in qs.items():
+                        lines.append(f"## {n}")
+                        for i, q in enumerate(items, 1):
+                            lines.append(f"Câu {i} [{_LV[q['level']]}]. {q['q']}" + "".join(f"\n   {o}" for o in q["options"]) + f"\n   Đáp án đề xuất: {q['answer']}")
+                    txt = "\n".join(lines)
+                    st.text(txt)
+                    st.download_button(tx("⬇️ Tải câu hỏi nháp (.txt)"), txt.encode("utf-8"), file_name="cau_hoi_nhap_AI.txt", key="ta_ai_dl")
+                    st.caption(tx("Đáp án do AI đề xuất, không dùng làm đáp án chấm điểm khi chưa kiểm tra. Câu có công thức hóa học nên đối chiếu thêm bằng ngân hàng đề/RDKit."))
+        else:
+            st.caption(tx("Mỗi dòng là một hoạt động. Học sinh làm xong từng hoạt động; giáo viên xem tiến độ cả lớp ở tab Kết quả."))
+    return acts
+
+
 def teacher_assign_ui():
     cls = _t_class_pick("ta_cls")
     if not cls:
@@ -6656,14 +6900,12 @@ def teacher_assign_ui():
         st.caption(tx("Bài kiểm tra: không có gợi ý từng bước.", "Test: no step-by-step hints."))
     else:
         hints = st.checkbox(tx("Cho phép gợi ý từng bước", "Allow step-by-step hints"), value=True, key="ta_hints")
-    with st.expander(tx("🧩 Chia bài thành các hoạt động (tùy chọn)", "🧩 Split into activities (optional)")):
-        new_acts = activities_editor_ui("ta_acts")
-        st.caption(tx("Mỗi dòng là một hoạt động. Học sinh tick xong từng hoạt động; giáo viên xem % cả lớp đã làm và ai chưa làm ở tab Kết quả.", "One row per activity. Students tick each one; you see class % and who has not done it under Results."))
     exts = sorted(cr.ALLOWED_EXT)
     files = st.file_uploader(tx("📎 Đính kèm tệp cho học sinh tải về (đề, phiếu bài tập, tài liệu…)", "📎 Attach files for students to download (worksheet, handout…)"),
                              type=exts, accept_multiple_files=True, key=f"ta_files_{st.session_state.get('_ta_n', 0)}",
                              help=tx(f"Tối đa {cr.MAX_ATT} tệp, mỗi tệp {cr.MAX_FILE // 1000} KB (ảnh png/jpg tự nén). Bài giao gồm tệp đề và/hoặc phiếu trả lời.",
                                      f"Up to {cr.MAX_ATT} files, {cr.MAX_FILE // 1000} KB each (png/jpg auto-compressed). An assignment is the exam file and/or the answer sheet."))
+    new_acts = ai_activities_block(files)
     use_sheet = st.checkbox(tx("📝 Cho học sinh làm bài trực tuyến trên đề (trắc nghiệm / đúng-sai / trả lời ngắn, tự chấm)", "📝 Let students take the test online (multiple choice / true-false / short answer, auto-graded)"), value=True, key="ta_sheet_on")
     sheet_cfg, infos = None, {}
     for f in files or []:
@@ -6696,6 +6938,8 @@ def teacher_assign_ui():
                 minutes = guessed
         if not title.strip() or (not files and not use_sheet):
             st.error(tx("Cần nhập tên bài và đính kèm tệp đề hoặc tạo phiếu trả lời.", "Enter a title and attach a file or add an answer sheet."))
+        elif st.session_state.get("ta_ai_draft") and not st.session_state.get("ta_ai_ok"):
+            st.error(tx("Hoạt động do AI đề xuất cần được duyệt: hãy xem lại bảng hoạt động và tick xác nhận trước khi giao."))
         elif len(files or []) > cr.MAX_ATT:
             st.error(tx(f"Tối đa {cr.MAX_ATT} tệp cho mỗi bài.", f"At most {cr.MAX_ATT} files per assignment."))
         else:
@@ -6706,7 +6950,14 @@ def teacher_assign_ui():
                 try:
                     aid = cr.create_assignment(cur_auth(), cls, title, qs, due.isoformat() if due_on else "", hints, _now().strftime("%Y-%m-%d %H:%M"), kind, cat, int(minutes))
                     if any(x["name"].strip() for x in new_acts):
+                        aiq = st.session_state.get("ta_ai_qs", {}) if st.session_state.get("ta_ai_useq") and st.session_state.get("ta_ai_ok") else {}
+                        for x in new_acts:
+                            if aiq.get(x["name"].strip()) and x["auto"] == cr.AUTO_NONE:
+                                x["auto"] = cr.AUTO_QUIZ
                         cr.set_activities(cur_auth(), aid, new_acts)
+                        for n_, x in enumerate([x for x in new_acts if x["name"].strip()], 1):
+                            if x["auto"] == cr.AUTO_QUIZ and aiq.get(x["name"].strip()):
+                                cr.set_questions(cur_auth(), aid, n_, aiq[x["name"].strip()])
                     up = 0
                     for f in files or []:
                         info = infos.get(f.name)
@@ -6727,6 +6978,8 @@ def teacher_assign_ui():
                         except cr.Denied as e:
                             st.error(tx("Đã giao bài nhưng chưa lưu được phiếu: ", "Assigned, but the sheet was not saved: ") + str(e))
                     st.session_state["_ta_n"] = st.session_state.get("_ta_n", 0) + 1
+                    for k_ in ("ta_ai_draft", "ta_ai_qs", "ta_ai_ok", "ta_ai_useq"):
+                        st.session_state.pop(k_, None)
                     st.session_state["_toast"] = tx(f"Đã giao bài \"{title.strip()}\" ({up} tệp) cho lớp {cls}." + (f" Tự đặt giờ làm bài {guessed} phút theo tên bài." if guessed else ""),
                                                    f"Assigned \"{title.strip()}\" ({up} file(s)) to {cls}." + (f" Time limit set to {guessed} min from the title." if guessed else ""))
                     st.rerun()
@@ -6775,6 +7028,12 @@ def teacher_assign_ui():
                     st.rerun()
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+            for x in ex_acts:
+                if x["auto"] == cr.AUTO_QUIZ:
+                    st.markdown(f"**{tx('Câu hỏi')} · {x['n']}. {html.escape(x['name'])}**")
+                    quiz_editor_ui(a, x)
+            if ex_acts:
+                activity_files_editor_ui(a, ex_acts)
         try:
             atts = cr.list_files(cur_auth(), a["id"], kind=cr.ATT)
         except OSError:

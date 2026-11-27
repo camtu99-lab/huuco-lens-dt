@@ -16,6 +16,7 @@ import hmac
 import json
 import re
 import secrets
+import threading
 import time
 
 import history_store as hs
@@ -26,12 +27,16 @@ ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_g
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
 SHEET_H = ["id_bai", "ma_lop", "cau_hinh_json"]
 STARTS_H = ["id_bai", "ma_lop", "hoc_sinh", "bat_dau"]
-ACT_H = ["id_bai", "stt", "ten", "mo_ta", "tu_dong", "loai", "muc_tieu", "phut", "diem_max", "trong_so", "nguong", "so_lan", "chu_de", "muc", "bat_buoc"]
+ACT_H = ["id_bai", "stt", "ten", "mo_ta", "tu_dong", "loai", "muc_tieu", "phut", "diem_max", "trong_so", "nguong", "so_lan", "chu_de", "muc", "bat_buoc", "han"]
+ATTEMPT_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "bat_dau", "nop", "giay", "diem_pct", "cau_sai_json", "muon"]   # mỗi lần nộp phiếu của một hoạt động
 GRADE_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "thoi_diem", "diem_pct", "nhan_xet"]   # giáo viên chấm hoạt động nộp tệp
+QUES_H = ["id_bai", "stt", "so_cau", "cau_json"]                 # câu hỏi trắc nghiệm/trả lời ngắn của một hoạt động
+MAST_H = ["hoc_sinh", "ma_lop", "id_bai", "chu_de", "pct", "so_kq", "cap_nhat"]   # mức thành thạo đã lưu
+ALINK_H = ["id_bai", "stt", "id_tep"]                           # tệp đính kèm thuộc hoạt động nào
 CFG_H = ["id_bai", "tuan_tu"]                                                          # 1 = học tuần tự
 LEVEL_W = {"nb": 1.0, "th": 1.5, "vd": 2.0}                                            # nhận biết / thông hiểu / vận dụng
 ADONE_H = ["id_bai", "ma_lop", "hoc_sinh", "stt", "thoi_diem"]  # học sinh đã bấm xong hoạt động nào
-AUTO_NONE, AUTO_SHEET, AUTO_FILE = "tay", "phieu", "tep"         # tự bấm / xong khi nộp phiếu / xong khi nộp tệp
+AUTO_NONE, AUTO_SHEET, AUTO_FILE, AUTO_QUIZ = "tay", "phieu", "tep", "quiz"         # tự bấm / xong khi nộp phiếu / xong khi nộp tệp
 GRACE = 120                   # giây cho phép nộp muộn sau khi hết giờ (đồng hồ trình duyệt tự nộp có thể trễ)
 TCH_H = ["ten", "salt", "ma_hash", "tao_luc"]
 SSUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "tra_loi_json", "diem", "chi_tiet_json"]
@@ -53,6 +58,9 @@ TEST = "test"
 TEACHER = "teacher"
 STUDENT = "student"
 NAME_RE = re.compile(r"^[^\W\d_](?:[\w .'\-]*[^\W_])?$", re.UNICODE)   # chữ cái (có dấu), số, khoảng trắng, . ' -
+
+
+_SUBMIT_LOCK = threading.Lock()
 
 
 class Denied(Exception):
@@ -402,7 +410,7 @@ def set_assignment_minutes(auth, aid, minutes):
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0), ("activity_attempts", ATTEMPT_H, 0), ("activity_questions", QUES_H, 0), ("activity_files", ALINK_H, 0), ("knowledge_mastery", MAST_H, 2)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
@@ -429,11 +437,11 @@ def set_activities(auth, aid, acts):
         if not name:
             continue
         n += 1
-        auto = a.get("auto") if a.get("auto") in (AUTO_SHEET, AUTO_FILE) else AUTO_NONE
+        auto = a.get("auto") if a.get("auto") in (AUTO_SHEET, AUTO_FILE, AUTO_QUIZ) else AUTO_NONE
         lv = a.get("level") if a.get("level") in LEVEL_W else "th"
         keep.append([aid, n, name, str(a.get("desc", "")).strip()[:300], auto, str(a.get("type", ""))[:30], str(a.get("goal", ""))[:200],
                      max(0, min(int(_f(a.get("mins"), 0)), 600)), max(0.0, _f(a.get("max"), 10)), max(0.0, _f(a.get("weight"), 1)),
-                     max(0.0, min(_f(a.get("pass_pct"), 50), 100)), max(0, int(_f(a.get("tries"), 0))), str(a.get("topic", ""))[:60], lv, "0" if a.get("req") is False else "1"])
+                     max(0.0, min(_f(a.get("pass_pct"), 50), 100)), max(0, int(_f(a.get("tries"), 0))), str(a.get("topic", ""))[:60], lv, "0" if a.get("req") is False else "1", str(a.get("due") or "")[:10]])
     hs.tbl_write("activities", ACT_H, keep)
     return n
 
@@ -448,7 +456,7 @@ def activities(auth, aid, force=False):
         if r[0] == aid and r[1].isdigit():
             out.append({"n": int(r[1]), "name": r[2], "desc": r[3], "auto": r[4] or AUTO_NONE, "type": r[5], "goal": r[6], "mins": int(_f(r[7], 0)),
                         "max": _f(r[8], 10), "weight": _f(r[9], 1), "pass_pct": _f(r[10], 50), "tries": int(_f(r[11], 0)), "topic": r[12],
-                        "level": r[13] if r[13] in LEVEL_W else "th", "req": r[14] != "0"})
+                        "level": r[13] if r[13] in LEVEL_W else "th", "req": r[14] != "0", "due": r[15]})
     return sorted(out, key=lambda x: x["n"])
 
 
@@ -510,7 +518,13 @@ def activity_states(auth, aid, force=False):
             sheet.setdefault(hs.slug(x["student"]), []).append(100 * x["score"] / x["max"] if x["max"] else 0)
     if any(a["auto"] == AUTO_FILE for a in acts):
         files = {(hs.slug(m["student"])) for m in list_files(auth, aid, kind=SUBF, force=force)}
-    who = set(manual) | {k for k, _ in grades} | set(sheet) | files
+    quiz = {}
+    if any(a["auto"] == AUTO_QUIZ for a in acts):
+        for r in hs.tbl_read("activity_attempts", ATTEMPT_H, force=force):
+            r = r + [""] * (10 - len(r))
+            if r[0] == aid and r[1].isdigit() and mine(r[3]):
+                quiz.setdefault((hs.slug(r[3]), int(r[1])), []).append(_f(r[7], 0))
+    who = set(manual) | {k for k, _ in grades} | set(sheet) | files | {k for k, _ in quiz}
     out = {}
     for k in who:
         out[k] = {}
@@ -520,6 +534,9 @@ def activity_states(auth, aid, force=False):
                 cell["st"] = "xong"
             elif a["auto"] == AUTO_SHEET and sheet.get(k):
                 sc = sheet[k]
+                cell.update(pct=max(sc), tries=len(sc), st="xong" if max(sc) >= a["pass_pct"] else "lai")
+            elif a["auto"] == AUTO_QUIZ and quiz.get((k, n)):
+                sc = quiz[(k, n)]
                 cell.update(pct=max(sc), tries=len(sc), st="xong" if max(sc) >= a["pass_pct"] else "lai")
             elif a["auto"] == AUTO_FILE and k in files:
                 g = grades.get((k, n))
@@ -576,7 +593,6 @@ def next_activity(acts, cells):
 
 def overview(acts, states, keys, due="", today=""):
     """Bảng giáo viên: mỗi học sinh một dòng với tiến độ, thành thạo và ô từng hoạt động (xong / dang / chua / qua_han)."""
-    late = bool(due) and bool(today) and today > due
     rows = []
     for k in keys:
         cells = states.get(hs.slug(k), {})
@@ -584,7 +600,7 @@ def overview(acts, states, keys, due="", today=""):
         for a in acts:
             st = (cells.get(a["n"]) or {}).get("st", "chua")
             started = started or st != "chua"
-            cs[a["n"]] = "xong" if st == "xong" else "qua_han" if late else "chua" if st == "chua" else "dang"
+            cs[a["n"]] = "xong" if st == "xong" else "qua_han" if (a.get("due") or due) and today > (a.get("due") or due) else "chua" if st == "chua" else "dang"
         p = progress_pct(acts, cells) or 0
         rows.append({"key": k, "cells": cs, "progress": p, "mastery": mastery(acts, cells)[1], "state": "xong" if p == 100 else "dang" if started else "chua"})
     return rows
@@ -993,11 +1009,60 @@ def submit_sheet(auth, aid, ans, now):
     if (miss["mc"] or miss["tf"] or miss["sa"]) and not expired:
         raise Denied("Chưa làm đủ các ô, còn thiếu: " + missing_text(miss))
     g = grade_sheet(cfg, clean)
-    hs.tbl_append("sheetsubs", SSUB_H, [aid, auth["cls"], auth["key"], now, json.dumps(clean, ensure_ascii=False), g["score"],
-                                        json.dumps({"detail": g["detail"], "max": g["max"], "right": g["right"]}, ensure_ascii=False)])
+    act = next((x for x in activities(auth, aid) if x["auto"] == AUTO_SHEET), None)
+    with _SUBMIT_LOCK:                                    # kiểm tra số lần và ghi cùng một lúc, nộp đồng thời không lách được
+        used = sum(1 for r in hs.tbl_read("sheetsubs", SSUB_H, force=True) if (r + [""] * 3)[0] == aid and hs.slug(r[2]) == hs.slug(auth["key"]))
+        if act and act["tries"] and used >= act["tries"]:
+            raise Denied(f"Em đã dùng hết {act['tries']} lần làm bài này. Hãy nhờ giáo viên cho làm lại.")
+        hs.tbl_append("sheetsubs", SSUB_H, [aid, auth["cls"], auth["key"], now, json.dumps(clean, ensure_ascii=False), g["score"],
+                                            json.dumps({"detail": g["detail"], "max": g["max"], "right": g["right"]}, ensure_ascii=False)])
+        if act:
+            d = g["detail"]
+            wrong = {"mc": [i + 1 for i, x in enumerate(d["mc"]) if x is False], "tf": [i + 1 for i, x in enumerate(d["tf"]) if isinstance(x, list) and False in x],
+                     "sa": [i + 1 for i, x in enumerate(d["sa"]) if x is False]}
+            t0 = get_start(auth, aid) if mins else None
+            sec = int(time.time() - t0) if t0 else ""
+            hs.tbl_append("activity_attempts", ATTEMPT_H, [aid, act["n"], auth["cls"], auth["key"], t0 or "", now, sec, round(100 * g["score"] / g["max"]) if g["max"] else 0,
+                                                            json.dumps(wrong), "1" if act["due"] and now[:10] > act["due"] else "0"])
     if mins:
         clear_start(auth, aid)
+    if act:
+        refresh_mastery(auth, aid, now)
     return g
+
+
+def attempts(auth, aid, student=None, force=False):
+    """Lịch sử các lần làm phiếu của hoạt động: thời điểm, thời gian, điểm %, câu sai, nộp muộn. Học sinh chỉ xem của mình."""
+    if is_student(auth):
+        student = auth["key"]
+    elif not is_teacher(auth):
+        raise Denied("Cần đăng nhập.")
+    out = []
+    for r in hs.tbl_read("activity_attempts", ATTEMPT_H, force=force):
+        r = r + [""] * (10 - len(r))
+        if r[0] == aid and (not student or hs.slug(r[3]) == hs.slug(student)):
+            try:
+                wrong = json.loads(r[8])
+            except ValueError:
+                wrong = {}
+            out.append({"student": r[3], "ts": r[5], "sec": int(_f(r[6], 0)) or None, "pct": _f(r[7], 0), "wrong": wrong, "late": r[9] == "1"})
+    return out
+
+
+def reset_attempts(auth, aid, student):
+    """Giáo viên cho một học sinh làm lại: xóa các lần nộp phiếu của em (lịch sử lượt làm vẫn giữ để theo dõi)."""
+    _need_teacher(auth)
+    rows = hs.tbl_read("sheetsubs", SSUB_H, force=True)
+    keep = [r for r in rows if not ((r + [""] * 3)[0] == aid and hs.slug(r[2]) == hs.slug(student))]
+    if len(keep) != len(rows):
+        hs.tbl_write("sheetsubs", SSUB_H, keep)
+    qn = {str(x["n"]) for x in activities(auth, aid) if x["auto"] == AUTO_QUIZ}
+    if qn:                                               # làm lại hoạt động trắc nghiệm: xóa các lượt của em ở hoạt động quiz
+        at = hs.tbl_read("activity_attempts", ATTEMPT_H, force=True)
+        left = [r for r in at if not ((r + [""] * 4)[0] == aid and r[1] in qn and hs.slug(r[3]) == hs.slug(student))]
+        if len(left) != len(at):
+            hs.tbl_write("activity_attempts", ATTEMPT_H, left)
+    return len(rows) - len(keep)
 
 
 def sheet_results(auth, aid, student=None, force=False):
@@ -1663,3 +1728,135 @@ def profile(subs, max_tries=3):
                   key=lambda r: (-r["pct"], -r["wrong"], r["topic"]))
     return {"attempts": len(subs), "done": len(tries), "finished": len(finished), "solved": len(solved),
             "accuracy": round(100 * right / len(subs)), "weak": weak, "solved_keys": sorted(solved)}
+
+
+# ---------------- AI đề xuất hoạt động từ tài liệu (chỉ là bản nháp, giáo viên duyệt) ----------------
+ACT_TYPES = ["Đọc tài liệu", "Xem video", "Trắc nghiệm", "Tự luận", "Điền khuyết", "Cân bằng phương trình", "Phân tích cấu trúc phân tử", "Nhận diện chất",
+             "Bài tập vận dụng", "Báo cáo thí nghiệm", "Sản phẩm học tập", "Kiểm tra cuối bài"]
+_AUTO_BY_TYPE = {"Tự luận": AUTO_FILE, "Báo cáo thí nghiệm": AUTO_FILE, "Sản phẩm học tập": AUTO_FILE, "Bài tập vận dụng": AUTO_FILE}
+
+
+def ai_prompt(text, max_chars=14000):
+    return ("Bạn là giáo viên Hóa học phổ thông giàu kinh nghiệm. Dưới đây là tài liệu học tập giáo viên tải lên. Hãy đề xuất chia thành 3-7 hoạt động học tập độc lập, "
+            "theo thứ tự hợp lý. Chỉ dựa vào nội dung tài liệu, không bịa kiến thức ngoài tài liệu. Trả về DUY NHẤT một JSON dạng:\n"
+            '{"hoat_dong": [{"name": "tên ngắn", "type": "một trong: ' + "; ".join(ACT_TYPES) + '", "goal": "mục tiêu học tập", "desc": "hướng dẫn thực hiện (dưới 250 ký tự)", '
+            '"mins": số phút, "max": điểm tối đa, "weight": trọng số (số dương), "pass_pct": ngưỡng đạt 0-100, "topic": "chủ đề Hóa học", '
+            '"level": "nb | th | vd (nhận biết, thông hiểu, vận dụng)", "questions": [{"q": "câu hỏi", "options": ["A. ...", "B. ..."] hoặc [], "answer": "đáp án", "level": "nb | th | vd"}]}]}\n'
+            "Hoạt động Đọc tài liệu và Xem video không cần câu hỏi trừ khi cần kiểm tra hiểu nội dung. Mỗi hoạt động có câu hỏi: 2-5 câu.\n\nTÀI LIỆU:\n" + str(text)[:max_chars])
+
+
+def parse_ai_activities(raw):
+    """Đọc JSON AI trả về, làm sạch và giới hạn giá trị. Trả về (danh sách hoạt động cho bảng soạn, {tên: [câu hỏi nháp]}). Lỗi định dạng -> ValueError."""
+    t = re.sub(r"^```(?:json)?|```$", "", str(raw or "").strip(), flags=re.M).strip()
+    try:
+        data = json.loads(t[t.index("{"): t.rindex("}") + 1])
+        items = data["hoat_dong"]
+    except (ValueError, KeyError, TypeError):
+        raise ValueError("AI trả về nội dung không đúng định dạng.")
+    acts, qs = [], {}
+    for it in items[:10]:
+        if not isinstance(it, dict) or not clean_name(str(it.get("name", ""))):
+            continue
+        typ = it.get("type") if it.get("type") in ACT_TYPES else "Bài tập vận dụng"
+        name = clean_name(str(it["name"]))[:80]
+        acts.append({"name": name, "type": typ, "goal": str(it.get("goal", ""))[:200], "desc": str(it.get("desc", ""))[:300], "mins": max(0, min(int(_f(it.get("mins"), 10)), 120)),
+                     "max": max(0, min(_f(it.get("max"), 10), 100)), "weight": max(0.1, min(_f(it.get("weight"), 1), 10)), "pass_pct": max(0, min(_f(it.get("pass_pct"), 50), 100)),
+                     "topic": str(it.get("topic", ""))[:60], "level": it.get("level") if it.get("level") in LEVEL_W else "th", "req": True, "auto": _AUTO_BY_TYPE.get(typ, AUTO_NONE), "due": ""})
+        qs[name] = [{"q": str(q.get("q", ""))[:400], "options": [str(o)[:200] for o in (q.get("options") or [])][:6], "answer": str(q.get("answer", ""))[:200],
+                     "level": q.get("level") if q.get("level") in LEVEL_W else "th"} for q in (it.get("questions") or [])[:8] if isinstance(q, dict) and q.get("q")]
+    if not acts:
+        raise ValueError("AI không đề xuất được hoạt động nào từ tài liệu này.")
+    return acts, qs
+
+
+# ---------------- Trắc nghiệm trong từng hoạt động, tài liệu riêng, lưu mức thành thạo ----------------
+def set_questions(auth, aid, n, qs):
+    """Giáo viên đặt câu hỏi cho hoạt động loại quiz. Mỗi câu: q, options (rỗng = trả lời ngắn), answer ('B' hoặc đáp án; ngắn thì nhiều cách viết cách nhau ;), level."""
+    _need_teacher(auth)
+    if not _find_asg(aid):
+        raise Denied("Không tìm thấy bài giao.")
+    keep = [r for r in hs.tbl_read("activity_questions", QUES_H, force=True) if not ((r + [""])[0] == aid and (r + ["", ""])[1] == str(n))]
+    i = 0
+    for q in qs or []:
+        if not str(q.get("q", "")).strip() or not str(q.get("answer", "")).strip():
+            continue
+        i += 1
+        opts = [str(o).strip()[:200] for o in (q.get("options") or []) if str(o).strip()][:6]
+        opts = [o if re.match(r"^[A-F][\.\):]", o) else f"{chr(65 + j)}. {o}" for j, o in enumerate(opts)]
+        keep.append([aid, n, i, json.dumps({"q": str(q["q"]).strip()[:400], "options": opts, "answer": str(q["answer"]).strip()[:200],
+                                            "level": q.get("level") if q.get("level") in LEVEL_W else "th"}, ensure_ascii=False)])
+    hs.tbl_write("activity_questions", QUES_H, keep)
+    return i
+
+
+def questions(auth, aid, n, force=False):
+    """Câu hỏi của hoạt động. Học sinh không nhận được đáp án."""
+    asg = _find_asg(aid)
+    if not asg or not (is_teacher(auth) or (is_student(auth) and auth["cls"] == asg[1])):
+        raise Denied("Không có quyền xem câu hỏi.")
+    out = []
+    for r in hs.tbl_read("activity_questions", QUES_H, force=force):
+        r = r + [""] * (4 - len(r))
+        if r[0] == aid and r[1] == str(n):
+            try:
+                q = json.loads(r[3])
+            except ValueError:
+                continue
+            out.append(q if is_teacher(auth) else {k: v for k, v in q.items() if k != "answer"})
+    return out
+
+
+def _right(q, given):
+    given = str(given or "").strip()
+    if q["options"]:
+        return bool(given) and given[:1].upper() == q["answer"].strip()[:1].upper()
+    return _sa_match(given, q["answer"])
+
+
+def submit_quiz(auth, aid, n, answers, now):
+    """Học sinh nộp bài trắc nghiệm của hoạt động. Chấm ở máy chủ, chặn quá số lần, không lộ đáp án. Trả về {'pct','right':[bool]}."""
+    if not is_student(auth):
+        raise Denied("Cần đăng nhập học sinh.")
+    act = next((x for x in activities(auth, aid) if x["n"] == n and x["auto"] == AUTO_QUIZ), None)
+    qs = [q for q in questions(teacher_view(), aid, n, force=True)] if act else []
+    if not act or not qs:
+        raise Denied("Hoạt động này chưa có câu hỏi.")
+    ans = [str((answers or [])[i] if i < len(answers or []) else "").strip()[:60] for i in range(len(qs))]
+    if any(not x for x in ans):
+        raise Denied("Chưa trả lời hết các câu: câu " + ", ".join(str(i + 1) for i, x in enumerate(ans) if not x) + ".")
+    right = [_right(q, g) for q, g in zip(qs, ans)]
+    pct = round(100 * sum(right) / len(qs))
+    with _SUBMIT_LOCK:
+        used = sum(1 for r in hs.tbl_read("activity_attempts", ATTEMPT_H, force=True) if (r + [""] * 4)[0] == aid and r[1] == str(n) and hs.slug(r[3]) == hs.slug(auth["key"]))
+        if act["tries"] and used >= act["tries"]:
+            raise Denied(f"Em đã dùng hết {act['tries']} lần làm hoạt động này. Hãy nhờ giáo viên cho làm lại.")
+        hs.tbl_append("activity_attempts", ATTEMPT_H, [aid, n, auth["cls"], auth["key"], "", now, "", pct, json.dumps({"q": [i + 1 for i, ok in enumerate(right) if not ok], "a": ans}),
+                                                        "1" if act["due"] and now[:10] > act["due"] else "0"])
+    refresh_mastery(auth, aid, now)
+    return {"pct": pct, "right": right}
+
+
+def teacher_view():
+    return {"role": TEACHER}
+
+
+def refresh_mastery(auth, aid, now=""):
+    """Tính lại và lưu mức thành thạo theo chủ đề của học sinh cho bài này (bảng KnowledgeMastery). Lỗi lưu không làm hỏng việc nộp bài."""
+    try:
+        acts, st = activity_states(auth, aid, force=True)
+        m, _ = mastery(acts, st.get(hs.slug(auth["key"]), {}))
+        keep = [r for r in hs.tbl_read("knowledge_mastery", MAST_H, force=True) if not ((r + [""] * 3)[2] == aid and hs.slug(r[0]) == hs.slug(auth["key"]))]
+        keep += [[auth["key"], auth["cls"], aid, t, "" if v["pct"] is None else v["pct"], v["n"], now] for t, v in m.items()]
+        hs.tbl_write("knowledge_mastery", MAST_H, keep)
+    except (OSError, Denied):
+        pass
+
+
+def set_activity_files(auth, aid, n, ids):
+    _need_teacher(auth)
+    keep = [r for r in hs.tbl_read("activity_files", ALINK_H, force=True) if not ((r + [""])[0] == aid and (r + ["", ""])[1] == str(n))]
+    hs.tbl_write("activity_files", ALINK_H, keep + [[aid, n, i] for i in ids])
+
+
+def activity_files(aid, n):
+    return {(r + ["", "", ""])[2] for r in hs.tbl_read("activity_files", ALINK_H) if (r + [""])[0] == aid and (r + ["", ""])[1] == str(n)}
