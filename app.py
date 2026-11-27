@@ -6216,6 +6216,49 @@ def practice_progress(prof):
             "pct": min(100, round(100 * done / total))}
 
 
+_KQ_LABEL = {"dung": ("✅", "Đúng", "Correct"), "dong_phan": ("❌", "Sai: vẽ đồng phân khác", "Wrong: a different isomer"),
+             "sai_cong_thuc": ("❌", "Sai công thức phân tử", "Wrong molecular formula"),
+             "loi": ("❌", "Công thức có lỗi", "The formula has errors"), "sai": ("❌", "Sai", "Wrong")}
+
+
+def practice_review_ui():
+    """Học sinh xem lại từng bài luyện tập đã làm: bài làm của mình, đúng hay sai ở mỗi lần nộp, và đáp án khi đã hoàn thành."""
+    try:
+        subs = [r for r in cr.submissions(cur_auth()) if r["q"].partition(":")[2] in BANK_BY_NAME]
+    except Exception:
+        return
+    if not subs:
+        return
+    by = {}
+    for r in sorted(subs, key=lambda r: r["ts"]):
+        by.setdefault(r["q"], []).append(r)
+    st.markdown("#### " + tx("Xem lại bài đã làm", "Review my exercises"))
+    for qk, rows in sorted(by.items(), key=lambda kv: kv[1][-1]["ts"], reverse=True):
+        k, _, n = qk.partition(":")
+        ten, smi, alias = BANK_BY_NAME[n]
+        mt = Chem.MolFromSmiles(smi)
+        ok = any(r["result"] == "dung" for r in rows)
+        finished = ok or len(rows) >= MAX_TRIES
+        kind = tx("vẽ công thức", "draw formula") if k == "draw" else tx("gọi tên", "name it")
+        head = f"{'✅' if ok else '❌'} {ten} · {kind} · {rows[-1]['ts'][:16]}"
+        with st.expander(head):
+            for r in rows:
+                ic, vi, en = _KQ_LABEL.get(r["result"], ("❌", "Sai", "Wrong"))
+                st.markdown(f"{tx('Lần', 'Attempt')} {r['attempt']}: `{r['given'] or '—'}` → {ic} **{tx(vi, en)}**")
+            if k == "draw" and rows[-1]["given"]:
+                im = draw_student(rows[-1]["given"])
+                if im is not None:
+                    st.caption(tx("Hình em vẽ ở lần nộp cuối:", "Your drawing from the last attempt:"))
+                    st.image(im)
+            if finished:
+                st.markdown("**" + tx("Đáp án", "Answer") + "**")
+                st.image(Draw.MolToImage(mt, size=(300, 200)))
+                st.markdown(f"**{ten}** · {pretty(formula_of(mt))} · `{smi}`")
+            else:
+                st.caption(tx(f"Còn {MAX_TRIES - len(rows)} lần thử. Đáp án sẽ hiện khi em làm đúng hoặc dùng hết {MAX_TRIES} lần.",
+                              f"{MAX_TRIES - len(rows)} attempts left. The answer shows once you get it right or use all {MAX_TRIES} attempts."))
+
+
 def my_history_ui():
     """Lịch sử của chính học sinh đang dùng, gom từ mọi tab."""
     who = student_name()
@@ -6240,6 +6283,8 @@ def my_history_ui():
             m4.metric(tx("Chưa làm", "Not done"), max(0, pg["total"] - pg["done"]))
             st.caption(tx("Làm đúng hay sai đều được tính vào tiến độ; bài chưa làm là phần còn lại.",
                           "Right or wrong, every attempt counts towards progress; the rest are not done yet."))
+    if who:
+        practice_review_ui()
     if not items:
         st.caption(tx("Chưa có lượt tra cứu nào.", "No lookups yet."))
         return
