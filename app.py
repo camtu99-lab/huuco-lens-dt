@@ -2960,8 +2960,8 @@ def answer_sheet_ui(a, atts=()):
     """Học sinh làm bài: các ô chọn A–D, Đúng/Sai, nhập đáp án nằm ngay trong đề (nếu ghép được), không thì dùng phiếu rời. Chấm tự động."""
     au = cur_auth()
     try:
-        sh = cr.get_sheet(au, a["id"], force=True)
-        mine = cr.sheet_results(au, a["id"], force=True) if sh else []
+        sh = cr.get_sheet(au, a["id"])
+        mine = cr.sheet_results(au, a["id"]) if sh else []
     except (OSError, cr.Denied) as e:
         st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         return
@@ -3092,8 +3092,8 @@ def answer_sheet_ui(a, atts=()):
 def sheet_results_ui(a):
     """Giáo viên xem điểm phiếu trả lời của lớp và câu nào hay sai."""
     try:
-        sh = cr.get_sheet(cur_auth(), a["id"], force=True)
-        subs = cr.sheet_results(cur_auth(), a["id"], force=True) if sh else []
+        sh = cr.get_sheet(cur_auth(), a["id"])
+        subs = cr.sheet_results(cur_auth(), a["id"]) if sh else []
     except OSError:
         st.error(hs.last_error)
         return
@@ -3166,7 +3166,7 @@ def student_quiz_ui(a, x):
     """Học sinh làm trắc nghiệm / trả lời ngắn của một hoạt động; chấm ở máy chủ, chỉ hiện đúng/sai từng câu, không lộ đáp án."""
     au, k = cur_auth(), f"qz_{a['id']}_{x['n']}"
     try:
-        qs = cr.questions(au, a["id"], x["n"], force=True)
+        qs = cr.questions(au, a["id"], x["n"])
     except (OSError, cr.Denied) as e:
         st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         return
@@ -3194,7 +3194,7 @@ def student_quiz_ui(a, x):
 def quiz_editor_ui(a, x):
     """Giáo viên soạn câu hỏi cho hoạt động trắc nghiệm: để trống A-D thì là câu trả lời ngắn (đáp án nhiều cách viết cách nhau ;)."""
     strip = lambda o: re.sub(r"^[A-F][\.\):]\s*", "", o)
-    ex = cr.questions(cur_auth(), a["id"], x["n"], force=True)
+    ex = cr.questions(cur_auth(), a["id"], x["n"])
     rows = [{"Câu hỏi": q["q"], **{c: strip(q["options"][i]) if i < len(q["options"]) else "" for i, c in enumerate("ABCD")}, "Đáp án": q["answer"], "Mức": _LV[q["level"]]} for q in ex]
     ed = st.data_editor(rows or [{"Câu hỏi": "", "A": "", "B": "", "C": "", "D": "", "Đáp án": "", "Mức": _LV["th"]}], num_rows="dynamic", hide_index=True, width="stretch", key=f"qe_{a['id']}_{x['n']}",
                         column_config={"Mức": st.column_config.SelectboxColumn(options=list(_LV.values()), required=True)})
@@ -3306,7 +3306,7 @@ def _xlsx_report(a, acts, states, rows):
         w2.append([r["key"].rsplit(" [", 1)[0]] + [("chưa đủ dữ liệu" if m[t]["pct"] is None else m[t]["pct"]) if t in m else "" for t in topics])
     w3 = wb.create_sheet("Lịch sử làm bài")
     w3.append(["Học sinh", "Nộp lúc", "Thời gian (phút)", "Điểm %", "Câu sai", "Nộp muộn"])
-    for r in cr.attempts(cur_auth(), a["id"], force=True):
+    for r in cr.attempts(cur_auth(), a["id"]):
         w3.append([r["student"].rsplit(" [", 1)[0], r["ts"], round(r["sec"] / 60, 1) if r["sec"] else "", r["pct"], "; ".join(f"{k.upper()}: {', '.join(map(str, v))}" for k, v in r["wrong"].items() if v and k != "a"), "Muộn" if r["late"] else ""])
     buf = io.BytesIO()
     wb.save(buf)
@@ -3375,7 +3375,7 @@ def student_activities_ui(a):
 def teacher_activity_progress_ui(a, stu):
     """Giáo viên: tổng quan, ma trận học sinh x hoạt động, hoạt động nào chưa làm, chấm bài nộp tệp, chi tiết từng học sinh, xuất Excel (CSV)."""
     try:
-        acts, states = cr.activity_states(cur_auth(), a["id"], force=True)
+        acts, states = cr.activity_states(cur_auth(), a["id"], force=st.button(tx("🔄 Tải lại số liệu hoạt động"), key=f"act_rf_{a['id']}"))
         if not acts:
             return
         seq = cr.is_sequential(a["id"])
@@ -3424,7 +3424,7 @@ def teacher_activity_progress_ui(a, stu):
         mast, overall = cr.mastery(acts, cells)
         st.dataframe([{tx("Hoạt động"): f"{x['n']}. {x['name']}", tx("Trạng thái"): _ST[(cells.get(x['n']) or {}).get('st', 'chua')][1], tx("Điểm %"): (cells.get(x['n']) or {}).get("pct"),
                        tx("Số lần"): (cells.get(x['n']) or {}).get("tries", 0), tx("Chủ đề"): x["topic"], tx("Mức"): _LV[x["level"]]} for x in acts], hide_index=True, width="stretch")
-        att = cr.attempts(cur_auth(), a["id"], who, force=True)
+        att = cr.attempts(cur_auth(), a["id"], who)
         if att:
             st.markdown("**" + tx("Lịch sử làm bài") + "**")
             st.dataframe([{tx("Lần"): i + 1, tx("Nộp lúc"): r["ts"], tx("Thời gian (phút)"): round(r["sec"] / 60, 1) if r["sec"] else "–", tx("Điểm %"): r["pct"],
@@ -7015,7 +7015,7 @@ def teacher_assign_ui():
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
             st.caption(tx("Chỉ áp dụng cho bài làm trên phiếu trả lời. Học sinh phải bấm Bắt đầu thì đồng hồ mới chạy.", "Applies to the online answer sheet only. The clock starts when the student presses Start."))
         try:
-            ex_acts = cr.activities(cur_auth(), a["id"], force=True)
+            ex_acts = cr.activities(cur_auth(), a["id"])
         except (OSError, cr.Denied):
             ex_acts = []
         with st.expander(tx(f"🧩 Hoạt động ({len(ex_acts)})", f"🧩 Activities ({len(ex_acts)})")):
@@ -7044,7 +7044,7 @@ def teacher_assign_ui():
             if len(atts) < cr.MAX_ATT:
                 upload_ui(a["id"], cr.ATT, f"tau_{a['id']}", tx("Thêm tệp đính kèm", "Add attachment"), True)
         try:
-            ex_sheet = cr.get_sheet(cur_auth(), a["id"], force=True)
+            ex_sheet = cr.get_sheet(cur_auth(), a["id"])
         except OSError:
             ex_sheet = None
         with st.expander(tx("📝 Phiếu trả lời" + (" (đã có)" if ex_sheet else " (chưa có)"), "📝 Answer sheet" + (" (set)" if ex_sheet else " (none)"))):

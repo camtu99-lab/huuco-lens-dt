@@ -40,7 +40,7 @@ _BOOK = None             # bảng tính đang mở
 _TBL = {}                # tên bảng chung -> {"ws":..., "rows":..., "t":...}
 _WS = None               # (bảng "lookups", bảng "visits")
 _CACHE = {"t": 0.0, "look": None, "vis": None}
-_TTL = 20                # giây giữ bản đọc trong bộ nhớ để không gọi API mỗi lần chạy lại trang
+_TTL = 45                # giây giữ bản đọc trong bộ nhớ để không gọi API mỗi lần chạy lại trang
 LOOK_HEAD = ["hoc_sinh", "ngay", "gio", "loai", "noi_dung", "du_lieu_tra_lai"]
 VIS_HEAD = ["hoc_sinh", "thoi_diem"]
 
@@ -452,10 +452,14 @@ def tbl_read(name, head, force=False):
             c = _TBL.get(name)
             if c and c["rows"] is not None and not force and time.time() - c["t"] < _TTL:
                 return [list(r) for r in c["rows"]]
+            stale = [list(r) for r in c["rows"]] if c and c["rows"] is not None else None
             try:
                 c = _tbl_ws(name, head)
                 vals = _s_call(c["ws"].get_all_values)
             except OSError:
+                if stale is not None:                      # hết hạn mức đọc / mất mạng: dùng bản đã nhớ, thử lại sau ~15 giây
+                    c["t"] = time.time() - _TTL + 15
+                    return stale
                 raise
             except Exception as e:
                 raise OSError(_set_err(e))

@@ -1818,7 +1818,7 @@ def submit_quiz(auth, aid, n, answers, now):
     if not is_student(auth):
         raise Denied("Cần đăng nhập học sinh.")
     act = next((x for x in activities(auth, aid) if x["n"] == n and x["auto"] == AUTO_QUIZ), None)
-    qs = [q for q in questions(teacher_view(), aid, n, force=True)] if act else []
+    qs = [q for q in questions(teacher_view(), aid, n)] if act else []
     if not act or not qs:
         raise Denied("Hoạt động này chưa có câu hỏi.")
     ans = [str((answers or [])[i] if i < len(answers or []) else "").strip()[:60] for i in range(len(qs))]
@@ -1843,9 +1843,9 @@ def teacher_view():
 def refresh_mastery(auth, aid, now=""):
     """Tính lại và lưu mức thành thạo theo chủ đề của học sinh cho bài này (bảng KnowledgeMastery). Lỗi lưu không làm hỏng việc nộp bài."""
     try:
-        acts, st = activity_states(auth, aid, force=True)
+        acts, st = activity_states(auth, aid)
         m, _ = mastery(acts, st.get(hs.slug(auth["key"]), {}))
-        keep = [r for r in hs.tbl_read("knowledge_mastery", MAST_H, force=True) if not ((r + [""] * 3)[2] == aid and hs.slug(r[0]) == hs.slug(auth["key"]))]
+        keep = [r for r in hs.tbl_read("knowledge_mastery", MAST_H) if not ((r + [""] * 3)[2] == aid and hs.slug(r[0]) == hs.slug(auth["key"]))]
         keep += [[auth["key"], auth["cls"], aid, t, "" if v["pct"] is None else v["pct"], v["n"], now] for t, v in m.items()]
         hs.tbl_write("knowledge_mastery", MAST_H, keep)
     except (OSError, Denied):
