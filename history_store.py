@@ -409,11 +409,15 @@ def delete(name):
             look, vis = _s_rows(True)
             _s_call(lambda: _s_rewrite(look=[r for r in look if not (r and slug(r[0]) == sl)],
                                        vis=[r for r in vis if not (r and slug(r[0]) == sl)]))
-        return
-    p = _path(name)
-    if p and os.path.exists(p):
-        with _LOCK:
-            os.remove(p)
+    else:
+        p = _path(name)
+        if p and os.path.exists(p):
+            with _LOCK:
+                os.remove(p)
+    try:
+        res_clear(name)
+    except OSError:
+        pass
 
 
 def to_csv(rows, tab_of=None):
@@ -557,3 +561,75 @@ def _tbl_save_local(name, rows):
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
+
+
+# =====================================================================
+# Kết quả đã tra cứu (để mở lại xem, không gọi AI lần nữa)
+# =====================================================================
+# Mỗi kết quả là một chuỗi JSON nén (zlib + base64), cắt thành các mảnh <= RES_CHUNK ký tự
+# (ô Google Sheets tối đa 50.000 ký tự). Dòng: [học sinh (slug), mã kết quả, số thứ tự mảnh, tổng số mảnh, dữ liệu].
+RES_TABLE = "results"
+RES_HEAD = ["student", "rid", "part", "parts", "data"]
+RES_CHUNK = 40000
+RES_MAX = 1_500_000      # chuỗi nén lớn hơn mức này thì không lưu (tránh làm đầy bảng tính)
+
+
+def _pack(text):
+    import base64
+    import zlib
+    return base64.b64encode(zlib.compress(text.encode("utf-8"), 9)).decode("ascii")
+
+
+def _unpack(blob):
+    import base64
+    import zlib
+    return zlib.decompress(base64.b64decode(blob)).decode("utf-8")
+
+
+def res_put(name, rid, text):
+    """Lưu (ghi đè) kết quả `text` của học sinh `name` với mã `rid`. False nếu không có tên hoặc quá lớn."""
+    sl = slug(name)
+    if not sl or not rid:
+        return False
+    blob = _pack(text)
+    if len(blob) > RES_MAX:
+        return False
+    parts = [blob[i:i + RES_CHUNK] for i in range(0, len(blob), RES_CHUNK)] or [""]
+    rows = [[sl, rid, i, len(parts), p] for i, p in enumerate(parts)]
+    with _LOCK:
+        old = tbl_read(RES_TABLE, RES_HEAD, force=True)
+        if any(r and r[0] == sl and r[1] == rid for r in old):   # ghi đè: bỏ các mảnh cũ
+            tbl_write(RES_TABLE, RES_HEAD, [r for r in old if not (r and r[0] == sl and r[1] == rid)] + rows)
+        else:
+            tbl_append_many(RES_TABLE, RES_HEAD, rows)
+    return True
+
+
+def res_get(name, rid):
+    """Chuỗi kết quả đã lưu, hoặc None nếu không có / hỏng."""
+    sl = slug(name)
+    if not sl or not rid:
+        return None
+    rows = [r for r in tbl_read(RES_TABLE, RES_HEAD) if len(r) >= 5 and r[0] == sl and r[1] == rid]
+    if not rows:
+        return None
+    try:
+        rows.sort(key=lambda r: int(r[2]))
+        if len(rows) != int(rows[0][3]):
+            return None
+        return _unpack("".join(r[4] for r in rows))
+    except (ValueError, OSError, UnicodeError, Exception):
+        return None
+
+
+def res_clear(name, rids=None):
+    """Xóa kết quả đã lưu của học sinh: tất cả, hoặc chỉ các mã trong `rids`."""
+    sl = slug(name)
+    if not sl:
+        return
+    rs = set(rids) if rids is not None else None
+    with _LOCK:
+        old = tbl_read(RES_TABLE, RES_HEAD, force=True)
+        keep = [r for r in old if not (r and r[0] == sl and (rs is None or r[1] in rs))]
+        if len(keep) != len(old):
+            tbl_write(RES_TABLE, RES_HEAD, keep)

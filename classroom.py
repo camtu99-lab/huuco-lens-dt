@@ -1380,6 +1380,23 @@ def clear_history(auth, who, kinds=None):
     hs.clear(who, kinds) if kinds else hs.clear(who)
 
 
+def save_result(auth, who, rid, text):
+    _need_own(auth, who)
+    return hs.res_put(who, rid, text)
+
+
+def read_result(auth, who, rid):
+    if is_teacher(auth):
+        return hs.res_get(who, rid)
+    _need_own(auth, who)
+    return hs.res_get(who, rid)
+
+
+def clear_results(auth, who, rids=None):
+    _need_own(auth, who)
+    hs.res_clear(who, rids)
+
+
 def touch_visit(auth, who, ts):
     _need_own(auth, who)
     hs.touch(who, ts)

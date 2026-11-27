@@ -1066,7 +1066,7 @@ def reaction_ui():
                         _lbl = (_items[0].get('phuong_trinh') if _items else None) or txt or 'Phương trình'
                         if len(_items) > 1:
                             _lbl = f"{_lbl[:45]} (+{len(_items) - 1} phương trình)"
-                        add_history(_lbl[:60], 'Phản ứng')
+                        log_result(_lbl[:60], 'Phản ứng')
                         st.session_state.n += 1
                     except Exception as e:
                         st.session_state.rx = None
@@ -1728,7 +1728,7 @@ def isomer_ui():
                                         if want_names and 0 < len(res["kept"]) <= 60:
                                             nm = ai_names([k["smiles"] for k in res["kept"]])
                                         st.session_state.iso, st.session_state.iso_nm, st.session_state.iso_und = res, nm, und
-                                        add_history(pretty(res['fkey']), 'Đồng phân')
+                                        log_result(pretty(res['fkey']), 'Đồng phân')
                                         if ai_used:
                                             st.session_state.n += 1
                         except Exception as e:
@@ -1862,7 +1862,7 @@ def equipment_ui():
                 with st.spinner("Đang phân tích…"):
                     try:
                         st.session_state.eq = analyze_equipment(img, txt)
-                        add_history(txt or ', '.join(str(t.get('ten', '')) for t in ((st.session_state.eq or {}).get('dung_cu') or [])[:2]) or 'Dụng cụ', 'Dụng cụ')
+                        log_result(txt or ', '.join(str(t.get('ten', '')) for t in ((st.session_state.eq or {}).get('dung_cu') or [])[:2]) or 'Dụng cụ', 'Dụng cụ')
                         st.session_state.n += 1
                     except Exception as e:
                         st.session_state.eq = None
@@ -3784,7 +3784,7 @@ def _mm_photo_inputs(top):
                     note = raw.get("ghi_chu")
                     st.session_state.mm = {"title": title, "branches": branches, "smiles": "", "rev": int(time.time() * 1000),
                                            "note": note if note and str(note).lower() != "null" else "", "photo": img}
-                    add_history(title, "Sơ đồ")
+                    log_result(title, "Sơ đồ")
                     st.session_state.n += 1
             except Exception as e:
                 st.session_state.mm = None
@@ -3817,7 +3817,7 @@ def _mm_topic_inputs(top):
                             branches.append({"ten": "Số liệu (máy tính)", "y": facts, "color": "#57817f"})
                         st.session_state.mm = {"title": str(raw.get("chu_de") or topic)[:60], "branches": branches,
                                                "smiles": smi if facts else "", "rev": int(time.time() * 1000)}
-                        add_history(st.session_state.mm['title'], 'Sơ đồ')
+                        log_result(st.session_state.mm['title'], 'Sơ đồ')
                         st.session_state.n += 1
                 except Exception as e:
                     st.session_state.mm = None
@@ -4402,6 +4402,72 @@ def add_history(label, kind="Công thức", payload=None):
             pass   # ổ đĩa chỉ đọc: vẫn giữ trong phiên
 
 
+# ---- Lưu kết quả để mở lại xem (không gọi AI lần nữa) ----
+# Mỗi lượt tra cứu có "p": {"rid": mã}. Nội dung kết quả lưu riêng theo mã đó (history_store.res_*),
+# khách thì giữ trong phiên.
+SNAP_KEYS = {"Phản ứng": ("rx",), "Dụng cụ": ("eq",), "Sơ đồ": ("mm",),
+             "Đồng phân": ("iso", "iso_nm", "iso_und"), "Mô phỏng": ("sim",), "Hỏi đáp": ("qa",)}
+_SNAP_DROP = {"photo", "am", "am_dur", "am_ket", "am_ket_dur"}   # ảnh gốc và âm thanh AI quá nặng, không lưu
+
+
+def _snap_clean(o):
+    if isinstance(o, dict):
+        return {str(k): _snap_clean(v) for k, v in o.items() if k not in _SNAP_DROP and not isinstance(v, (bytes, bytearray))}
+    if isinstance(o, (list, tuple, set, frozenset)):
+        return [_snap_clean(v) for v in o if not isinstance(v, (bytes, bytearray))]
+    if isinstance(o, (str, int, float, bool)) or o is None:
+        return o
+    return str(o)
+
+
+def log_result(label, kind, data=None):
+    """Ghi lượt tra cứu kèm kết quả đã có trong phiên (hoặc `data`), để lần sau mở lại xem ngay."""
+    label = (label or "").strip()
+    if not label:
+        return
+    h = st.session_state.hist
+    now = _now()
+    if h and h[0].get("q") == label[:200] and h[0].get("k") == kind and (h[0].get("p") or {}).get("rid"):
+        rid = h[0]["p"]["rid"]   # tra lại đúng nội dung vừa rồi: ghi đè kết quả cũ
+    else:
+        rid = hashlib.sha1(f"{kind}|{label}|{now.isoformat()}|{random.random()}".encode()).hexdigest()[:14]
+    try:
+        if data is None:
+            data = {k: st.session_state.get(k) for k in SNAP_KEYS.get(kind, ())}
+        blob = json.dumps(_snap_clean(data), ensure_ascii=False)
+    except Exception:
+        blob = None
+    if blob:
+        st.session_state.setdefault("_snaps", {})[rid] = blob
+        who = student_name()
+        if who:
+            try:
+                cr.save_result(cur_auth(), who, rid, blob)
+            except OSError:
+                pass   # Sheets/ổ đĩa tạm lỗi: vẫn xem lại được trong phiên này
+    add_history(label, kind, {"rid": rid} if blob else None)
+
+
+def load_result(h):
+    """Kết quả đã lưu của một lượt (dict) hoặc None."""
+    rid = (h.get("p") or {}).get("rid")
+    if not rid:
+        return None
+    blob = st.session_state.get("_snaps", {}).get(rid)
+    if blob is None and student_name():
+        try:
+            blob = cr.read_result(cur_auth(), student_name(), rid)
+        except OSError:
+            blob = None
+        if blob:
+            st.session_state.setdefault("_snaps", {})[rid] = blob
+    try:
+        d = json.loads(blob) if blob else None
+    except ValueError:
+        return None
+    return d if isinstance(d, dict) else None
+
+
 def _hkey(x):
     return (x.get("d"), x.get("t"), x.get("k"), x.get("q"))
 
@@ -4718,7 +4784,6 @@ def assistant_ui():
     q = st.session_state.pop("pending_chat", None) or st.chat_input("Hỏi bất cứ điều gì về hóa học…", key="chat_in")
     if q:
         chat.append({"role": "user", "text": q})
-        add_history(q, "Hỏi đáp")
     with box:
         if not chat:
             st.markdown("Xin chào! Mình là trợ lý hóa học. Bạn cứ hỏi về công thức, phản ứng, danh pháp, đồng phân, cách làm bài tập... nhé.")
@@ -4727,6 +4792,7 @@ def assistant_ui():
                 st.markdown(m["text"])
         if q:
             with st.chat_message("assistant"):
+                got = False
                 if over_quota():
                     ans = "Bạn đã dùng hết số lượt của phiên này. Hãy tải lại trang để tiếp tục."
                     st.markdown(errbanner(ans), unsafe_allow_html=True)
@@ -4735,11 +4801,16 @@ def assistant_ui():
                         try:
                             ans = chat_ai(chat)
                             st.session_state.n += 1
+                            got = True
                         except Exception as e:
                             ans = "Có lỗi khi hỏi trợ lý, bạn thử lại sau nhé."
                             st.caption(f"Chi tiết kỹ thuật: {type(e).__name__}: {str(e)[:300]}")
                     st.markdown(ans)
             chat.append({"role": "assistant", "text": ans})
+            if got:
+                log_result(q, "Hỏi đáp", {"qa": [q, ans]})   # lưu cả câu trả lời để mở lại xem
+            else:
+                add_history(q, "Hỏi đáp")
         if chat and st.button("Xóa cuộc trò chuyện", key="chat_clear"):
             st.session_state.chat = []
             st.rerun()
@@ -5943,7 +6014,7 @@ def _sim_finish(sc):
     if over_quota() and "voice_note" not in st.session_state:
         st.session_state.voice_note = "trình duyệt (hết số lượt của phiên này)"
     st.session_state.sim = sc
-    add_history(sc["ten"][:60], "Mô phỏng")
+    log_result(sc["ten"][:60], "Mô phỏng")
 
 
 def _sim_make(top, q):
@@ -6149,12 +6220,59 @@ def rerun_hist(h):
         go(ASSIST)
 
 
+def open_saved(h):
+    """Mở lại kết quả đã lưu của một lượt: nạp vào đúng tab, KHÔNG gọi AI."""
+    d = load_result(h)
+    k = h.get("k")
+    if not d:
+        st.session_state["_toast"] = tx("Kết quả của lượt này không còn lưu. Hãy tra lại.", "This result is no longer saved. Please look it up again.")
+        rerun_hist(h)
+        return
+    if k == "Hỏi đáp":
+        qa = d.get("qa") or [h.get("q", ""), ""]
+        st.session_state.chat = [{"role": "user", "text": qa[0]}, {"role": "assistant", "text": qa[1]}]
+    elif k == "Đồng phân":
+        st.session_state.iso_mode = "Liệt kê đồng phân"
+        for key in ("iso", "iso_nm", "iso_und"):
+            st.session_state[key] = d.get(key)
+        st.session_state.iso_nm = st.session_state.iso_nm or {}
+    elif k == "Mô phỏng":
+        st.session_state.eq_mode = "Mô phỏng thí nghiệm"
+        for _k in [_k for _k in st.session_state if str(_k).startswith("sim_d_")]:
+            del st.session_state[_k]
+        st.session_state.sim = d.get("sim")
+        st.session_state.sim_custom = None
+        st.session_state.voice_note = tx("trình duyệt (xem lại từ lịch sử)", "browser (replayed from history)")
+    elif k == "Dụng cụ":
+        st.session_state.eq_mode = "Nhận biết dụng cụ"
+        st.session_state.eq = d.get("eq")
+    elif k == "Phản ứng":
+        st.session_state.rx = d.get("rx")
+    elif k == "Sơ đồ":
+        st.session_state.mm = d.get("mm")
+        if st.session_state.mm:
+            st.session_state.mm["rev"] = int(time.time() * 1000)
+    go(KIND_TAB.get(k, STRUCT))
+
+
+def has_saved(h):
+    return bool((h.get("p") or {}).get("rid"))
+
+
 def can_rerun(h):
     k = h.get("k")
-    return (k == "Công thức" and bool((h.get("p") or {}).get("smi"))) or k in ("Đồng phân", "Hỏi đáp")
+    return has_saved(h) or (k == "Công thức" and bool((h.get("p") or {}).get("smi"))) or k in ("Đồng phân", "Hỏi đáp")
 
 
 def clear_tab_hist(kinds):
+    rids = [(h.get("p") or {}).get("rid") for h in st.session_state.hist if h.get("k") in kinds]
+    for r in rids:
+        st.session_state.get("_snaps", {}).pop(r, None)
+    if student_name() and any(rids):
+        try:
+            cr.clear_results(cur_auth(), student_name(), [r for r in rids if r])
+        except OSError:
+            pass
     st.session_state.hist[:] = [h for h in st.session_state.hist if h.get("k") not in kinds]
     who = student_name()
     if who:
@@ -6165,6 +6283,12 @@ def clear_tab_hist(kinds):
 
 
 def clear_all_hist():
+    st.session_state.pop("_snaps", None)
+    if student_name():
+        try:
+            cr.clear_results(cur_auth(), student_name())
+        except OSError:
+            pass
     st.session_state.hist.clear()
     who = student_name()
     if who:
@@ -6193,7 +6317,9 @@ def tab_history_ui(tab):
             when = f'{h.get("d", "")} {h.get("t", "")}'.strip()
             c1.markdown(f'**{html.escape(h.get("q", "")[:90])}**<br><small>{html.escape(when)} · {html.escape(tx(h.get("k", "")))}</small>',
                         unsafe_allow_html=True)
-            if can_rerun(h):
+            if has_saved(h):
+                c2.button(tx("👁️ Xem lại", "👁️ View again"), key=f"th_{tab}_{i}", on_click=open_saved, args=(h,))
+            elif can_rerun(h):
                 c2.button(tx("↻ Tra lại", "↻ Look up again"), key=f"th_{tab}_{i}", on_click=rerun_hist, args=(h,))
         if len(items) > HIST_SHOW:
             st.caption(tx(f"Hiện {HIST_SHOW} lượt mới nhất trong {len(items)} lượt (tệp CSV có đủ).",
@@ -6302,6 +6428,12 @@ def my_history_ui():
     st.dataframe([{tx("Ngày", "Date"): h.get("d", ""), tx("Giờ", "Time"): h.get("t", ""), "Tab": tx(KIND_TAB.get(h.get("k"), "")),
                    tx("Loại", "Type"): tx(h.get("k", "")), tx("Nội dung tra cứu", "Lookup"): h.get("q", "")} for h in shown],
                  hide_index=True, width="stretch")
+    saved = [h for h in shown if has_saved(h)]
+    if saved:
+        s1, s2 = st.columns([4, 1.6], vertical_alignment="bottom")
+        idx = s1.selectbox(tx("Mở lại kết quả đã lưu (không tốn lượt AI)", "Reopen a saved result (no AI quota used)"), range(len(saved[:HIST_SHOW])),
+                           format_func=lambda i: f'{saved[i].get("d", "")} {saved[i].get("t", "")} · {tx(saved[i].get("k", ""))} · {saved[i].get("q", "")[:50]}', key="mh_open")
+        s2.button(tx("👁️ Xem lại", "👁️ View again"), key="mh_open_go", on_click=open_saved, args=(saved[idx],))
     a, b = st.columns(2)
     a.download_button(tx("⬇️ Tải lịch sử (CSV)", "⬇️ Download history (CSV)"), hs.to_csv([(who or "khách", h) for h in shown], tab_of=lambda k: KIND_TAB.get(k, "")),
                       file_name=f"lich_su_{hs.slug(who) or 'khach'}.csv", mime="text/csv", key="mh_dl")
