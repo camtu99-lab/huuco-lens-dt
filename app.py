@@ -3148,9 +3148,10 @@ def activities_editor_ui(key, existing=None):
     """Bảng nhập hoạt động: thêm/xóa/sao chép dòng, thứ tự theo vị trí dòng. Trả về danh sách dict cho cr.set_activities."""
     inv = {v: k for k, v in _AUTO_LABEL.items()}
     lv_inv = {v: k for k, v in _LV.items()}
-    rows = [{"Hoạt động": x["name"], "Loại": x["type"] or _ACT_TYPES[0], "Mục tiêu": x["goal"], "Hướng dẫn": x["desc"], "Phút": x["mins"], "Điểm tối đa": x["max"], "Trọng số": x["weight"],
-             "Ngưỡng đạt %": x["pass_pct"], "Số lần (0 = không giới hạn)": x["tries"], "Chủ đề": x["topic"], "Mức": _LV[x["level"]], "Bắt buộc": x["req"], "Hạn (YYYY-MM-DD)": x["due"],
-             "Hoàn thành khi": _AUTO_LABEL[x["auto"]]} for x in existing or []]
+    rows = [{"Hoạt động": x.get("name", ""), "Loại": x.get("type") or _ACT_TYPES[0], "Mục tiêu": x.get("goal", ""), "Hướng dẫn": x.get("desc", ""), "Phút": x.get("mins", 10), "Điểm tối đa": x.get("max", 10),
+             "Trọng số": x.get("weight", 1), "Ngưỡng đạt %": x.get("pass_pct", 50), "Số lần (0 = không giới hạn)": x.get("tries", 0), "Chủ đề": x.get("topic", ""),
+             "Mức": _LV.get(x.get("level"), _LV["th"]), "Bắt buộc": x.get("req", True), "Hạn (YYYY-MM-DD)": x.get("due", ""),
+             "Hoàn thành khi": _AUTO_LABEL.get(x.get("auto"), _AUTO_LABEL[cr.AUTO_NONE])} for x in existing or []]
     blank = {"Hoạt động": "", "Loại": _ACT_TYPES[0], "Mục tiêu": "", "Hướng dẫn": "", "Phút": 10, "Điểm tối đa": 10.0, "Trọng số": 1.0, "Ngưỡng đạt %": 50.0, "Số lần (0 = không giới hạn)": 0,
              "Chủ đề": "", "Mức": _LV["th"], "Bắt buộc": True, "Hạn (YYYY-MM-DD)": "", "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}
     ed = st.data_editor(rows or [blank], num_rows="dynamic", hide_index=True, width="stretch", key=key, column_config={
@@ -7879,6 +7880,8 @@ DARK_CSS = """
 .block-container :is([data-testid="stCheckbox"],[data-testid="stToggle"]) label *{color:#d5e9f3}
 .block-container [data-testid="stExpander"] details{background:rgba(255,255,255,.04);border:1px solid rgba(5,209,208,.32);border-radius:1rem}
 .block-container [data-testid="stExpander"] summary *{color:#e1eff6}
+.block-container [data-testid="stExpander"] details>summary,.block-container [data-testid="stExpander"] details[open]>summary,.block-container [data-testid="stExpander"] details>summary:hover,.block-container [data-testid="stExpander"] details>summary:focus{background:rgba(8,44,62,.92)!important;color:#e8f6fb!important}
+.block-container [data-testid="stExpander"] details>summary *{color:#e8f6fb!important}
 .block-container [data-testid="stTabs"] button p{color:#a1cde4}
 .block-container [data-testid="stTabs"] button[aria-selected="true"] p{color:#fff}
 .block-container [data-testid="stMetricValue"],.block-container [data-testid="stMetricLabel"] *{color:#fff}

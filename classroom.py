@@ -1761,7 +1761,7 @@ def parse_ai_activities(raw):
         name = clean_name(str(it["name"]))[:80]
         acts.append({"name": name, "type": typ, "goal": str(it.get("goal", ""))[:200], "desc": str(it.get("desc", ""))[:300], "mins": max(0, min(int(_f(it.get("mins"), 10)), 120)),
                      "max": max(0, min(_f(it.get("max"), 10), 100)), "weight": max(0.1, min(_f(it.get("weight"), 1), 10)), "pass_pct": max(0, min(_f(it.get("pass_pct"), 50), 100)),
-                     "topic": str(it.get("topic", ""))[:60], "level": it.get("level") if it.get("level") in LEVEL_W else "th", "req": True, "auto": _AUTO_BY_TYPE.get(typ, AUTO_NONE), "due": ""})
+                     "topic": str(it.get("topic", ""))[:60], "level": it.get("level") if it.get("level") in LEVEL_W else "th", "req": True, "tries": 0, "auto": _AUTO_BY_TYPE.get(typ, AUTO_NONE), "due": ""})
         qs[name] = [{"q": str(q.get("q", ""))[:400], "options": [str(o)[:200] for o in (q.get("options") or [])][:6], "answer": str(q.get("answer", ""))[:200],
                      "level": q.get("level") if q.get("level") in LEVEL_W else "th"} for q in (it.get("questions") or [])[:8] if isinstance(q, dict) and q.get("q")]
     if not acts:
