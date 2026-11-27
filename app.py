@@ -8052,6 +8052,8 @@ DARK_CSS += """
 .block-container [data-testid="stMarkdownContainer"] :is(p,li,span,strong,small,em,b){color:#d5e9f3}
 .block-container [data-testid="stMarkdownContainer"] :is(h1,h2,h3,h4,h5,h6){color:#fff!important}
 .block-container [data-testid="stBaseButton-secondary"] *{color:#e8f6fb!important}
+.block-container [data-testid="stBaseButton-secondary"]:disabled{background:rgba(255,255,255,.05)!important;border:1.5px dashed rgba(140,190,205,.55)!important;color:#a9c3cf!important;opacity:1!important}
+.block-container [data-testid="stBaseButton-secondary"]:disabled *{color:#a9c3cf!important}
 .block-container [data-testid="stSelectbox"] :is(div,span,input,p){color:#fff!important;-webkit-text-fill-color:#fff!important;background-color:transparent!important}
 .block-container [data-testid="stSelectbox"] [data-baseweb="select"]>div{background-color:rgba(255,255,255,.08)!important;border:1px solid rgba(5,209,208,.42)!important}
 .block-container [data-testid="stSelectbox"] svg{fill:#fff!important}
