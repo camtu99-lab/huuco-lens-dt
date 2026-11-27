@@ -26,7 +26,10 @@ ASG_H = ["id", "ma_lop", "tieu_de", "tao_luc", "han_nop", "cau_hoi_json", "cho_g
 SUB_H = ["id_bai", "ma_lop", "hoc_sinh", "thoi_diem", "cau", "dang", "chu_de", "bai_lam", "ket_qua", "so_lan", "goi_y"]
 SHEET_H = ["id_bai", "ma_lop", "cau_hinh_json"]
 STARTS_H = ["id_bai", "ma_lop", "hoc_sinh", "bat_dau"]
-ACT_H = ["id_bai", "stt", "ten", "mo_ta", "tu_dong"]            # hoạt động của một bài giao
+ACT_H = ["id_bai", "stt", "ten", "mo_ta", "tu_dong", "loai", "muc_tieu", "phut", "diem_max", "trong_so", "nguong", "so_lan", "chu_de", "muc", "bat_buoc"]
+GRADE_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "thoi_diem", "diem_pct", "nhan_xet"]   # giáo viên chấm hoạt động nộp tệp
+CFG_H = ["id_bai", "tuan_tu"]                                                          # 1 = học tuần tự
+LEVEL_W = {"nb": 1.0, "th": 1.5, "vd": 2.0}                                            # nhận biết / thông hiểu / vận dụng
 ADONE_H = ["id_bai", "ma_lop", "hoc_sinh", "stt", "thoi_diem"]  # học sinh đã bấm xong hoạt động nào
 AUTO_NONE, AUTO_SHEET, AUTO_FILE = "tay", "phieu", "tep"         # tự bấm / xong khi nộp phiếu / xong khi nộp tệp
 GRACE = 120                   # giây cho phép nộp muộn sau khi hết giờ (đồng hồ trình duyệt tự nộp có thể trễ)
@@ -399,16 +402,23 @@ def set_assignment_minutes(auth, aid, minutes):
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
             hs.tbl_write(name, head, keep)
 
 
-# ---------------- Hoạt động trong bài giao & tiến độ ----------------
+# ---------------- Hoạt động trong bài giao, tiến độ và mức độ thành thạo ----------------
+def _f(x, d):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return d
+
+
 def set_activities(auth, aid, acts):
-    """Giáo viên đặt danh sách hoạt động của bài. acts: [{'name','desc','auto'}]. Ghi đè danh sách cũ (số thứ tự giữ theo vị trí)."""
+    """Giáo viên đặt danh sách hoạt động (thứ tự theo vị trí). Mỗi hoạt động: name, desc, auto, type, goal, mins, max, weight, pass_pct, tries, topic, level, req."""
     _need_teacher(auth)
     if not _find_asg(aid):
         raise Denied("Không tìm thấy bài giao.")
@@ -420,31 +430,46 @@ def set_activities(auth, aid, acts):
             continue
         n += 1
         auto = a.get("auto") if a.get("auto") in (AUTO_SHEET, AUTO_FILE) else AUTO_NONE
-        keep.append([aid, str(n), name, str(a.get("desc", "")).strip()[:300], auto])
+        lv = a.get("level") if a.get("level") in LEVEL_W else "th"
+        keep.append([aid, n, name, str(a.get("desc", "")).strip()[:300], auto, str(a.get("type", ""))[:30], str(a.get("goal", ""))[:200],
+                     max(0, min(int(_f(a.get("mins"), 0)), 600)), max(0.0, _f(a.get("max"), 10)), max(0.0, _f(a.get("weight"), 1)),
+                     max(0.0, min(_f(a.get("pass_pct"), 50), 100)), max(0, int(_f(a.get("tries"), 0))), str(a.get("topic", ""))[:60], lv, "0" if a.get("req") is False else "1"])
     hs.tbl_write("activities", ACT_H, keep)
     return n
 
 
 def activities(auth, aid, force=False):
-    """Hoạt động của một bài, theo thứ tự. Học sinh chỉ đọc được bài của lớp mình."""
     asg = _find_asg(aid)
     if not asg or not (is_teacher(auth) or (is_student(auth) and auth["cls"] == asg[1])):
         raise Denied("Không có quyền xem hoạt động của bài này.")
     out = []
     for r in hs.tbl_read("activities", ACT_H, force=force):
-        r = r + [""] * (5 - len(r))
+        r = r + [""] * (len(ACT_H) - len(r))
         if r[0] == aid and r[1].isdigit():
-            out.append({"n": int(r[1]), "name": r[2], "desc": r[3], "auto": r[4] or AUTO_NONE})
+            out.append({"n": int(r[1]), "name": r[2], "desc": r[3], "auto": r[4] or AUTO_NONE, "type": r[5], "goal": r[6], "mins": int(_f(r[7], 0)),
+                        "max": _f(r[8], 10), "weight": _f(r[9], 1), "pass_pct": _f(r[10], 50), "tries": int(_f(r[11], 0)), "topic": r[12],
+                        "level": r[13] if r[13] in LEVEL_W else "th", "req": r[14] != "0"})
     return sorted(out, key=lambda x: x["n"])
 
 
+def set_sequential(auth, aid, on):
+    _need_teacher(auth)
+    rows = [r for r in hs.tbl_read("lesson_cfg", CFG_H, force=True) if (r + [""])[0] != aid] + [[aid, "1" if on else "0"]]
+    hs.tbl_write("lesson_cfg", CFG_H, rows)
+
+
+def is_sequential(aid):
+    return any((r + [""])[0] == aid and (r + ["", ""])[1] == "1" for r in hs.tbl_read("lesson_cfg", CFG_H))
+
+
 def mark_activity(auth, aid, n, done=True, now=""):
-    """Học sinh bấm xong / bỏ xong một hoạt động của chính mình."""
+    """Học sinh bấm xong / bỏ xong hoạt động loại tự bấm của chính mình (chỉ nhận hoạt động có tu_dong = tay)."""
     if not is_student(auth):
         raise Denied("Cần đăng nhập học sinh.")
     asg = _find_asg(aid)
-    if not asg or asg[1] != auth["cls"]:
-        raise Denied("Không có quyền với bài này.")
+    act = next((x for x in activities(auth, aid) if x["n"] == n), None) if asg else None
+    if not act or asg[1] != auth["cls"] or act["auto"] != AUTO_NONE:
+        raise Denied("Không thể tự đánh dấu hoạt động này.")
     rows = hs.tbl_read("activity_done", ADONE_H, force=True)
     mine = lambda r: (r + [""] * 5)[0] == aid and hs.slug((r + [""] * 5)[2]) == hs.slug(auth["key"]) and (r + [""] * 5)[3] == str(n)
     has = any(mine(r) for r in rows)
@@ -454,36 +479,115 @@ def mark_activity(auth, aid, n, done=True, now=""):
         hs.tbl_write("activity_done", ADONE_H, [r for r in rows if not mine(r)])
 
 
-def activity_status(auth, aid, force=False):
-    """{học sinh (slug): {số thứ tự hoạt động đã xong}} cho một bài. Giáo viên thấy cả lớp, học sinh chỉ thấy mình.
-    Hoạt động tự động (nộp phiếu / nộp tệp) được tính xong khi đã có bài nộp tương ứng."""
+def grade_activity(auth, aid, n, student, pct, note, now):
+    """Giáo viên chấm (0-100%) bài nộp tệp của một học sinh; chấm lại thì ghi đè."""
+    _need_teacher(auth)
+    asg = _find_asg(aid)
+    if not asg:
+        raise Denied("Không tìm thấy bài giao.")
+    rows = [r for r in hs.tbl_read("activity_grades", GRADE_H, force=True) if not ((r + [""] * 7)[0] == aid and (r + [""] * 7)[1] == str(n) and hs.slug((r + [""] * 7)[3]) == hs.slug(student))]
+    rows.append([aid, n, asg[1], student, now, max(0, min(float(pct), 100)), str(note)[:200]])
+    hs.tbl_write("activity_grades", GRADE_H, rows)
+
+
+def activity_states(auth, aid, force=False):
+    """(hoạt động, {học sinh(slug): {n: {'st','pct','tries'}}}). st: chua | dang | da_nop | cho | xong | lai.
+    Tính từ dữ liệu thật: phiếu trả lời đã chấm, tệp đã nộp, điểm giáo viên chấm, hoặc học sinh tự bấm (loại 'tay').
+    Mở tài liệu hay bấm vào hoạt động không làm thành hoàn thành."""
     acts = activities(auth, aid, force=force)
-    done = {}
+    mine = lambda k: is_teacher(auth) or hs.slug(k) == hs.slug(auth["key"])
+    manual, grades, sheet, files = {}, {}, {}, set()
     for r in hs.tbl_read("activity_done", ADONE_H, force=force):
-        r = r + [""] * (5 - len(r))
-        if r[0] == aid and r[3].isdigit() and (is_teacher(auth) or hs.slug(r[2]) == hs.slug(auth["key"])):
-            done.setdefault(hs.slug(r[2]), set()).add(int(r[3]))
-    sheet = {hs.slug(x["student"]) for x in sheet_results(auth, aid, force=force)} if any(a["auto"] == AUTO_SHEET for a in acts) else set()
-    files = {hs.slug(m["student"]) for m in list_files(auth, aid, kind=SUBF, force=force)} if any(a["auto"] == AUTO_FILE for a in acts) else set()
+        r = r + [""] * 5
+        if r[0] == aid and r[3].isdigit() and mine(r[2]):
+            manual.setdefault(hs.slug(r[2]), set()).add(int(r[3]))
+    for r in hs.tbl_read("activity_grades", GRADE_H, force=force):
+        r = r + [""] * 7
+        if r[0] == aid and r[1].isdigit() and mine(r[3]):
+            grades[(hs.slug(r[3]), int(r[1]))] = _f(r[5], 0)
+    if any(a["auto"] == AUTO_SHEET for a in acts):
+        for x in sorted(sheet_results(auth, aid, force=force), key=lambda x: x["ts"]):
+            sheet.setdefault(hs.slug(x["student"]), []).append(100 * x["score"] / x["max"] if x["max"] else 0)
+    if any(a["auto"] == AUTO_FILE for a in acts):
+        files = {(hs.slug(m["student"])) for m in list_files(auth, aid, kind=SUBF, force=force)}
+    who = set(manual) | {k for k, _ in grades} | set(sheet) | files
+    out = {}
+    for k in who:
+        out[k] = {}
+        for a in acts:
+            n, cell = a["n"], {"st": "chua", "pct": None, "tries": 0}
+            if a["auto"] == AUTO_NONE and n in manual.get(k, set()):
+                cell["st"] = "xong"
+            elif a["auto"] == AUTO_SHEET and sheet.get(k):
+                sc = sheet[k]
+                cell.update(pct=max(sc), tries=len(sc), st="xong" if max(sc) >= a["pass_pct"] else "lai")
+            elif a["auto"] == AUTO_FILE and k in files:
+                g = grades.get((k, n))
+                cell.update(pct=g, tries=1, st="cho" if g is None else "xong" if g >= a["pass_pct"] else "lai")
+            out[k][n] = cell
+    return acts, out
+
+
+def progress_pct(acts, cells):
+    """Tiến độ (%) = tổng trọng số hoạt động bắt buộc đã hoàn thành / tổng trọng số hoạt động bắt buộc x 100. None nếu không có hoạt động bắt buộc."""
+    req = [a for a in acts if a["req"]]
+    tot = sum(a["weight"] for a in req)
+    if not req or tot <= 0:
+        return None
+    return round(100 * sum(a["weight"] for a in req if (cells.get(a["n"]) or {}).get("st") == "xong") / tot)
+
+
+def mastery(acts, cells, min_n=2):
+    """Mức độ thành thạo theo chủ đề: trung bình có trọng số của % điểm các hoạt động đã chấm.
+    Trọng số = độ khó (nhận biết 1, thông hiểu 1.5, vận dụng 2) x 0.7^k (k = số hoạt động mới hơn: lần gần nhất nặng nhất).
+    Chủ đề có ít hơn min_n kết quả đã chấm thì chưa kết luận (None). Trả về ({chủ đề: {'pct','n'}}, tổng thể hoặc None)."""
+    by = {}
     for a in acts:
-        for who in (sheet if a["auto"] == AUTO_SHEET else files if a["auto"] == AUTO_FILE else ()):
-            done.setdefault(who, set()).add(a["n"])
-    return done
+        c = cells.get(a["n"]) or {}
+        if a["topic"] and c.get("pct") is not None:
+            by.setdefault(a["topic"], []).append((a["n"], c["pct"], LEVEL_W[a["level"]]))
+    res = {}
+    for t, items in by.items():
+        items.sort()
+        ws = [(w * 0.7 ** (len(items) - 1 - i), p) for i, (_, p, w) in enumerate(items)]
+        res[t] = {"pct": round(sum(w * p for w, p in ws) / sum(w for w, _ in ws)) if len(items) >= min_n else None, "n": len(items)}
+    ok = [v for v in res.values() if v["pct"] is not None]
+    return res, (round(sum(v["pct"] * v["n"] for v in ok) / sum(v["n"] for v in ok)) if ok else None)
 
 
-def activity_summary(acts, status, student_keys):
-    """Tiến độ: mỗi hoạt động -> số HS đã xong, % cả lớp, danh sách HS chưa làm; mỗi HS -> số hoạt động xong và % ."""
-    keys = [hs.slug(k) for k in student_keys]
-    per_act = []
+def recommend(acts, cells, sequential=False, low=60):
+    """Gợi ý có giải thích, dựa trên dữ liệu: ưu tiên làm lại hoạt động cần làm lại / chủ đề yếu, rồi hoạt động bắt buộc kế tiếp."""
+    out, m = [], mastery(acts, cells)[0]
     for a in acts:
-        ok = [k for k in keys if a["n"] in status.get(k, set())]
-        per_act.append({**a, "done": len(ok), "total": len(keys), "pct": round(100 * len(ok) / len(keys)) if keys else 0,
-                        "missing": [k for k in keys if k not in ok]})
-    per_stu = {k: {"done": len(status.get(k, set()) & {a["n"] for a in acts}), "total": len(acts)} for k in keys}
-    for v in per_stu.values():
-        v["pct"] = round(100 * v["done"] / v["total"]) if v["total"] else 0
-    return per_act, per_stu
+        if (cells.get(a["n"]) or {}).get("st") == "lai":
+            out.append(f"Làm lại \"{a['name']}\": điểm {cells[a['n']]['pct']:.0f}% chưa đạt ngưỡng {a['pass_pct']:.0f}%.")
+    for t, v in sorted(m.items(), key=lambda x: (x[1]["pct"] is None, x[1]["pct"] or 0)):
+        if v["pct"] is not None and v["pct"] < low:
+            out.append(f"Củng cố chủ đề \"{t}\": thành thạo {v['pct']}% (< {low}%) qua {v['n']} hoạt động đã chấm.")
+    nxt = next((a for a in acts if a["req"] and (cells.get(a["n"]) or {}).get("st", "chua") in ("chua", "dang")), None)
+    if nxt:
+        out.append(f"Hoạt động tiếp theo: \"{nxt['name']}\"" + (" (học tuần tự: làm theo thứ tự)." if sequential else "."))
+    return out
 
+
+def next_activity(acts, cells):
+    return next((a for a in acts if (cells.get(a["n"]) or {}).get("st", "chua") not in ("xong", "cho", "da_nop")), None)
+
+
+def overview(acts, states, keys, due="", today=""):
+    """Bảng giáo viên: mỗi học sinh một dòng với tiến độ, thành thạo và ô từng hoạt động (xong / dang / chua / qua_han)."""
+    late = bool(due) and bool(today) and today > due
+    rows = []
+    for k in keys:
+        cells = states.get(hs.slug(k), {})
+        cs, started = {}, False
+        for a in acts:
+            st = (cells.get(a["n"]) or {}).get("st", "chua")
+            started = started or st != "chua"
+            cs[a["n"]] = "xong" if st == "xong" else "qua_han" if late else "chua" if st == "chua" else "dang"
+        p = progress_pct(acts, cells) or 0
+        rows.append({"key": k, "cells": cs, "progress": p, "mastery": mastery(acts, cells)[1], "state": "xong" if p == 100 else "dang" if started else "chua"})
+    return rows
 
 # ---------------- Tệp đính kèm & tệp nộp ----------------
 def _pad(r, n=9):

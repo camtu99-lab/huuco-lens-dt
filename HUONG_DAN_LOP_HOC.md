@@ -70,3 +70,9 @@ Học sinh luôn thấy **nguyên đề** (Phần I, II, III, từng câu hỏi)
 - **Giáo viên:** khi giao bài, mở mục "🧩 Chia bài thành các hoạt động", mỗi dòng là một hoạt động (VD: Hoạt động 1: Xem video). Cột "Hoàn thành khi": học sinh tự bấm xong, tự xong khi nộp phiếu trả lời, hoặc tự xong khi nộp tệp bài làm. Bài đã giao thì sửa ở mục "🧩 Hoạt động".
 - **Học sinh:** trong bài thấy danh sách hoạt động, thanh tiến độ (đã xong x/y, %) và hoạt động nào "chưa học"; hoạt động tự bấm thì gạt công tắc "Đã xong".
 - **Kết quả (tab Kết quả kiểm tra / luyện tập):** mục "🧩 Tiến độ theo hoạt động" cho % cả lớp đã xong từng hoạt động, danh sách em chưa làm, bảng % của từng học sinh và nút tải CSV.
+
+### Bản nâng cấp: lộ trình hoạt động, tiến độ và thành thạo
+- Mỗi hoạt động có: tên, loại, mục tiêu, hướng dẫn, phút, điểm tối đa, trọng số, ngưỡng đạt %, số lần, chủ đề, mức (nhận biết/thông hiểu/vận dụng), bắt buộc, cách hoàn thành. Chọn học tuần tự ở mục "🧩 Hoạt động" của bài.
+- **Tiến độ (%)** = tổng trọng số hoạt động bắt buộc đã hoàn thành / tổng trọng số hoạt động bắt buộc x 100 (trọng số bằng nhau thì là tỷ lệ số hoạt động). Mở tài liệu không làm hoạt động hoàn thành.
+- **Thành thạo** theo chủ đề = trung bình có trọng số của % điểm các hoạt động đã chấm; trọng số = độ khó (1 / 1,5 / 2) x 0,7^k (k = số kết quả mới hơn). Dưới 2 kết quả đã chấm thì hiện "chưa đủ dữ liệu".
+- Trạng thái: chưa bắt đầu, đang thực hiện, chờ giáo viên đánh giá, đã hoàn thành, cần thực hiện lại. Hoạt động "nộp tệp" do giáo viên chấm trong mục "✍️ Chấm bài nộp tệp".

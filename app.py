@@ -3135,77 +3135,142 @@ def sheet_results_ui(a):
             st.dataframe(sorted(qrows, key=lambda r: -list(r.values())[2])[:12], use_container_width=True, hide_index=True)
 
 
-_AUTO_LABEL = {cr.AUTO_NONE: "Học sinh tự bấm xong", cr.AUTO_SHEET: "Tự xong khi nộp phiếu trả lời", cr.AUTO_FILE: "Tự xong khi nộp tệp bài làm"}
+_AUTO_LABEL = {cr.AUTO_NONE: "Học sinh tự bấm xong", cr.AUTO_SHEET: "Nộp phiếu trả lời (tự chấm)", cr.AUTO_FILE: "Nộp tệp (giáo viên chấm)"}
+_ACT_TYPES = ["Đọc tài liệu", "Xem video", "Trắc nghiệm", "Tự luận", "Điền khuyết", "Cân bằng phương trình", "Phân tích cấu trúc phân tử", "Nhận diện chất",
+              "Bài tập vận dụng", "Báo cáo thí nghiệm", "Sản phẩm học tập", "Kiểm tra cuối bài"]
+_ACT_ICON = {"Đọc tài liệu": "📖", "Xem video": "🎬", "Trắc nghiệm": "✅", "Tự luận": "✍️", "Điền khuyết": "🧩", "Cân bằng phương trình": "⚖️", "Phân tích cấu trúc phân tử": "🧬",
+             "Nhận diện chất": "🔍", "Bài tập vận dụng": "💡", "Báo cáo thí nghiệm": "🧪", "Sản phẩm học tập": "📦", "Kiểm tra cuối bài": "📋"}
+_LV = {"nb": "Nhận biết", "th": "Thông hiểu", "vd": "Vận dụng"}
+_ST = {"chua": ("⬜", "Chưa bắt đầu"), "dang": ("🟡", "Đang thực hiện"), "da_nop": ("📤", "Đã nộp bài"), "cho": ("⏳", "Chờ giáo viên đánh giá"), "xong": ("✅", "Đã hoàn thành"), "lai": ("🔁", "Cần thực hiện lại")}
 
 
 def activities_editor_ui(key, existing=None):
-    """Bảng nhập các hoạt động của một bài (thêm/xóa dòng tự do). Trả về danh sách {'name','desc','auto'}."""
-    rows = [{"Hoạt động": a["name"], "Mô tả": a["desc"], "Hoàn thành khi": _AUTO_LABEL[a["auto"]]} for a in existing or []]
-    ed = st.data_editor(rows or [{"Hoạt động": "", "Mô tả": "", "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}], num_rows="dynamic", hide_index=True, width="stretch", key=key,
-                        column_config={"Hoạt động": st.column_config.TextColumn(max_chars=80, help=tx("VD: Hoạt động 1: Xem video bài giảng", "e.g. Activity 1: Watch the lecture video")),
-                                       "Mô tả": st.column_config.TextColumn(max_chars=300),
-                                       "Hoàn thành khi": st.column_config.SelectboxColumn(options=list(_AUTO_LABEL.values()), required=True)})
-    back = {v: k for k, v in _AUTO_LABEL.items()}
-    return [{"name": r.get("Hoạt động") or "", "desc": r.get("Mô tả") or "", "auto": back.get(r.get("Hoàn thành khi"), cr.AUTO_NONE)} for r in ed]
+    """Bảng nhập hoạt động: thêm/xóa/sao chép dòng, thứ tự theo vị trí dòng. Trả về danh sách dict cho cr.set_activities."""
+    inv = {v: k for k, v in _AUTO_LABEL.items()}
+    lv_inv = {v: k for k, v in _LV.items()}
+    rows = [{"Hoạt động": x["name"], "Loại": x["type"] or _ACT_TYPES[0], "Mục tiêu": x["goal"], "Hướng dẫn": x["desc"], "Phút": x["mins"], "Điểm tối đa": x["max"], "Trọng số": x["weight"],
+             "Ngưỡng đạt %": x["pass_pct"], "Số lần (0 = không giới hạn)": x["tries"], "Chủ đề": x["topic"], "Mức": _LV[x["level"]], "Bắt buộc": x["req"],
+             "Hoàn thành khi": _AUTO_LABEL[x["auto"]]} for x in existing or []]
+    blank = {"Hoạt động": "", "Loại": _ACT_TYPES[0], "Mục tiêu": "", "Hướng dẫn": "", "Phút": 10, "Điểm tối đa": 10.0, "Trọng số": 1.0, "Ngưỡng đạt %": 50.0, "Số lần (0 = không giới hạn)": 0,
+             "Chủ đề": "", "Mức": _LV["th"], "Bắt buộc": True, "Hoàn thành khi": _AUTO_LABEL[cr.AUTO_NONE]}
+    ed = st.data_editor(rows or [blank], num_rows="dynamic", hide_index=True, width="stretch", key=key, column_config={
+        "Loại": st.column_config.SelectboxColumn(options=_ACT_TYPES, required=True), "Mức": st.column_config.SelectboxColumn(options=list(_LV.values()), required=True),
+        "Hoàn thành khi": st.column_config.SelectboxColumn(options=list(_AUTO_LABEL.values()), required=True), "Bắt buộc": st.column_config.CheckboxColumn()})
+    return [{"name": r.get("Hoạt động") or "", "type": r.get("Loại"), "goal": r.get("Mục tiêu") or "", "desc": r.get("Hướng dẫn") or "", "mins": r.get("Phút"), "max": r.get("Điểm tối đa"),
+             "weight": r.get("Trọng số"), "pass_pct": r.get("Ngưỡng đạt %"), "tries": r.get("Số lần (0 = không giới hạn)"), "topic": r.get("Chủ đề") or "",
+             "level": lv_inv.get(r.get("Mức"), "th"), "req": bool(r.get("Bắt buộc", True)), "auto": inv.get(r.get("Hoàn thành khi"), cr.AUTO_NONE)} for r in ed]
 
 
 def student_activities_ui(a):
-    """Học sinh: danh sách hoạt động của bài, tick xong từng hoạt động, thanh tiến độ, hoạt động nào chưa học."""
+    """Học sinh: lộ trình hoạt động, tiến độ (hoàn thành) tách riêng với thành thạo (kiến thức), hoạt động kế tiếp, gợi ý có giải thích."""
     au = cur_auth()
     try:
-        acts = cr.activities(au, a["id"])
+        acts, states = cr.activity_states(au, a["id"])
         if not acts:
             return
-        done = cr.activity_status(au, a["id"]).get(hs.slug(au["key"]), set())
+        seq = cr.is_sequential(a["id"])
     except (OSError, cr.Denied) as e:
         st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         return
-    n_ok = sum(1 for x in acts if x["n"] in done)
-    st.markdown("#### " + tx("🧩 Các hoạt động của bài", "🧩 Activities in this assignment"))
-    st.progress(n_ok / len(acts), text=tx(f"Đã xong {n_ok}/{len(acts)} hoạt động ({round(100 * n_ok / len(acts))}%)", f"Done {n_ok}/{len(acts)} activities ({round(100 * n_ok / len(acts))}%)"))
+    cells = states.get(hs.slug(au["key"]), {})
+    prog, (mast, overall) = cr.progress_pct(acts, cells), cr.mastery(acts, cells)
+    n_ok = sum(1 for x in acts if (cells.get(x["n"]) or {}).get("st") == "xong")
+    nxt = cr.next_activity(acts, cells)
+    st.markdown("#### " + tx("🧭 Lộ trình bài học", "🧭 Learning path"))
+    m1, m2, m3 = st.columns(3)
+    m1.metric(tx("Tiến độ", "Progress"), f"{prog or 0}%", f"{n_ok}/{len(acts)} " + tx("hoạt động", "activities"), delta_color="off")
+    m2.metric(tx("Mức thành thạo", "Mastery"), f"{overall}%" if overall is not None else "–", tx("chưa đủ dữ liệu", "not enough data") if overall is None else None, delta_color="off")
+    m3.metric(tx("Hạn nộp", "Due"), a["due"] or "–")
+    st.progress((prog or 0) / 100)
+    blocked = False
     for x in acts:
-        manual = x["auto"] == cr.AUTO_NONE
-        label = f"{'✅' if x['n'] in done else '⬜'} {x['name']}" + ("" if x["n"] in done else tx("  · chưa học", "  · not done yet"))
-        c1, c2 = st.columns([5, 2], vertical_alignment="center")
-        c1.markdown(label + (f"  \n<span style='opacity:.7'>{html.escape(x['desc'])}</span>" if x["desc"] else ""), unsafe_allow_html=True)
-        if manual:
-            new = c2.toggle(tx("Đã xong", "Done"), value=x["n"] in done, key=f"act_{a['id']}_{x['n']}")
-            if new != (x["n"] in done):
+        c = cells.get(x["n"]) or {"st": "chua", "pct": None, "tries": 0}
+        ic, lab = _ST[c["st"]]
+        extra = (f" · {c['pct']:.0f}%" if c["pct"] is not None else "") + (f" · {c['tries']}/{x['tries']} " + tx("lần", "tries") if x["tries"] and c["tries"] else "")
+        c1, c2 = st.columns([6, 2], vertical_alignment="center")
+        c1.markdown(f"{ic} {_ACT_ICON.get(x['type'], '📌')} **{x['n']}. {html.escape(x['name'])}** · {lab}{extra}" + ("  ← " + tx("tiếp theo", "next") if nxt and nxt["n"] == x["n"] else "")
+                    + f"  \n<span style='opacity:.7'>{html.escape(x['type'])} · {x['mins']} {tx('phút', 'min')} · {tx('đạt từ', 'pass at')} {x['pass_pct']:.0f}%" + (f" · {html.escape(x['desc'])}" if x["desc"] else "") + "</span>", unsafe_allow_html=True)
+        lock = seq and blocked
+        if x["auto"] == cr.AUTO_NONE:
+            new = c2.toggle(tx("Đã xong", "Done"), value=c["st"] == "xong", key=f"act_{a['id']}_{x['n']}", disabled=lock)
+            if new != (c["st"] == "xong"):
                 try:
                     cr.mark_activity(au, a["id"], x["n"], new, _now().strftime("%Y-%m-%d %H:%M"))
                     st.rerun()
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         else:
-            c2.caption(tx(_AUTO_LABEL[x["auto"]], "Auto-complete on submit"))
+            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm ở phiếu/nộp tệp bên dưới", "Use the sheet/upload below"))
+        blocked = blocked or (x["req"] and c["st"] != "xong")
+    recs = cr.recommend(acts, cells, seq)
+    if recs:
+        with st.expander(tx("💡 Gợi ý học tiếp (và lý do)", "💡 What to do next (and why)"), expanded=True):
+            for r in recs:
+                st.markdown("- " + r)
 
 
 def teacher_activity_progress_ui(a, stu):
-    """Giáo viên: % học sinh đã xong từng hoạt động, ai chưa làm; % hoàn thành của từng học sinh."""
+    """Giáo viên: tổng quan, ma trận học sinh x hoạt động, hoạt động nào chưa làm, chấm bài nộp tệp, chi tiết từng học sinh, xuất Excel (CSV)."""
     try:
-        acts = cr.activities(cur_auth(), a["id"], force=True)
+        acts, states = cr.activity_states(cur_auth(), a["id"], force=True)
         if not acts:
             return
-        status = cr.activity_status(cur_auth(), a["id"], force=True)
+        seq = cr.is_sequential(a["id"])
     except (OSError, cr.Denied) as e:
         st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         return
-    per_act, per_stu = cr.activity_summary(acts, status, stu)
-    names = {hs.slug(k): k.rsplit(" [", 1)[0] for k in stu}
-    st.markdown("#### " + tx("🧩 Tiến độ theo hoạt động", "🧩 Progress by activity"))
-    for x in per_act:
-        st.progress(x["pct"] / 100, text=tx(f"{x['name']}: {x['done']}/{x['total']} học sinh đã xong ({x['pct']}%)", f"{x['name']}: {x['done']}/{x['total']} students done ({x['pct']}%)"))
-        if x["missing"]:
-            with st.expander(tx(f"Chưa làm ({len(x['missing'])})", f"Not done ({len(x['missing'])})")):
-                st.write(", ".join(sorted(names.get(k, k) for k in x["missing"])))
-    rows = [{tx("Học sinh", "Student"): names[k], tx("Đã xong", "Done"): f"{v['done']}/{v['total']}", "%": v["pct"],
-             tx("Chưa làm", "Not done"): ", ".join(x["name"] for x in acts if x["n"] not in status.get(k, set()))} for k, v in per_stu.items()]
-    st.dataframe(sorted(rows, key=lambda r: (r["%"], r[tx("Học sinh", "Student")].lower())), hide_index=True, width="stretch")
+    rows = cr.overview(acts, states, stu, a["due"], _now().strftime("%Y-%m-%d"))
+    name = lambda k: k.rsplit(" [", 1)[0]
+    cnt = {k: sum(1 for r in rows if r["state"] == k) for k in ("xong", "dang", "chua")}
+    ms = [r["mastery"] for r in rows if r["mastery"] is not None]
+    st.markdown("#### " + tx("📊 Tiến độ và mức thành thạo", "📊 Progress and mastery"))
+    c = st.columns(6)
+    for col, (lab, v) in zip(c, [("Được giao", len(rows)), ("Hoàn thành", cnt["xong"]), ("Đang làm", cnt["dang"]), ("Chưa bắt đầu", cnt["chua"]),
+                                 ("Tiến độ TB", f"{round(sum(r['progress'] for r in rows) / len(rows)) if rows else 0}%"), ("Thành thạo TB", f"{round(sum(ms) / len(ms))}%" if ms else "–")]):
+        col.metric(tx(lab), v)
+    col_of = {"xong": "#16a34a", "dang": "#eab308", "chua": "#9ca3af", "qua_han": "#dc2626"}
+    th = "".join(f"<th title='{html.escape(x['name'])}'>HĐ{x['n']}<br><small>{round(100 * sum(1 for r in rows if r['cells'][x['n']] == 'xong') / len(rows)) if rows else 0}%</small></th>" for x in acts)
+    body = "".join(f"<tr><td>{html.escape(name(r['key']))}</td>" + "".join(f"<td style='text-align:center'><span style='color:{col_of[r['cells'][x['n']]]}'>●</span></td>" for x in acts)
+                   + f"<td>{r['progress']}%</td><td>{'–' if r['mastery'] is None else str(r['mastery']) + '%'}</td></tr>" for r in sorted(rows, key=lambda r: (r["progress"], name(r["key"]).lower())))
+    st.markdown(f"<div style='overflow-x:auto'><table style='width:100%'><tr><th>{tx('Học sinh')}</th>{th}<th>{tx('Tiến độ')}</th><th>{tx('Thành thạo')}</th></tr>{body}</table></div>", unsafe_allow_html=True)
+    st.caption(tx("🟢 hoàn thành · 🟡 đang thực hiện · ⚪ chưa bắt đầu · 🔴 quá hạn chưa xong. % dưới HĐ là tỷ lệ học sinh đã hoàn thành hoạt động đó.", "Green done, yellow in progress, grey not started, red overdue."))
+    late = [name(r["key"]) for r in rows if r["state"] != "xong" and "qua_han" in r["cells"].values()]
+    if late:
+        st.warning(tx("Quá hạn chưa hoàn thành: ", "Overdue: ") + ", ".join(sorted(late)))
+    fa = [x for x in acts if x["auto"] == cr.AUTO_FILE]
+    if fa:
+        with st.expander(tx("✍️ Chấm bài nộp tệp", "✍️ Grade file submissions")):
+            x = st.selectbox(tx("Hoạt động"), fa, format_func=lambda x: f"{x['n']}. {x['name']}", key=f"gr_a_{a['id']}")
+            pend = [r["key"] for r in rows if (states.get(hs.slug(r["key"]), {}).get(x["n"]) or {}).get("st") in ("cho", "xong", "lai")]
+            who = st.selectbox(tx("Học sinh đã nộp"), pend, format_func=name, key=f"gr_s_{a['id']}") if pend else None
+            if who:
+                g1, g2 = st.columns(2)
+                sc = g1.number_input(tx("Điểm (%)"), 0.0, 100.0, 70.0, key=f"gr_p_{a['id']}")
+                note = g2.text_input(tx("Nhận xét"), key=f"gr_n_{a['id']}", max_chars=200)
+                if st.button(tx("💾 Lưu điểm"), key=f"gr_go_{a['id']}", type="primary"):
+                    try:
+                        cr.grade_activity(cur_auth(), a["id"], x["n"], who, sc, note, _now().strftime("%Y-%m-%d %H:%M"))
+                        st.rerun()
+                    except (OSError, cr.Denied) as e:
+                        st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+            else:
+                st.caption(tx("Chưa có học sinh nào nộp tệp."))
+    if rows:
+        who = st.selectbox(tx("Xem chi tiết học sinh"), [r["key"] for r in rows], format_func=name, key=f"ad_{a['id']}")
+        cells = states.get(hs.slug(who), {})
+        mast, overall = cr.mastery(acts, cells)
+        st.dataframe([{tx("Hoạt động"): f"{x['n']}. {x['name']}", tx("Trạng thái"): _ST[(cells.get(x['n']) or {}).get('st', 'chua')][1], tx("Điểm %"): (cells.get(x['n']) or {}).get("pct"),
+                       tx("Số lần"): (cells.get(x['n']) or {}).get("tries", 0), tx("Chủ đề"): x["topic"], tx("Mức"): _LV[x["level"]]} for x in acts], hide_index=True, width="stretch")
+        for t, v in mast.items():
+            st.write(f"**{t}**: " + (f"{v['pct']}% ({v['n']} " + tx("hoạt động đã chấm)") if v["pct"] is not None else tx(f"chưa đủ dữ liệu ({v['n']} kết quả)")))
+        for r in cr.recommend(acts, cells, seq):
+            st.markdown("- " + r)
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()) if rows else ["-"])
-    w.writeheader()
-    w.writerows(rows)
-    st.download_button(tx("⬇️ Tải tiến độ hoạt động (CSV)", "⬇️ Download activity progress (CSV)"), buf.getvalue().encode("utf-8-sig"), file_name=f"tien_do_{a['id']}.csv", mime="text/csv", key=f"act_dl_{a['id']}")
+    w = csv.writer(buf)
+    w.writerow(["Học sinh"] + [f"HĐ{x['n']} {x['name']}" for x in acts] + ["Tiến độ %", "Thành thạo %"])
+    for r in rows:
+        w.writerow([name(r["key"])] + [{"xong": "Hoàn thành", "dang": "Đang làm", "chua": "Chưa bắt đầu", "qua_han": "Quá hạn"}[r["cells"][x["n"]]] for x in acts] + [r["progress"], "" if r["mastery"] is None else r["mastery"]])
+    st.download_button(tx("⬇️ Xuất báo cáo (CSV, mở bằng Excel)"), buf.getvalue().encode("utf-8-sig"), file_name=f"tien_do_{a['id']}.csv", mime="text/csv", key=f"act_dl_{a['id']}")
 
 
 def student_files_ui(a):
@@ -6700,10 +6765,12 @@ def teacher_assign_ui():
         except (OSError, cr.Denied):
             ex_acts = []
         with st.expander(tx(f"🧩 Hoạt động ({len(ex_acts)})", f"🧩 Activities ({len(ex_acts)})")):
+            seq_on = st.checkbox(tx("Học tuần tự (làm xong hoạt động trước mới mở hoạt động sau)"), value=cr.is_sequential(a["id"]), key=f"tseq_{a['id']}")
             edited = activities_editor_ui(f"tact_{a['id']}", ex_acts)
             if st.button(tx("💾 Lưu hoạt động", "💾 Save activities"), key=f"tact_save_{a['id']}", type="primary"):
                 try:
                     cr.set_activities(cur_auth(), a["id"], edited)
+                    cr.set_sequential(cur_auth(), a["id"], seq_on)
                     st.session_state["_toast"] = tx("Đã lưu hoạt động.", "Activities saved.")
                     st.rerun()
                 except (OSError, cr.Denied) as e:
