@@ -2737,7 +2737,10 @@ def upload_ui(aid, kind, key, label, multiple, act=None):
         n = 0
         for f in ups[:cr.MAX_ATT]:
             try:
-                cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"), act=act)
+                if act:
+                    cr.submit_activity_file(cur_auth(), aid, act, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
+                else:
+                    cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
                 n += 1
             except cr.Denied as e:
                 st.error(f"{f.name}: {e}")
@@ -3350,19 +3353,19 @@ def student_activities_ui(a):
         linked = cr.activity_files(a["id"], x["n"])
         if linked and not lock:
             file_rows_ui([m for m in atts if m["id"] in linked], f"saf_{a['id']}_{x['n']}")
+        if x["auto"] == cr.AUTO_FILE and not lock:
+            with st.expander(tx("📤 Nộp bài làm cho hoạt động này"), expanded=c["st"] in ("chua", "lai")):
+                try:
+                    mine = cr.activity_submission_files(au, a["id"], x["n"])
+                except (OSError, cr.Denied) as e:
+                    mine = []
+                    st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
+                if mine:
+                    st.caption(tx("Đã nộp (giáo viên sẽ chấm): ") + ", ".join(m["name"] for m in mine))
+                upload_ui(a["id"], cr.SUBF, f"suf_{a['id']}_{x['n']}", tx("Chọn tệp bài làm (Word, PDF, ảnh…)"), True, act=x["n"])
         if x["auto"] == cr.AUTO_QUIZ and not lock:
             with st.expander(tx("📝 Làm bài trắc nghiệm"), expanded=c["st"] in ("chua", "lai")):
                 student_quiz_ui(a, x)
-        if x["auto"] == cr.AUTO_FILE and not lock:
-            try:
-                mine_f = [m for m in cr.list_files(au, a["id"], kind=cr.SUBF)
-                          if m["name"].startswith(f"[HĐ{x['n']}] ") or not m["name"].startswith("[HĐ")]
-            except OSError:
-                mine_f = []
-            with st.expander(tx(f"📤 Nộp bài cho hoạt động {x['n']}", f"📤 Submit for activity {x['n']}"), expanded=not mine_f or c["st"] == "lai"):
-                if mine_f:
-                    file_rows_ui(mine_f, f"smf_{a['id']}_{x['n']}", can_delete=True)
-                upload_ui(a["id"], cr.SUBF, f"suf_{a['id']}_{x['n']}", tx("Chọn tệp bài làm (ảnh, PDF, Word…)", "Choose your file (photo, PDF, Word…)"), True, act=x["n"])
         if x["auto"] == cr.AUTO_NONE:
             new = c2.toggle(tx("Đã xong", "Done"), value=c["st"] == "xong", key=f"act_{a['id']}_{x['n']}", disabled=lock)
             if new != (c["st"] == "xong"):
@@ -3372,7 +3375,7 @@ def student_activities_ui(a):
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         else:
-            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx("Làm bài ngay bên dưới" if x["auto"] == cr.AUTO_QUIZ else "Nộp tệp ngay bên dưới" if x["auto"] == cr.AUTO_FILE else "Làm ở phiếu bên dưới", "Use the sheet/upload below"))
+            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx({cr.AUTO_QUIZ: "Làm bài ngay bên dưới", cr.AUTO_FILE: "Nộp bài ngay bên dưới"}.get(x["auto"], "Làm phiếu trả lời ở phần dưới trang"), "Use the section below"))
         blocked = blocked or (x["req"] and c["st"] != "xong")
     student_ai_help(a, acts, cells)
     recs = cr.recommend(acts, cells, seq)
@@ -3417,6 +3420,10 @@ def teacher_activity_progress_ui(a, stu):
             pend = [r["key"] for r in rows if (states.get(hs.slug(r["key"]), {}).get(x["n"]) or {}).get("st") in ("cho", "xong", "lai")]
             who = st.selectbox(tx("Học sinh đã nộp"), pend, format_func=name, key=f"gr_s_{a['id']}") if pend else None
             if who:
+                try:
+                    file_rows_ui(cr.activity_submission_files(cur_auth(), a["id"], x["n"], who), f"gf_{a['id']}_{x['n']}_{hs.slug(who)}")
+                except (OSError, cr.Denied):
+                    pass
                 g1, g2 = st.columns(2)
                 sc = g1.number_input(tx("Điểm (%)"), 0.0, 100.0, 70.0, key=f"gr_p_{a['id']}")
                 note = g2.text_input(tx("Nhận xét"), key=f"gr_n_{a['id']}", max_chars=200)

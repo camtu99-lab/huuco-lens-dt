@@ -32,6 +32,7 @@ ATTEMPT_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "bat_dau", "nop", "giay", "d
 GRADE_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "thoi_diem", "diem_pct", "nhan_xet"]   # giáo viên chấm hoạt động nộp tệp
 QUES_H = ["id_bai", "stt", "so_cau", "cau_json"]                 # câu hỏi trắc nghiệm/trả lời ngắn của một hoạt động
 MAST_H = ["hoc_sinh", "ma_lop", "id_bai", "chu_de", "pct", "so_kq", "cap_nhat"]   # mức thành thạo đã lưu
+ASUB_H = ["id_bai", "stt", "id_tep", "hoc_sinh"]                  # tệp học sinh nộp thuộc hoạt động nào
 ALINK_H = ["id_bai", "stt", "id_tep"]                           # tệp đính kèm thuộc hoạt động nào
 CFG_H = ["id_bai", "tuan_tu"]                                                          # 1 = học tuần tự
 LEVEL_W = {"nb": 1.0, "th": 1.5, "vd": 2.0}                                            # nhận biết / thông hiểu / vận dụng
@@ -410,7 +411,7 @@ def set_assignment_minutes(auth, aid, minutes):
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0), ("activity_attempts", ATTEMPT_H, 0), ("activity_questions", QUES_H, 0), ("activity_files", ALINK_H, 0), ("knowledge_mastery", MAST_H, 2)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0), ("activity_attempts", ATTEMPT_H, 0), ("activity_subs", ASUB_H, 0), ("activity_questions", QUES_H, 0), ("activity_files", ALINK_H, 0), ("knowledge_mastery", MAST_H, 2)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
@@ -517,9 +518,9 @@ def activity_states(auth, aid, force=False):
         for x in sorted(sheet_results(auth, aid, force=force), key=lambda x: x["ts"]):
             sheet.setdefault(hs.slug(x["student"]), []).append(100 * x["score"] / x["max"] if x["max"] else 0)
     if any(a["auto"] == AUTO_FILE for a in acts):
-        for m in list_files(auth, aid, kind=SUBF, force=force):
-            tag = re.match(r"\[HĐ(\d+)\] ", m["name"])
-            files.add((hs.slug(m["student"]), int(tag.group(1)) if tag else None))   # None = tệp cũ, tính cho mọi hoạt động nộp tệp
+        subs = {(r + [""] * 4)[2]: int(r[1]) for r in hs.tbl_read("activity_subs", ASUB_H, force=force) if (r + [""] * 4)[0] == aid and r[1].isdigit()}
+        first = next(x["n"] for x in acts if x["auto"] == AUTO_FILE)      # tệp nộp từ trước (chưa gắn hoạt động) tính cho hoạt động nộp tệp đầu tiên
+        files = {(hs.slug(m["student"]), subs.get(m["id"], first)) for m in list_files(auth, aid, kind=SUBF, force=force)}
     quiz = {}
     if any(a["auto"] == AUTO_QUIZ for a in acts):
         for r in hs.tbl_read("activity_attempts", ATTEMPT_H, force=force):
@@ -540,7 +541,7 @@ def activity_states(auth, aid, force=False):
             elif a["auto"] == AUTO_QUIZ and quiz.get((k, n)):
                 sc = quiz[(k, n)]
                 cell.update(pct=max(sc), tries=len(sc), st="xong" if max(sc) >= a["pass_pct"] else "lai")
-            elif a["auto"] == AUTO_FILE and ((k, n) in files or (k, None) in files):
+            elif a["auto"] == AUTO_FILE and (k, n) in files:
                 g = grades.get((k, n))
                 cell.update(pct=g, tries=1, st="cho" if g is None else "xong" if g >= a["pass_pct"] else "lai")
             out[k][n] = cell
@@ -674,7 +675,7 @@ def _can_see(auth, m):
     return m["kind"] == ATT or hs.slug(m["student"]) == hs.slug(auth["key"])
 
 
-def add_file(auth, aid, kind, name, mime, data, now, act=None):
+def add_file(auth, aid, kind, name, mime, data, now):
     """Giáo viên đính kèm đề (kind=att) hoặc học sinh nộp bài làm (kind=sub). Trả về id tệp."""
     if kind == ATT:
         _need_teacher(auth)
@@ -702,8 +703,6 @@ def add_file(auth, aid, kind, name, mime, data, now, act=None):
         raise Denied(f"Tệp quá lớn (tối đa {size_limit(name) // 1_000_000 if ext_of(name) in IMG_EXT else MAX_FILE // 1000} {'MB' if ext_of(name) in IMG_EXT else 'KB'}).")
     if ext_of(name) in IMG_EXT and len(data) > MAX_FILE // 2:
         name, data, mime = shrink_image(name, data)
-    if kind == SUBF and act:
-        name = f"[HĐ{int(act)}] " + name      # gắn tệp nộp với hoạt động cụ thể
     fid = secrets.token_hex(5)
     b64 = base64.b64encode(data).decode("ascii")
     chunks = [[fid, i, b64[o:o + CHUNK]] for i, o in enumerate(range(0, len(b64), CHUNK))]
@@ -1864,3 +1863,23 @@ def set_activity_files(auth, aid, n, ids):
 
 def activity_files(aid, n):
     return {(r + ["", "", ""])[2] for r in hs.tbl_read("activity_files", ALINK_H) if (r + [""])[0] == aid and (r + ["", ""])[1] == str(n)}
+
+
+def submit_activity_file(auth, aid, n, name, mime, data, now):
+    """Học sinh nộp tệp cho đúng một hoạt động (loại nộp tệp). Trả về id tệp."""
+    act = next((x for x in activities(auth, aid) if x["n"] == n and x["auto"] == AUTO_FILE), None)
+    if not is_student(auth) or not act:
+        raise Denied("Hoạt động này không nhận tệp nộp.")
+    fid = add_file(auth, aid, SUBF, name, mime, data, now)
+    hs.tbl_append("activity_subs", ASUB_H, [aid, n, fid, auth["key"]])
+    return fid
+
+
+def activity_submission_files(auth, aid, n, student=None):
+    """Các tệp đã nộp cho hoạt động n. Học sinh chỉ thấy của mình; giáo viên lọc theo học sinh (hoặc tất cả)."""
+    acts = activities(auth, aid)
+    subs = {(r + [""] * 4)[2]: int(r[1]) for r in hs.tbl_read("activity_subs", ASUB_H) if (r + [""] * 4)[0] == aid and r[1].isdigit()}
+    first = next((x["n"] for x in acts if x["auto"] == AUTO_FILE), None)
+    if is_student(auth):
+        student = auth["key"]
+    return [m for m in list_files(auth, aid, kind=SUBF) if subs.get(m["id"], first) == n and (not student or hs.slug(m["student"]) == hs.slug(student))]
