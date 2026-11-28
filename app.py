@@ -41,6 +41,13 @@ APP_NAME = st.secrets.get("APP_NAME", "MolSnap")
 APP_ICON = st.secrets.get("APP_ICON", "🧪")
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="auto")
+_NEED_CR = ["activity_submission_files", "submit_activity_file", "submit_quiz", "set_questions", "activity_states", "is_sequential", "grade_activity", "attempts", "reset_attempts",
+            "set_activity_files", "refresh_mastery", "parse_ai_activities", "AUTO_QUIZ"]
+_missing = [n for n in _NEED_CR if not hasattr(cr, n)]
+if _missing:      # app.py và classroom.py phải cùng một bản: báo rõ thay vì để app sập khó hiểu
+    st.error("Hai tệp của app đang lệch phiên bản: **classroom.py** trên máy chủ còn là bản cũ (thiếu: " + ", ".join(_missing[:3]) + "…). "
+             "Hãy thay cả ba tệp **app.py**, **classroom.py**, **history_store.py** bằng bản trong file ZIP mới nhất rồi Reboot app.")
+    st.stop()
 
 # Kiểm tra đủ file cùng một phiên bản (hay quên chép lại history_store.py / classroom.py / i18n.py khi cập nhật).
 _OLD = [n for n, ok in (("classroom.py", all(hasattr(cr, x) for x in ("make_auth", "is_student", "register", "profile", "read_history"))),
