@@ -3473,14 +3473,31 @@ def teacher_activity_progress_ui(a, stu):
     st.download_button(tx("⬇️ Xuất báo cáo (CSV, mở bằng Excel)"), buf.getvalue().encode("utf-8-sig"), file_name=f"tien_do_{a['id']}.csv", mime="text/csv", key=f"act_dl_{a['id']}")
 
 
+def _assignment_activities(a):
+    try:
+        return cr.activities(cur_auth(), a["id"])
+    except (OSError, cr.Denied):
+        return []
+
+
 def student_files_ui(a):
-    """Tệp giáo viên đính kèm (tải về) và khu nộp tệp bài làm của học sinh."""
+    """Tệp giáo viên đính kèm, phiếu trả lời và khu nộp tệp. Bài đã chia hoạt động thì các phần này nằm trong thẻ hoạt động, không lặp lại ở dưới."""
     au = cur_auth()
     try:
         atts = cr.list_files(au, a["id"], kind=cr.ATT)
         mine = cr.list_files(au, a["id"], kind=cr.SUBF)
     except OSError:
         st.error(hs.last_error)
+        return
+    acts = _assignment_activities(a)
+    if acts:
+        linked = {i for x in acts for i in cr.activity_files(a["id"], x["n"])}
+        rest = [m for m in atts if m["id"] not in linked]          # tệp chưa gắn hoạt động nào: thu gọn, không chiếm chỗ
+        if rest:
+            with st.expander(tx("📎 Tài liệu chung của bài", "📎 Shared files"), expanded=False):
+                file_rows_ui(rest, f"sa_{a['id']}")
+        if any(x["auto"] == cr.AUTO_SHEET for x in acts):          # chỉ hiện phiếu khi có hoạt động làm phiếu
+            answer_sheet_ui(a, atts)
         return
     if atts:
         st.markdown("#### " + tx("📎 Tài liệu của giáo viên", "📎 Teacher's files"))
@@ -3526,7 +3543,8 @@ def practice_assign_ui(cat=None):
     student_activities_ui(a)
     student_files_ui(a)
     if not a["questions"]:
-        st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
+        if not _assignment_activities(a):
+            st.info(tx("Bài này không có câu luyện tập từng chất. Hãy xem đề, làm phiếu trả lời và nộp tệp bài làm ở trên (nếu có).", "No per-compound practice here. Use the files, answer sheet and file upload above."))
         return
     try:
         prog = cr.progress(a, cr.submissions(au, aid=a["id"])).get(me, {})
