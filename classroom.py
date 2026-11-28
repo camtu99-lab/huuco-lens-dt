@@ -33,6 +33,7 @@ GRADE_H = ["id_bai", "stt", "ma_lop", "hoc_sinh", "thoi_diem", "diem_pct", "nhan
 QUES_H = ["id_bai", "stt", "so_cau", "cau_json"]                 # câu hỏi trắc nghiệm/trả lời ngắn của một hoạt động
 MAST_H = ["hoc_sinh", "ma_lop", "id_bai", "chu_de", "pct", "so_kq", "cap_nhat"]   # mức thành thạo đã lưu
 ASUB_H = ["id_bai", "stt", "id_tep", "hoc_sinh"]                  # tệp học sinh nộp thuộc hoạt động nào
+REVIEW_H = ["id_bai", "stt", "hoc_sinh", "id_tep", "thoi_diem", "diem_de_xuat", "json"]   # nhận xét/chấm lỗi sai sơ bộ của AI cho tệp nộp
 ALINK_H = ["id_bai", "stt", "id_tep"]                           # tệp đính kèm thuộc hoạt động nào
 CFG_H = ["id_bai", "tuan_tu"]                                                          # 1 = học tuần tự
 LEVEL_W = {"nb": 1.0, "th": 1.5, "vd": 2.0}                                            # nhận biết / thông hiểu / vận dụng
@@ -411,7 +412,7 @@ def set_assignment_minutes(auth, aid, minutes):
 def delete_assignment(auth, aid):
     _need_teacher(auth)
     _purge_files(lambda r: r[1] == aid)
-    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0), ("activity_attempts", ATTEMPT_H, 0), ("activity_subs", ASUB_H, 0), ("activity_questions", QUES_H, 0), ("activity_files", ALINK_H, 0), ("knowledge_mastery", MAST_H, 2)):
+    for name, head, col in (("assignments", ASG_H, 0), ("submissions", SUB_H, 0), ("sheets", SHEET_H, 0), ("sheetsubs", SSUB_H, 0), ("starts", STARTS_H, 0), ("activities", ACT_H, 0), ("activity_done", ADONE_H, 0), ("activity_grades", GRADE_H, 0), ("lesson_cfg", CFG_H, 0), ("activity_attempts", ATTEMPT_H, 0), ("activity_subs", ASUB_H, 0), ("activity_reviews", REVIEW_H, 0), ("activity_questions", QUES_H, 0), ("activity_files", ALINK_H, 0), ("knowledge_mastery", MAST_H, 2)):
         rows = hs.tbl_read(name, head, force=True)
         keep = [r for r in rows if (r + [""])[col] != aid]
         if len(keep) != len(rows):
@@ -1883,3 +1884,57 @@ def activity_submission_files(auth, aid, n, student=None):
     if is_student(auth):
         student = auth["key"]
     return [m for m in list_files(auth, aid, kind=SUBF) if subs.get(m["id"], first) == n and (not student or hs.slug(m["student"]) == hs.slug(student))]
+
+
+# ---------------- AI chấm lỗi sai cho bài nộp tệp (bản nháp, giáo viên quyết định điểm) ----------------
+def review_prompt(act):
+    return ("Bạn là giáo viên Hóa học phổ thông, chấm bài làm của học sinh và chỉ ra LỖI SAI. Hoạt động: \"%s\" (loại: %s; chủ đề: %s; mức: %s). Mục tiêu: %s. Yêu cầu của hoạt động: %s. "
+            "Ngưỡng đạt: %d%%. Hãy đọc bài làm đính kèm và trả về DUY NHẤT một JSON: "
+            '{"diem_de_xuat": số 0-100, "tong_quan": "nhận xét 1-3 câu", "loi_sai": [{"vi_tri": "vị trí/câu/đoạn bị sai", "loi": "lỗi gì", "giai_thich": "vì sao sai, đáp án đúng nên là gì", '
+            '"goi_y_sua": "cách sửa", "muc_do": "nhe | vua | nang"}], "diem_tot": ["ý làm tốt"], "can_giao_vien_kiem_tra": ["nội dung AI không chắc chắn"]}. '
+            "Chỉ nhận xét dựa trên nội dung bài; không bịa. Nếu không chắc về kiến thức Hóa học (công thức, phương trình, điều kiện phản ứng) thì ghi vào can_giao_vien_kiem_tra thay vì kết luận sai. "
+            "Nếu bài trống/không đọc được thì loi_sai rỗng và nói rõ trong tong_quan." % (act["name"], act["type"] or "khác", act["topic"] or "chưa ghi", {"nb": "nhận biết", "th": "thông hiểu", "vd": "vận dụng"}[act["level"]],
+                                                                                        act["goal"] or "chưa ghi", act["desc"] or "chưa ghi", int(act["pass_pct"])))
+
+
+def clean_review(raw):
+    """Làm sạch JSON của AI: giới hạn số lượng, độ dài và giá trị."""
+    if not isinstance(raw, dict):
+        raise ValueError("AI trả về không đúng định dạng.")
+    s = lambda x, n: str(x or "").strip()[:n]
+    errs = [{"vi_tri": s(e.get("vi_tri"), 120), "loi": s(e.get("loi"), 240), "giai_thich": s(e.get("giai_thich"), 400), "goi_y_sua": s(e.get("goi_y_sua"), 300),
+             "muc_do": e.get("muc_do") if e.get("muc_do") in ("nhe", "vua", "nang") else "vua"} for e in (raw.get("loi_sai") or [])[:15] if isinstance(e, dict) and (e.get("loi") or e.get("giai_thich"))]
+    return {"diem": max(0.0, min(_f(raw.get("diem_de_xuat"), 0), 100)), "tong_quan": s(raw.get("tong_quan"), 500), "loi_sai": errs,
+            "diem_tot": [s(x, 200) for x in (raw.get("diem_tot") or [])[:6]], "kiem_tra": [s(x, 200) for x in (raw.get("can_giao_vien_kiem_tra") or [])[:6]]}
+
+
+def save_review(auth, aid, n, fid, review, now, student=None):
+    """Lưu kết quả AI cho một tệp nộp. Học sinh chỉ lưu cho tệp của mình; giáo viên lưu cho học sinh bất kỳ. Ghi đè nếu tệp đã có nhận xét."""
+    if is_student(auth):
+        student = auth["key"]
+    elif not is_teacher(auth) or not student:
+        raise Denied("Cần đăng nhập.")
+    r = clean_review(review)
+    keep = [x for x in hs.tbl_read("activity_reviews", REVIEW_H, force=True) if not ((x + [""] * 4)[0] == aid and x[3] == fid)]
+    hs.tbl_write("activity_reviews", REVIEW_H, keep + [[aid, n, student, fid, now, r["diem"], json.dumps(r, ensure_ascii=False)]])
+    return r
+
+
+def reviews(auth, aid, n, student=None):
+    """Nhận xét AI của hoạt động n (mới nhất trước). Học sinh chỉ thấy của mình và KHÔNG nhận điểm đề xuất."""
+    out = []
+    for x in hs.tbl_read("activity_reviews", REVIEW_H):
+        x = x + [""] * (7 - len(x))
+        if x[0] != aid or x[1] != str(n):
+            continue
+        if is_student(auth):
+            if hs.slug(x[2]) != hs.slug(auth["key"]):
+                continue
+        elif not is_teacher(auth) or (student and hs.slug(x[2]) != hs.slug(student)):
+            continue
+        try:
+            d = json.loads(x[6])
+        except ValueError:
+            continue
+        out.append({"student": x[2], "fid": x[3], "ts": x[4], **({} if is_student(auth) else {"diem": _f(x[5], 0)}), **{k: v for k, v in d.items() if k != "diem"}})
+    return sorted(out, key=lambda r: r["ts"], reverse=True)

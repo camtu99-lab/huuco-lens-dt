@@ -42,7 +42,7 @@ APP_ICON = st.secrets.get("APP_ICON", "🧪")
 
 st.set_page_config(page_title=APP_NAME, page_icon=APP_ICON, layout="wide", initial_sidebar_state="auto")
 _NEED_CR = ["activity_submission_files", "submit_activity_file", "submit_quiz", "set_questions", "activity_states", "is_sequential", "grade_activity", "attempts", "reset_attempts",
-            "set_activity_files", "refresh_mastery", "parse_ai_activities", "AUTO_QUIZ"]
+            "set_activity_files", "refresh_mastery", "parse_ai_activities", "AUTO_QUIZ", "save_review", "reviews", "review_prompt"]
 _missing = [n for n in _NEED_CR if not hasattr(cr, n)]
 if _missing:      # app.py và classroom.py phải cùng một bản: báo rõ thay vì để app sập khó hiểu
     st.error("Hai tệp của app đang lệch phiên bản: **classroom.py** trên máy chủ còn là bản cũ (thiếu: " + ", ".join(_missing[:3]) + "…). "
@@ -2732,6 +2732,57 @@ def file_rows_ui(files, prefix, can_delete=False, show_student=False):
             preview_ui(m, st.session_state[ck])
 
 
+def ai_review_file(act, name, data, mime=""):
+    """Gemini đọc bài làm (Word/PDF/txt/ảnh) và chỉ ra lỗi sai. Chỉ là nhận xét sơ bộ; điểm chính thức do giáo viên chấm."""
+    e = cr.ext_of(name)
+    prompt = cr.review_prompt(act)
+    if e in ("docx", "txt", "pdf"):
+        text = cr.docx_text(data) if e == "docx" else cr.pdf_text(data) if e == "pdf" else data.decode("utf-8", "ignore")
+        if text and len(text.strip()) > (200 if e == "pdf" else 0):
+            contents = [prompt + "\n\nBÀI LÀM:\n" + text[:14000]]
+        elif e == "pdf":
+            contents = [prompt, types.Part.from_bytes(data=data, mime_type="application/pdf")]      # PDF ảnh quét: để AI đọc trực tiếp
+        else:
+            raise ValueError("Bài làm không có nội dung chữ để chấm.")
+    elif e in cr.IMG_EXT:
+        contents = [prompt, types.Part.from_bytes(data=data, mime_type=mime or ("image/png" if e == "png" else "image/jpeg"))]
+    else:
+        raise ValueError("Định dạng này AI chưa đọc được (dùng Word, PDF, txt, png, jpg).")
+    return cr.clean_review(_gemini_json(contents))
+
+
+def ai_review_after_submit(aid, n, fid, name, data, mime):
+    """Chạy ngay sau khi học sinh nộp tệp. Lỗi AI không làm hỏng việc nộp bài."""
+    act = next((x for x in cr.activities(cur_auth(), aid) if x["n"] == n), None)
+    if not act or st.session_state.get("_ai_reviews", 0) >= 8:
+        return
+    st.session_state["_ai_reviews"] = st.session_state.get("_ai_reviews", 0) + 1
+    with st.spinner(tx("AI đang đọc bài và tìm lỗi sai…")):
+        try:
+            cr.save_review(cur_auth(), aid, n, fid, ai_review_file(act, name, data, mime), _now().strftime("%Y-%m-%d %H:%M"))
+        except (ValueError, OSError, cr.Denied):
+            pass
+
+
+def ai_review_ui(items, teacher=False):
+    """Hiển thị lỗi sai AI phát hiện. Học sinh: tham khảo, chưa phải điểm. Giáo viên: kèm điểm đề xuất."""
+    sev = {"nhe": "🟡", "vua": "🟠", "nang": "🔴"}
+    for r in items[:1]:
+        st.markdown("**" + tx("🔍 Nhận xét sơ bộ của AI") + "**" + (f" · {tx('điểm đề xuất')} {r['diem']:.0f}%" if teacher else ""))
+        st.caption(tx("Do AI tạo, có thể chưa chính xác. Điểm chính thức do giáo viên chấm."))
+        if r.get("tong_quan"):
+            st.write(r["tong_quan"])
+        if not r["loi_sai"]:
+            st.success(tx("AI không phát hiện lỗi sai rõ ràng."))
+        for e in r["loi_sai"]:
+            st.markdown(f"{sev[e['muc_do']]} **{e['vi_tri'] or tx('Lỗi')}**: {e['loi']}" + (f"  \n<span style='opacity:.8'>↳ {html.escape(e['giai_thich'])}</span>" if e["giai_thich"] else "")
+                        + (f"  \n<span style='opacity:.8'>✏️ {html.escape(e['goi_y_sua'])}</span>" if e["goi_y_sua"] else ""), unsafe_allow_html=True)
+        for t in r.get("diem_tot", []):
+            st.markdown("🟢 " + t)
+        if r.get("kiem_tra"):
+            st.info(tx("Cần giáo viên kiểm tra: ") + "; ".join(r["kiem_tra"]))
+
+
 def upload_ui(aid, kind, key, label, multiple, act=None):
     """Chọn tệp và bấm nút để lưu. Trả về số tệp đã lưu (0 nếu chưa có)."""
     exts = sorted(cr.ALLOWED_EXT)
@@ -2739,13 +2790,16 @@ def upload_ui(aid, kind, key, label, multiple, act=None):
                            help=tx(f"Tối đa {cr.MAX_FILE // 1000} KB mỗi tệp (ảnh png/jpg tới {cr.MAX_IMG_RAW // 1_000_000} MB sẽ tự nén). Định dạng: " + ", ".join(exts),
                                    f"Up to {cr.MAX_FILE // 1000} KB per file (png/jpg photos up to {cr.MAX_IMG_RAW // 1_000_000} MB are auto-compressed). Formats: " + ", ".join(exts)))
     if not ups:
+        if act:
+            st.button(tx("📨 Nộp bài (hãy chọn tệp ở trên trước)"), key=f"{key}_go0", disabled=True, width="stretch")
         return 0
-    if st.button(tx("📤 Tải lên", "📤 Upload"), key=f"{key}_go", type="primary"):
+    if st.button(tx("📨 Nộp bài", "📤 Upload") if act else tx("📤 Tải lên", "📤 Upload"), key=f"{key}_go", type="primary", width="stretch" if act else "content"):
         n = 0
         for f in ups[:cr.MAX_ATT]:
             try:
                 if act:
-                    cr.submit_activity_file(cur_auth(), aid, act, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
+                    fid_ = cr.submit_activity_file(cur_auth(), aid, act, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
+                    ai_review_after_submit(aid, act, fid_, f.name, f.getvalue(), f.type)
                 else:
                     cr.add_file(cur_auth(), aid, kind, f.name, f.type, f.getvalue(), _now().strftime("%Y-%m-%d %H:%M"))
                 n += 1
@@ -3183,6 +3237,11 @@ def student_quiz_ui(a, x):
     if not qs:
         st.caption(tx("Giáo viên chưa thêm câu hỏi cho hoạt động này."))
         return
+    res = st.session_state.get(k + "_res")
+    if res:
+        st.success(tx(f"✅ Đã nộp bài · điểm {res['pct']}% · " + " ".join(f"câu {i + 1}{'✅' if ok else '❌'}" for i, ok in enumerate(res["right"]))))
+    else:
+        st.markdown(tx("**Cách làm:** chọn đáp án cho tất cả các câu, rồi bấm nút **📨 Nộp bài** ở cuối phần này."))
     ans = []
     for i, q in enumerate(qs):
         if q["options"]:
@@ -3190,15 +3249,13 @@ def student_quiz_ui(a, x):
             ans.append((v or "")[:1])
         else:
             ans.append(st.text_input(f"{i + 1}. {q['q']}", key=f"{k}_{i}", max_chars=60))
-    if st.button(tx("Nộp bài"), key=f"{k}_go", type="primary"):
+    got = sum(1 for v in ans if v)
+    if st.button(tx(f"📨 Nộp bài ({got}/{len(qs)} câu đã trả lời)"), key=f"{k}_go", type="primary", width="stretch"):
         try:
             st.session_state[k + "_res"] = cr.submit_quiz(au, a["id"], x["n"], ans, _now().strftime("%Y-%m-%d %H:%M"))
             st.rerun()
         except (OSError, cr.Denied) as e:
             st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
-    res = st.session_state.get(k + "_res")
-    if res:
-        st.info(tx(f"Lần nộp vừa rồi: {res['pct']}% · " + " ".join(f"{i + 1}{'✅' if ok else '❌'}" for i, ok in enumerate(res["right"]))))
 
 
 def quiz_editor_ui(a, x):
@@ -3361,7 +3418,7 @@ def student_activities_ui(a):
         if linked and not lock:
             file_rows_ui([m for m in atts if m["id"] in linked], f"saf_{a['id']}_{x['n']}")
         if x["auto"] == cr.AUTO_FILE and not lock:
-            with st.expander(tx("📤 Nộp bài làm cho hoạt động này"), expanded=c["st"] in ("chua", "lai")):
+            with st.expander(tx("📤 Nộp bài làm cho hoạt động này (chọn tệp rồi bấm Nộp bài)"), expanded=c["st"] in ("chua", "lai")):
                 try:
                     mine = cr.activity_submission_files(au, a["id"], x["n"])
                 except (OSError, cr.Denied) as e:
@@ -3369,9 +3426,13 @@ def student_activities_ui(a):
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
                 if mine:
                     st.caption(tx("Đã nộp (giáo viên sẽ chấm): ") + ", ".join(m["name"] for m in mine))
+                    try:
+                        ai_review_ui(cr.reviews(au, a["id"], x["n"]))
+                    except (OSError, cr.Denied):
+                        pass
                 upload_ui(a["id"], cr.SUBF, f"suf_{a['id']}_{x['n']}", tx("Chọn tệp bài làm (Word, PDF, ảnh…)"), True, act=x["n"])
         if x["auto"] == cr.AUTO_QUIZ and not lock:
-            with st.expander(tx("📝 Làm bài trắc nghiệm"), expanded=c["st"] in ("chua", "lai")):
+            with st.expander(tx("📝 Làm bài trắc nghiệm và bấm Nộp bài"), expanded=c["st"] in ("chua", "lai")):
                 student_quiz_ui(a, x)
         if x["auto"] == cr.AUTO_NONE:
             new = c2.toggle(tx("Đã xong", "Done"), value=c["st"] == "xong", key=f"act_{a['id']}_{x['n']}", disabled=lock)
@@ -3382,7 +3443,8 @@ def student_activities_ui(a):
                 except (OSError, cr.Denied) as e:
                     st.error(str(e) if isinstance(e, cr.Denied) else hs.last_error)
         else:
-            c2.caption("🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx({cr.AUTO_QUIZ: "Làm bài ngay bên dưới", cr.AUTO_FILE: "Nộp bài ngay bên dưới"}.get(x["auto"], "Làm phiếu trả lời ở phần dưới trang"), "Use the section below"))
+            msg = "🔒 " + tx("làm sau hoạt động trước", "finish the previous one") if lock else tx({cr.AUTO_QUIZ: "⬇️ Làm và nộp bài ngay bên dưới", cr.AUTO_FILE: "⬇️ Nộp bài ngay bên dưới"}.get(x["auto"], "⬇️ Làm phiếu trả lời ở phần dưới trang"), "Use the section below")
+            c2.markdown(f"<span style='color:#7fe3ea;font-size:.9rem;font-weight:600'>{msg}</span>", unsafe_allow_html=True)
         blocked = blocked or (x["req"] and c["st"] != "xong")
     student_ai_help(a, acts, cells)
     recs = cr.recommend(acts, cells, seq)
@@ -3431,8 +3493,22 @@ def teacher_activity_progress_ui(a, stu):
                     file_rows_ui(cr.activity_submission_files(cur_auth(), a["id"], x["n"], who), f"gf_{a['id']}_{x['n']}_{hs.slug(who)}")
                 except (OSError, cr.Denied):
                     pass
+                rv = []
+                try:
+                    rv = cr.reviews(cur_auth(), a["id"], x["n"], who)
+                    if rv:
+                        ai_review_ui(rv, teacher=True)
+                    elif st.button(tx("🤖 AI chấm lỗi sai bài này"), key=f"gr_ai_{a['id']}_{x['n']}_{hs.slug(who)}"):
+                        fl = cr.activity_submission_files(cur_auth(), a["id"], x["n"], who)
+                        if fl:
+                            with st.spinner(tx("AI đang đọc bài…")):
+                                m_, d_ = cr.read_file(cur_auth(), fl[-1]["id"])
+                                cr.save_review(cur_auth(), a["id"], x["n"], fl[-1]["id"], ai_review_file(x, m_["name"], d_, m_.get("mime", "")), _now().strftime("%Y-%m-%d %H:%M"), student=who)
+                            st.rerun()
+                except (ValueError, OSError, cr.Denied) as e:
+                    st.error(str(e) if not isinstance(e, OSError) else hs.last_error)
                 g1, g2 = st.columns(2)
-                sc = g1.number_input(tx("Điểm (%)"), 0.0, 100.0, 70.0, key=f"gr_p_{a['id']}")
+                sc = g1.number_input(tx("Điểm (%)"), 0.0, 100.0, float(round(rv[0]["diem"])) if rv else 70.0, key=f"gr_p_{a['id']}_{hs.slug(who)}_{rv[0]['ts'] if rv else ''}")
                 note = g2.text_input(tx("Nhận xét"), key=f"gr_n_{a['id']}", max_chars=200)
                 if st.button(tx("💾 Lưu điểm"), key=f"gr_go_{a['id']}", type="primary"):
                     try:
