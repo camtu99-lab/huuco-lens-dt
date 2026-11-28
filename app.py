@@ -7927,6 +7927,11 @@ DARK_CSS = """
 .block-container [data-testid="stTabs"] button p{color:#a1cde4}
 .block-container [data-testid="stTabs"] button[aria-selected="true"] p{color:#fff}
 .block-container [data-testid="stMetricValue"],.block-container [data-testid="stMetricLabel"] *{color:#fff}
+.block-container [data-testid="stMetricDelta"]{background:rgba(255,255,255,.08)!important;color:#b9d3df!important;border-radius:.6rem;padding:.1rem .5rem}
+.block-container [data-testid="stMetricDelta"] *{color:#b9d3df!important;fill:#b9d3df!important}
+.block-container [data-testid="stProgress"] [role="progressbar"]{background:rgba(255,255,255,.14)!important;border-radius:99px}
+.block-container [data-testid="stProgress"] [role="progressbar"]>div{background:linear-gradient(90deg,#05d1d0,#2bb7e8)!important;border-radius:99px}
+.block-container [data-testid="stProgress"] p,.block-container [data-testid="stProgress"] span{color:#d5e9f3!important}
 .block-container [data-testid="stAlert"]{background:rgba(5,195,199,.14);border:1px solid rgba(5,209,208,.35);border-radius:1rem}
 .block-container [data-testid="stAlert"] *{color:#e1eff6}
 .block-container [data-testid="stDataFrame"]{filter:invert(.92) hue-rotate(180deg);border-radius:.8rem}
